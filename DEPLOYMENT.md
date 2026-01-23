@@ -1,18 +1,56 @@
 # 🚀 Deployment Guide
 
-This guide covers deploying IELTS Band AI to various free hosting platforms.
+This guide covers deploying IELTS Band AI to **Render** (Recommended) and other platforms.
 
 ## Table of Contents
 
-- [Railway (Recommended)](#railway-recommended)
-- [Render](#render)
+- [Render Deployment](#render-deployment)
+- [Railway](#railway)
 - [Environment Variables](#environment-variables)
 - [Post-Deployment](#post-deployment)
 - [Troubleshooting](#troubleshooting)
 
 ---
 
-## Railway (Recommended)
+## Render Deployment
+
+We use a `render.yaml` file to automate deployment.
+
+### Prerequisites
+
+- GitHub account
+- Render account ([render.com](https://render.com))
+
+### Steps
+
+1. **Create Render Account**
+   - Sign up at [render.com](https://render.com)
+   - Connect your GitHub account
+
+2. **Create New Blueprint Instance**
+   - Click "New +" → "Blueprint"
+   - Connect your `ieltsbandai` repository
+   - Render will automatically detect `render.yaml`
+
+3. **Configure Resources**
+   - **Service Name**: `ieltsbandai`
+   - **Database Name**: `ieltsbandai-db`
+   - Click "Apply" to start deployment
+
+4. **Environment Variables**
+   - You will be prompted to enter environment variables
+   - See [Environment Variables](#environment-variables) section below for values
+
+5. **Wait for Deployment**
+   - Render will build your app and provision a PostgreSQL database
+   - This may take 5-10 minutes
+
+6. **Finalize Setup**
+   - Once deployed, your app will be live at `https://ieltsbandai.onrender.com`
+
+---
+
+## Railway
 
 Railway offers the easiest deployment experience with a generous free tier.
 
@@ -58,52 +96,6 @@ Railway offers the easiest deployment experience with a generous free tier.
    - Click "Settings" → "Generate Domain"
    - Your app will be available at `https://your-app.up.railway.app`
 
-### Railway Configuration Files
-
-The repository includes:
-- `Procfile` - Defines the web process
-- `railway.json` - Build and deploy configuration
-- `nixpacks.toml` - PHP and Node.js versions
-
----
-
-## Render
-
-Render is another excellent free hosting option.
-
-### Steps
-
-1. **Create Render Account**
-   - Sign up at [render.com](https://render.com)
-
-2. **Create Web Service**
-   - Click "New +" → "Web Service"
-   - Connect your GitHub repository
-
-3. **Configure Service**
-   - **Name**: `ieltsbandai`
-   - **Environment**: `Docker` or `Native`
-   - **Build Command**:
-     ```bash
-     composer install --no-dev --optimize-autoloader && npm install && npm run build
-     ```
-   - **Start Command**:
-     ```bash
-     php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT
-     ```
-
-4. **Add PostgreSQL Database** (Free tier)
-   - Click "New +" → "PostgreSQL"
-   - Copy the internal database URL
-
-5. **Set Environment Variables**
-   - Add all variables from [Environment Variables](#environment-variables)
-   - Update `DB_CONNECTION=pgsql` for PostgreSQL
-
-6. **Deploy**
-   - Click "Create Web Service"
-   - Wait for deployment
-
 ---
 
 ## Environment Variables
@@ -122,16 +114,6 @@ APP_URL=https://your-app-url.com
 
 ### Database
 
-**For Railway MySQL:**
-```bash
-DB_CONNECTION=mysql
-DB_HOST=${MYSQL_HOST}
-DB_PORT=${MYSQL_PORT}
-DB_DATABASE=${MYSQL_DATABASE}
-DB_USERNAME=${MYSQL_USER}
-DB_PASSWORD=${MYSQL_PASSWORD}
-```
-
 **For Render PostgreSQL:**
 ```bash
 DB_CONNECTION=pgsql
@@ -140,6 +122,16 @@ DB_PORT=5432
 DB_DATABASE=your-db-name
 DB_USERNAME=your-db-user
 DB_PASSWORD=your-db-password
+```
+
+**For Railway MySQL:**
+```bash
+DB_CONNECTION=mysql
+DB_HOST=${MYSQL_HOST}
+DB_PORT=${MYSQL_PORT}
+DB_DATABASE=${MYSQL_DATABASE}
+DB_USERNAME=${MYSQL_USER}
+DB_PASSWORD=${MYSQL_PASSWORD}
 ```
 
 ### Session & Cache
@@ -211,25 +203,25 @@ Update your Google Cloud Console with the production redirect URI:
 
 ### 3. Configure Custom Domain (Optional)
 
-**Railway:**
-- Go to Settings → Domains
-- Add your custom domain
-- Update DNS records as instructed
-
 **Render:**
 - Go to Settings → Custom Domain
 - Add your domain
 - Update DNS with provided CNAME
 
-### 4. Set Up Monitoring
-
 **Railway:**
-- Built-in metrics available in dashboard
-- View logs in real-time
+- Go to Settings → Domains
+- Add your custom domain
+- Update DNS records as instructed
+
+### 4. Set Up Monitoring
 
 **Render:**
 - Check "Logs" tab for application logs
 - Set up alerts in Settings
+
+**Railway:**
+- Built-in metrics available in dashboard
+- View logs in real-time
 
 ---
 
@@ -254,7 +246,7 @@ Update your Google Cloud Console with the production redirect URI:
 - Verify database environment variables
 - Ensure database service is running
 - Check if migrations ran successfully
-- For Railway: Use internal database URL variables
+- For Render: Ensure you're using the "Internal Connection URL" if configuring manually, usually `host` is sufficient with environment variables.
 
 ### 500 Internal Server Error
 
@@ -275,6 +267,7 @@ Update your Google Cloud Console with the production redirect URI:
 - Ensure `npm run build` ran successfully
 - Check if `public/build` directory exists
 - Verify Vite configuration in `vite.config.js`
+- Render detects `package.json` and runs build automatically if scripts present.
 
 ### Google OAuth Not Working
 
@@ -299,52 +292,10 @@ Update your Google Cloud Console with the production redirect URI:
 
 ---
 
-## Performance Optimization
-
-### Enable Caching
-
-```bash
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
-```
-
-### Queue Configuration
-
-For better performance, use Redis for queues:
-
-```bash
-QUEUE_CONNECTION=redis
-REDIS_HOST=your-redis-host
-REDIS_PASSWORD=your-redis-password
-```
-
-### CDN for Assets
-
-Consider using a CDN for static assets:
-- Cloudflare (free tier)
-- AWS CloudFront
-- Vercel Edge Network
-
----
-
-## Security Checklist
-
-- [ ] `APP_DEBUG=false` in production
-- [ ] Strong `APP_KEY` generated
-- [ ] Database credentials secure
-- [ ] API keys stored as environment variables
-- [ ] HTTPS enabled (automatic on Railway/Render)
-- [ ] CORS configured properly
-- [ ] Rate limiting enabled
-- [ ] Input validation on all forms
-
----
-
 ## Need Help?
 
-- Check [Railway Docs](https://docs.railway.app)
 - Check [Render Docs](https://render.com/docs)
+- Check [Railway Docs](https://docs.railway.app)
 - Open an issue on GitHub
 - Review Laravel [Deployment Documentation](https://laravel.com/docs/deployment)
 

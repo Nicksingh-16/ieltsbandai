@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: ieltsbandai
+    env: php
+    plan: free
+    buildCommand: composer install --no-dev --optimize-autoloader && npm install && npm run build
+    startCommand: php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT
+    envVars:
+      - key: APP_NAME
+        value: IeltsBandAI
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: LOG_CHANNEL
+        value: non_locking_json
+      - key: SESSION_DRIVER
+        value: database
+      - key: CACHE_STORE
+        value: database
+databases:
+  - name: ieltsbandai-db
+    plan: free
+    databaseName: ieltsbandai
+    user: ielts_user

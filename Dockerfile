@@ -32,6 +32,9 @@ WORKDIR /var/www/html
 # Copy application files
 COPY . .
 
+# Ensure no stale cache files are included
+RUN rm -rf bootstrap/cache/*.php
+
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader
 
@@ -49,5 +52,6 @@ RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
 # Expose port
 EXPOSE 80
 
-# Start Apache
-CMD ["apache2-foreground"]
+# Start Apache with runtime checks
+# We clear config and cache right before starting to ensure Render's ENV vars are fresh
+CMD ["sh", "-c", "php artisan config:clear && php artisan cache:clear && php artisan migrate --force && apache2-foreground"]

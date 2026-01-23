@@ -1,10 +1,9 @@
 services:
   - type: web
     name: ieltsbandai
-    env: php
+    env: docker
     plan: free
-    buildCommand: composer install --no-dev --optimize-autoloader && npm install && npm run build
-    startCommand: php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT
+    healthCheckPath: /
     envVars:
       - key: APP_NAME
         value: IeltsBandAI
@@ -13,11 +12,18 @@ services:
       - key: APP_DEBUG
         value: false
       - key: LOG_CHANNEL
-        value: non_locking_json
+        value: stderr
       - key: SESSION_DRIVER
         value: database
       - key: CACHE_STORE
         value: database
+      - key: DB_CONNECTION
+        value: pgsql
+      - fromDatabase:
+          name: ieltsbandai-db
+          property: connectionString
+        key: DATABASE_URL
+
 databases:
   - name: ieltsbandai-db
     plan: free

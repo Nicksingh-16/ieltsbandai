@@ -21,8 +21,24 @@ services:
         value: pgsql
       - fromDatabase:
           name: ieltsbandai-db
-          property: connectionString
-        key: DATABASE_URL
+          property: host
+        key: DB_HOST
+      - fromDatabase:
+          name: ieltsbandai-db
+          property: port
+        key: DB_PORT
+      - fromDatabase:
+          name: ieltsbandai-db
+          property: database
+        key: DB_DATABASE
+      - fromDatabase:
+          name: ieltsbandai-db
+          property: user
+        key: DB_USERNAME
+      - fromDatabase:
+          name: ieltsbandai-db
+          property: password
+        key: DB_PASSWORD
 
 databases:
   - name: ieltsbandai-db

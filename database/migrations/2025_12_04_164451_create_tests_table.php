@@ -18,7 +18,7 @@ return new class extends Migration
     $table->integer('duration_seconds')->nullable();
     $table->decimal('overall_band', 3, 1)->nullable();
     $table->longText('feedback')->nullable();
-    $table->enum('status', ['completed', 'failed', 'processing'])->default('processing');
+    $table->enum('status', ['created', 'in_progress', 'processing', 'completed', 'failed'])->default('created');
     $table->timestamps();
 });
 

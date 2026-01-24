@@ -12,13 +12,13 @@ return new class extends Migration
    public function up()
     {
         Schema::table('tests', function (Blueprint $table) {
-            $table->enum('status', [
-                'created',
-                'in_progress',
-                'processing',
-                'completed',
-                'failed',
-            ])->default('created')->change();
+            // $table->enum('status', [
+            //     'created',
+            //     'in_progress',
+            //     'processing',
+            //     'completed',
+            //     'failed',
+            // ])->default('created')->change();
         });
     }
 

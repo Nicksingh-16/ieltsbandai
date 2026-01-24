@@ -115,10 +115,10 @@ Route::get('/db-test', function () {
 // Temporary Route to Run Migrations
 Route::get('/run-migrations', function () {
     try {
-        \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+        \Illuminate\Support\Facades\Artisan::call('migrate:fresh', ['--force' => true]);
         return response()->json([
             'status' => 'success',
-            'message' => 'Migrations executed successfully',
+            'message' => 'Database successfully refreshed (dropped all tables and re-ran migrations)',
             'output' => \Illuminate\Support\Facades\Artisan::output(),
         ]);
     } catch (\Exception $e) {

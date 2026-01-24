@@ -89,3 +89,25 @@ Route::get('/payment/success', [PaymentController::class, 'success'])
 
 Route::post('/payment/webhook', [PaymentController::class, 'webhook'])
     ->name('payment.webhook');
+
+// Database Connection Test Route
+Route::get('/db-test', function () {
+    try {
+        $count = \DB::table('users')->count();
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Database connection successful',
+            'user_count' => $count,
+            'database' => config('database.default'),
+            'host' => config('database.connections.pgsql.host'), // showing configured host
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => $e->getMessage(),
+            'code' => $e->getCode(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+        ], 500);
+    }
+});

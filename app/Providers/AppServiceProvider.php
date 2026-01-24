@@ -45,6 +45,8 @@ $this->app->bind(
      */
     public function boot(): void
     {
-        //
+        if (\Illuminate\Support\Facades\App::environment('production')) {
+            \Illuminate\Support\Facades\URL::forceScheme('https');
+        }
     }
 }

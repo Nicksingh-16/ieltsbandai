@@ -106,20 +106,21 @@ class WritingTestService
             $overallBand = $this->scoringService->calculateOverallBand($scoring);
 
             // Store individual scores in test_scores table
-            $criteria = [
-                'task_achievement' => $scoring['task_achievement'],
-                'coherence_cohesion' => $scoring['coherence_cohesion'],
-                'lexical_resource' => $scoring['lexical_resource'],
-                'grammar' => $scoring['grammar'],
+            $criteriaMapping = [
+                'task_achievement' => 'task_achievement',
+                'coherence_cohesion' => 'coherence_cohesion',
+                'lexical_resource' => 'lexical_resource',
+                'grammar' => 'grammatical_range_accuracy',
             ];
 
-            foreach ($criteria as $criteriaName => $bandScore) {
+            foreach ($criteriaMapping as $internalName => $dbName) {
+                $bandScore = $scoring[$internalName];
                 TestScore::create([
                     'test_id' => $test->id,
-                    'criteria' => $criteriaName,
+                    'criteria' => $dbName,
                     'band_score' => $bandScore,
-                    'comments' => is_array($scoring['examiner_comments'] ?? null)
-                        ? implode("\n", $scoring['examiner_comments'])
+                    'comments' => is_array($scoring['band_explanations'][$internalName] ?? null)
+                        ? ($scoring['band_explanations'][$internalName]['why'] ?? '')
                         : ($scoring['feedback'] ?? ''),
                 ]);
             }

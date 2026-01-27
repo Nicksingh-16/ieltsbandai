@@ -15,6 +15,15 @@ class Test extends Model
         'answer', 'score', 'result', 'metadata',
     ];
 
+    protected $casts = [
+        'started_at' => 'datetime',
+        'completed_at' => 'datetime',
+        'result' => 'array',
+        'metadata' => 'array',
+        'overall_band' => 'float',
+        'duration_seconds' => 'integer',
+    ];
+
     public function user()   { return $this->belongsTo(User::class); }
     public function testScores() { return $this->hasMany(TestScore::class); }
     public function testQuestions() { return $this->hasMany(TestQuestion::class); }

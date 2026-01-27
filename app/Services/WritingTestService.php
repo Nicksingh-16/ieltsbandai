@@ -158,7 +158,7 @@ class WritingTestService
                 'overall_band' => $overallBand,
                 'result' => json_encode($result),
                 'completed_at' => now(),
-                'duration_seconds' => now()->diffInSeconds($test->started_at),
+                'duration_seconds' => (int) abs(now()->diffInSeconds($test->started_at)),
                 'metadata' => json_encode(array_merge(
                     json_decode($test->metadata, true) ?? [],
                     [

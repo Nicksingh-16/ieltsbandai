@@ -74,7 +74,7 @@
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/ieltsbandai.git
+   git clone https://github.com/Nicksingh-16/ieltsbandai.git
    cd ieltsbandai
    ```
 

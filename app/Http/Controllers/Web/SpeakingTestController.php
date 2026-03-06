@@ -22,28 +22,37 @@ class SpeakingTestController extends Controller
 
     public function show()
     {
-        // Get 3 random speaking questions (Part 1, 2, 3)
-        $questions = $this->speakingRepo->getSpeakingQuestions();
+        try {
+            // Get 3 random speaking questions (Part 1, 2, 3)
+            $questions = $this->speakingRepo->getSpeakingQuestions();
 
-        // Get or create test (reuses incomplete test if exists)
-        $test = $this->speakingService->getOrCreateSpeakingTest(Auth::id(), $questions);
+            // Get or create test (reuses incomplete test if exists)
+            $test = $this->speakingService->getOrCreateSpeakingTest(Auth::id(), $questions);
 
-        // Deduct credit only for newly created tests
-        if ($test->wasRecentlyCreated) {
-            $creditService = app(\App\Services\CreditService::class);
-            $creditService->deductCredit(Auth::user());
-        }
-
-        // If test already exists, rebuild questions array from test questions
-        if ($test->testQuestions->isNotEmpty()) {
-            $questions = [];
-            foreach ($test->testQuestions as $testQuestion) {
-                $partKey = 'part' . $testQuestion->part;
-                $questions[$partKey] = $testQuestion->question;
+            // Deduct credit only for newly created tests
+            if ($test->wasRecentlyCreated) {
+                $creditService = app(\App\Services\CreditService::class);
+                $creditService->deductCredit(Auth::user());
             }
-        }
 
-        return view('pages.speaking.index', compact('test', 'questions'));
+            // If test already exists, rebuild questions array from test questions
+            if ($test->testQuestions->isNotEmpty()) {
+                $questions = [];
+                foreach ($test->testQuestions as $testQuestion) {
+                    $partKey = 'part' . $testQuestion->part;
+                    $questions[$partKey] = $testQuestion->question;
+                }
+            }
+
+            return view('pages.speaking.index', compact('test', 'questions'));
+        } catch (\Exception $e) {
+            Log::error('Speaking test access failed: ' . $e->getMessage(), [
+                'user_id' => Auth::id(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return redirect()->route('dashboard')->with('error', 'Unable to start speaking test: ' . $e->getMessage());
+        }
     }
 
     public function uploadAudio(Request $request)

@@ -33,8 +33,7 @@ class SpeakingRepository
         return \App\Models\Test::where('user_id', $userId)
             ->where('type', 'speaking')
             ->where('status', 'processing')
-            ->withCount('audioFiles')
-            ->having('audio_files_count', '<', 3)
+            ->has('audioFiles', '<', 3)
             ->orderBy('created_at', 'desc')
             ->first();
     }

@@ -49,9 +49,8 @@ ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
-# Expose port
-EXPOSE 80
+# Update Apache to listen on the port provided by Railway
+RUN sed -i "s/80/\${PORT}/g" /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf
 
-# Start Apache with runtime checks
-# We clear config right before starting to ensure Render's ENV vars are fresh
-CMD ["sh", "-c", "php artisan config:clear && apache2-foreground"]
+# Start Apache with runtime checks and migrations
+CMD ["sh", "-c", "php artisan migrate --force && php artisan config:clear && apache2-foreground"]

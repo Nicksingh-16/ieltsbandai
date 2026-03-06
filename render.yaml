@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: ieltsbandai
+    env: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: APP_NAME
+        value: IeltsBandAI
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: SESSION_DRIVER
+        value: database
+      - key: CACHE_STORE
+        value: database
+      - key: DB_CONNECTION
+        value: pgsql
+      - fromDatabase:
+          name: ieltsbandai-db
+          property: host
+        key: DB_HOST
+      - fromDatabase:
+          name: ieltsbandai-db
+          property: port
+        key: DB_PORT
+      - fromDatabase:
+          name: ieltsbandai-db
+          property: database
+        key: DB_DATABASE
+      - fromDatabase:
+          name: ieltsbandai-db
+          property: user
+        key: DB_USERNAME
+      - fromDatabase:
+          name: ieltsbandai-db
+          property: password
+        key: DB_PASSWORD
+
+databases:
+  - name: ieltsbandai-db
+    plan: free
+    databaseName: ieltsbandai
+    user: ielts_user

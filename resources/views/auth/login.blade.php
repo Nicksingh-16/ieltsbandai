@@ -1,180 +1,81 @@
-{{-- resources/views/auth/login.blade.php --}}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - IELTS Band AI</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-    </style>
-</head>
-<body class="bg-gradient-to-br from-indigo-50 via-white to-purple-50 min-h-screen">
+<x-guest-layout>
+    <div class="mb-6">
+        <h2 class="text-2xl font-bold text-surface-50">Welcome back</h2>
+        <p class="text-surface-400 text-sm mt-1">Sign in to continue your IELTS practice.</p>
+    </div>
 
-    <div class="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0 px-4">
-        <!-- Logo -->
-        <div class="mb-8">
-            <a href="{{ route('home') }}" class="flex flex-col items-center">
-                <div class="bg-gradient-to-r from-indigo-600 to-purple-600 w-16 h-16 rounded-2xl flex items-center justify-center mb-3 shadow-lg">
-                    <i class="fas fa-microphone text-white text-2xl"></i>
-                </div>
-                <span class="text-2xl font-bold text-indigo-600">IELTS Band AI</span>
-            </a>
+    {{-- Session Status --}}
+    <x-auth-session-status class="mb-4" :status="session('status')" />
+
+    <form method="POST" action="{{ route('login') }}" class="space-y-5">
+        @csrf
+
+        {{-- Email --}}
+        <div>
+            <x-input-label for="email" :value="__('Email')" />
+            <x-text-input id="email" type="email" name="email" :value="old('email')"
+                required autofocus autocomplete="username" placeholder="you@email.com" />
+            <x-input-error :messages="$errors->get('email')" />
         </div>
 
-        <!-- Login Card -->
-        <div class="w-full sm:max-w-md bg-white rounded-3xl shadow-xl overflow-hidden">
-            <!-- Header -->
-            <div class="bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-6">
-                <h2 class="text-2xl font-bold text-white text-center">Welcome Back</h2>
-                <p class="text-indigo-100 text-center mt-1">Login to continue your IELTS practice</p>
-            </div>
-
-            <!-- Form -->
-            <div class="px-8 py-8">
-                <!-- Session Status -->
-                @if (session('status'))
-                    <div class="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm">
-                        {{ session('status') }}
-                    </div>
-                @endif
-
-                <form method="POST" action="{{ route('login') }}">
-                    @csrf
-
-                    <!-- Email Address -->
-                    <div class="mb-5">
-                        <label for="email" class="block text-sm font-semibold text-gray-700 mb-2">
-                            Email Address
-                        </label>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <i class="fas fa-envelope text-gray-400"></i>
-                            </div>
-                            <input 
-                                id="email" 
-                                type="email" 
-                                name="email" 
-                                value="{{ old('email') }}" 
-                                required 
-                                autofocus 
-                                autocomplete="username"
-                                class="block w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all @error('email') border-red-500 @enderror"
-                                placeholder="your@email.com"
-                            >
-                        </div>
-                        @error('email')
-                            <p class="mt-2 text-sm text-red-600 flex items-center gap-1">
-                                <i class="fas fa-exclamation-circle text-xs"></i>
-                                {{ $message }}
-                            </p>
-                        @enderror
-                    </div>
-
-                    <!-- Password -->
-                    <div class="mb-5">
-                        <label for="password" class="block text-sm font-semibold text-gray-700 mb-2">
-                            Password
-                        </label>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <i class="fas fa-lock text-gray-400"></i>
-                            </div>
-                            <input 
-                                id="password" 
-                                type="password" 
-                                name="password" 
-                                required 
-                                autocomplete="current-password"
-                                class="block w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all @error('password') border-red-500 @enderror"
-                                placeholder="Enter your password"
-                            >
-                        </div>
-                        @error('password')
-                            <p class="mt-2 text-sm text-red-600 flex items-center gap-1">
-                                <i class="fas fa-exclamation-circle text-xs"></i>
-                                {{ $message }}
-                            </p>
-                        @enderror
-                    </div>
-
-                    <!-- Remember Me & Forgot Password -->
-                    <div class="flex items-center justify-between mb-6">
-                        <label for="remember_me" class="inline-flex items-center cursor-pointer">
-                            <input 
-                                id="remember_me" 
-                                type="checkbox" 
-                                class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500 cursor-pointer" 
-                                name="remember"
-                            >
-                            <span class="ml-2 text-sm text-gray-600 select-none">Remember me</span>
-                        </label>
-
-                        @if (Route::has('password.request'))
-                            <a class="text-sm text-indigo-600 hover:text-indigo-700 font-medium" href="{{ route('password.request') }}">
-                                Forgot password?
-                            </a>
-                        @endif
-                    </div>
-
-                    <!-- Submit Button -->
-                    <button 
-                        type="submit" 
-                        class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                        <span class="flex items-center justify-center gap-2">
-                            <i class="fas fa-sign-in-alt"></i>
-                            Log In
-                        </span>
-                    </button>
-                </form>
-
-                <!-- Divider -->
-                <div class="relative my-6">
-                    <div class="absolute inset-0 flex items-center">
-                        <div class="w-full border-t border-gray-300"></div>
-                    </div>
-                    <div class="relative flex justify-center text-sm">
-                        <span class="px-4 bg-white text-gray-500">Or continue with</span>
-                    </div>
-                </div>
-
-                <!-- Social Login -->
-                <div class="grid grid-cols-2 gap-3 mb-6">
-                    <a href="{{ route('auth.google') }}" class="flex items-center justify-center gap-2 bg-white border-2 border-gray-300 hover:border-indigo-400 text-gray-700 font-medium py-3 px-4 rounded-xl transition-all hover:bg-gray-50 hover:shadow-md">
-                        <i class="fab fa-google text-red-500"></i>
-                        Google
+        {{-- Password --}}
+        <div>
+            <div class="flex items-center justify-between mb-1.5">
+                <x-input-label for="password" :value="__('Password')" class="mb-0" />
+                @if (Route::has('password.request'))
+                    <a href="{{ route('password.request') }}" class="text-xs text-brand-400 hover:text-brand-300 transition-colors">
+                        Forgot password?
                     </a>
-                    <button type="button" disabled class="flex items-center justify-center gap-2 bg-gray-100 border-2 border-gray-200 text-gray-400 font-medium py-3 px-4 rounded-xl cursor-not-allowed">
-                        <i class="fab fa-facebook text-gray-400"></i>
-                        Coming Soon
-                    </button>
-                </div>
-
-                <!-- Sign Up Link -->
-                <div class="text-center">
-                    <p class="text-gray-600">
-                        Don't have an account? 
-                        <a href="{{ route('register') }}" class="text-indigo-600 hover:text-indigo-700 font-semibold">
-                            Sign up for free
-                        </a>
-                    </p>
-                </div>
+                @endif
             </div>
+            <x-text-input id="password" type="password" name="password"
+                required autocomplete="current-password" placeholder="Your password" />
+            <x-input-error :messages="$errors->get('password')" />
         </div>
 
-        <!-- Footer Links -->
-        <div class="mt-8 text-center text-sm text-gray-600">
-            <a href="{{ route('home') }}" class="hover:text-indigo-600 mx-3">Home</a>
-            <span class="text-gray-400">•</span>
-            <a href="#" class="hover:text-indigo-600 mx-3">Privacy</a>
-            <span class="text-gray-400">•</span>
-            <a href="#" class="hover:text-indigo-600 mx-3">Terms</a>
+        {{-- Remember me --}}
+        <div class="flex items-center gap-2">
+            <input id="remember_me" type="checkbox" name="remember"
+                class="w-4 h-4 rounded bg-surface-900 border-surface-600 text-brand-500 focus:ring-brand-500 focus:ring-offset-surface-800 cursor-pointer">
+            <label for="remember_me" class="text-sm text-surface-400 cursor-pointer select-none">Remember me</label>
+        </div>
+
+        {{-- Submit --}}
+        <x-primary-button class="w-full justify-center py-3">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
+            </svg>
+            Sign In
+        </x-primary-button>
+    </form>
+
+    {{-- Divider --}}
+    <div class="relative my-6">
+        <div class="absolute inset-0 flex items-center">
+            <div class="w-full border-t border-surface-600"></div>
+        </div>
+        <div class="relative flex justify-center">
+            <span class="px-3 bg-surface-800 text-xs text-surface-500">or continue with</span>
         </div>
     </div>
 
-</body>
-</html>
+    {{-- Google --}}
+    <a href="{{ route('auth.google') }}"
+       class="flex items-center justify-center gap-3 w-full px-4 py-2.5 bg-surface-700 hover:bg-surface-600 border border-surface-600 rounded-xl text-sm font-medium text-surface-200 transition-colors">
+        <svg class="w-4 h-4" viewBox="0 0 24 24">
+            <path fill="#EA4335" d="M5.266 9.765A7.077 7.077 0 0 1 12 4.909c1.69 0 3.218.6 4.418 1.582L19.91 3C17.782 1.145 15.055 0 12 0 7.27 0 3.198 2.698 1.24 6.65l4.026 3.115Z"/>
+            <path fill="#34A853" d="M16.04 18.013c-1.09.703-2.474 1.078-4.04 1.078a7.077 7.077 0 0 1-6.723-4.823l-4.04 3.067A11.965 11.965 0 0 0 12 24c2.933 0 5.735-1.043 7.834-3l-3.793-2.987Z"/>
+            <path fill="#4A90E2" d="M19.834 21c2.195-2.048 3.62-5.096 3.62-9 0-.71-.109-1.473-.272-2.182H12v4.637h6.436c-.317 1.559-1.17 2.766-2.395 3.558L19.834 21Z"/>
+            <path fill="#FBBC05" d="M5.277 14.268A7.12 7.12 0 0 1 4.909 12c0-.782.125-1.533.357-2.235L1.24 6.65A11.934 11.934 0 0 0 0 12c0 1.92.445 3.73 1.237 5.335l4.04-3.067Z"/>
+        </svg>
+        Continue with Google
+    </a>
+
+    {{-- Register link --}}
+    <p class="text-center text-sm text-surface-400 mt-6">
+        Don't have an account?
+        <a href="{{ route('register') }}" class="text-brand-400 hover:text-brand-300 font-medium transition-colors">
+            Sign up free
+        </a>
+    </p>
+</x-guest-layout>

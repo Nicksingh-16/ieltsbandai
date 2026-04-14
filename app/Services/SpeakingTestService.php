@@ -6,7 +6,7 @@ use App\Models\Test;
 use App\Models\TestQuestion;
 use App\Models\AudioFile;
 use App\Repositories\SpeakingRepository;
-use App\Jobs\SpeakingEvaluationJob;
+use App\Jobs\TranscribeAudioJob;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -67,26 +67,22 @@ class SpeakingTestService
         $sizeKb = round($audioFile->getSize() / 1024);
 
         // Create audio file record
-        AudioFile::create([
-            'test_id' => $testId,
-            'file_url' => $path,
+        $audioFile = AudioFile::create([
+            'test_id'          => $testId,
+            'file_url'         => $path,
             'duration_seconds' => $duration,
-            'size_kb' => $sizeKb,
+            'size_kb'          => $sizeKb,
         ]);
 
-        // Count existing audio files to determine if this is the last one
-        $audioCount = $this->speakingRepo->countAudioFilesForTest($testId);
-        $isLast = $audioCount >= 3;
+        // Dispatch transcription IMMEDIATELY for this part — runs in parallel with other parts
+        TranscribeAudioJob::dispatch($audioFile->id, $testId)->onQueue('transcription');
 
-        // When all 3 audio files are uploaded, dispatch evaluation job
-        if ($isLast) {
-            // Keep status as 'processing' - job will update to 'completed' or 'failed'
-            SpeakingEvaluationJob::dispatch($testId);
-        }
+        $audioCount = $this->speakingRepo->countAudioFilesForTest($testId);
+        $isLast     = $audioCount >= 3;
 
         return [
             'success' => true,
-            'next' => !$isLast,
+            'next'    => !$isLast,
             'is_last' => $isLast,
         ];
     }

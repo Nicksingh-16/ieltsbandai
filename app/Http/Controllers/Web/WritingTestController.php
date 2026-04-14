@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Jobs\WritingEvaluationJob;
 use App\Repositories\WritingRepository;
 use App\Services\WritingTestService;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class WritingTestController extends Controller
 {
@@ -44,7 +46,7 @@ class WritingTestController extends Controller
         $category = "writing_{$testType}_{$task}";
 
         // Get a random question for this category
-        $question = $this->writingRepo->getWritingQuestionByCategory($category);
+        $question = $this->writingRepo->getWritingQuestionByCategory($category, Auth::id());
 
         if (!$question) {
             return back()->with('error', 'No questions available for this task type.');
@@ -64,11 +66,45 @@ class WritingTestController extends Controller
         $creditService = app(\App\Services\CreditService::class);
         $creditService->deductCredit(Auth::user());
 
+        // PRG pattern: redirect to GET so refresh doesn't re-submit start form
+        return redirect()->route('writing.test', $test->id);
+    }
+
+    /**
+     * Show an existing writing test (GET — safe to refresh)
+     */
+    public function showTest($testId)
+    {
+        $test = \App\Models\Test::with('testQuestions.question')->findOrFail($testId);
+
+        if ($test->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        // If already completed, send straight to results
+        if ($test->status === 'completed') {
+            return redirect()->route('writing.result', $testId);
+        }
+
+        $testQuestion = $test->testQuestions->first();
+        if (!$testQuestion || !$testQuestion->question) {
+            return redirect()->route('writing.index')->with('error', 'Test question not found.');
+        }
+
+        $question = $testQuestion->question;
+        $testType = $test->test_type ?? 'academic';
+
+        preg_match('/(task[12])/', $test->category ?? '', $matches);
+        $task = $matches[1] ?? 'task1';
+
+        $question->time_limit = str_contains($test->category ?? '', 'task1') ? 1200 : 2400;
+        $question->min_words  = str_contains($test->category ?? '', 'task1') ? 150 : 250;
+
         return view('pages.writing.test', compact('test', 'question', 'testType', 'task'));
     }
 
     /**
-     * Submit writing test answer
+     * Submit writing test answer — saves immediately, dispatches async job for AI scoring.
      */
     public function submit(Request $request, $testId)
     {
@@ -76,20 +112,19 @@ class WritingTestController extends Controller
             'answer' => 'required|string|min:50',
         ]);
 
-        $answer = $request->input('answer');
+        $test = \App\Models\Test::where('id', $testId)
+            ->where('user_id', Auth::id())
+            ->firstOrFail();
 
-        $result = $this->writingService->submitWritingTest($testId, $answer);
+        // Save answer and mark as evaluating
+        $this->writingService->saveAnswerForEvaluation($testId, $request->input('answer'));
 
-        if (!$result['success']) {
-            return response()->json([
-                'success' => false,
-                'message' => $result['error'],
-            ], 500);
-        }
+        // Dispatch async job — no more 3-minute blocking
+        WritingEvaluationJob::dispatch($testId);
 
         return response()->json([
-            'success' => true,
-            'message' => 'Your writing has been evaluated successfully!',
+            'success'  => true,
+            'message'  => 'Your writing has been submitted. Evaluating…',
             'redirect' => route('writing.result', $testId),
         ]);
     }
@@ -161,22 +196,83 @@ class WritingTestController extends Controller
             ));
 
         } catch (\Exception $e) {
+            \Log::error('Writing result exception', [
+                'test_id' => $testId,
+                'message' => $e->getMessage(),
+                'file'    => $e->getFile(),
+                'line'    => $e->getLine(),
+            ]);
 
-    \Log::error('❌ Writing result exception', [
-        'test_id' => $testId,
-        'message' => $e->getMessage(),
-        'file' => $e->getFile(),
-        'line' => $e->getLine(),
-        'trace' => collect($e->getTrace())->take(5),
-    ]);
+            // Check if the test exists but isn't completed yet (job still running)
+            $test = \App\Models\Test::find($testId);
+            if ($test && in_array($test->status, ['in_progress', 'evaluating'])) {
+                return view('pages.writing.evaluating', compact('test'));
+            }
+            if ($test && $test->status === 'failed') {
+                return redirect()->route('writing.index')
+                    ->with('error', 'Writing evaluation failed. Please try again.');
+            }
 
-    dd(
-        'EXCEPTION CAUGHT',
-        $e->getMessage(),
-        $e->getFile(),
-        $e->getLine()
-    );
-}
+            return redirect()->route('dashboard')
+                ->with('error', 'Could not load writing results: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Download PDF score report for a completed writing test.
+     */
+    public function downloadPdf($testId)
+    {
+        $data = $this->writingService->getWritingTestResults($testId);
+
+        if ($data['test']->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        $data['test']->load('user');
+
+        $pdf = Pdf::loadView('pdf.writing-result', $data)
+            ->setPaper('a4', 'portrait');
+
+        return $pdf->download("ielts-writing-band{$data['test']->overall_band}-{$testId}.pdf");
+    }
+
+    /**
+     * Lazy-load Band 9 rewrite via AJAX
+     */
+    public function band9Rewrite($testId)
+    {
+        $test = \App\Models\Test::findOrFail($testId);
+
+        if ($test->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        $result = json_decode($test->result, true);
+
+        // Return cached version if already generated
+        if (!empty($result['band_9_rewrite'])) {
+            return response()->json(['rewrite' => $result['band_9_rewrite']]);
+        }
+
+        // Generate now
+        $answer = $result['original_answer'] ?? $test->answer ?? '';
+        $testQuestion = \App\Models\TestQuestion::where('test_id', $testId)->first();
+        $question = $testQuestion
+            ? $this->writingRepo->getQuestionById($testQuestion->question_id)
+            : null;
+
+        try {
+            $rewrite = $this->writingService->generateBand9Rewrite($answer, $question);
+
+            // Cache it
+            $result['band_9_rewrite'] = $rewrite;
+            $test->update(['result' => json_encode($result)]);
+
+            return response()->json(['rewrite' => $rewrite]);
+        } catch (\Exception $e) {
+            return response()->json(['rewrite' => null, 'error' => 'Could not generate model answer.'], 500);
+        }
     }
 
     /**
@@ -230,6 +326,83 @@ class WritingTestController extends Controller
     }
 
     /**
+     * Answer a follow-up clarification question about the writing result.
+     * Uses the stored result context so the AI gives a personalised answer.
+     */
+    public function clarify(Request $request, $testId)
+    {
+        $request->validate([
+            'question' => 'required|string|max:500',
+        ]);
+
+        $test = \App\Models\Test::where('id', $testId)
+            ->where('user_id', Auth::id())
+            ->where('status', 'completed')
+            ->firstOrFail();
+
+        $result = json_decode($test->result, true) ?? [];
+
+        $context = sprintf(
+            "IELTS Writing Result Context:\n" .
+            "- Overall band: %s\n" .
+            "- Task Achievement: %s | Coherence & Cohesion: %s | Lexical Resource: %s | Grammar: %s\n" .
+            "- Feedback: %s\n" .
+            "- Strengths: %s\n" .
+            "- Improvements: %s\n" .
+            "- Essay (first 600 chars): %s",
+            $test->overall_band,
+            $result['task_achievement']    ?? 'N/A',
+            $result['coherence_cohesion']  ?? 'N/A',
+            $result['lexical_resource']    ?? 'N/A',
+            $result['grammar']             ?? 'N/A',
+            is_array($result['feedback']   ?? null) ? implode(' ', $result['feedback'])   : ($result['feedback']   ?? ''),
+            is_array($result['strengths']  ?? null) ? implode('; ', $result['strengths']) : ($result['strengths']  ?? ''),
+            is_array($result['improvements']?? null) ? implode('; ', $result['improvements']) : ($result['improvements'] ?? ''),
+            substr($result['original_answer'] ?? $test->answer ?? '', 0, 600)
+        );
+
+        $prompt = "{$context}\n\nStudent question: {$request->input('question')}\n\n" .
+                  "Answer as a friendly, expert IELTS examiner. Be specific, refer to the student's actual scores and essay. " .
+                  "Be concise (max 150 words). Do not use bullet points — write in natural paragraph form.";
+
+        try {
+            // Try Gemini first (free tier)
+            $gemini = app(\App\Services\GeminiService::class);
+            $answer = null;
+
+            if ($gemini->isAvailable()) {
+                $answer = $gemini->generate($prompt, 0.7, 300);
+            }
+
+            // Fallback to OpenAI
+            if (!$answer) {
+                $response = \Illuminate\Support\Facades\Http::timeout(20)
+                    ->withHeaders([
+                        'Authorization' => 'Bearer ' . config('services.openai.api_key'),
+                        'Content-Type'  => 'application/json',
+                    ])
+                    ->post(config('services.openai.base_url', 'https://api.openai.com/v1') . '/chat/completions', [
+                        'model'       => config('services.openai.model', 'gpt-4o-mini'),
+                        'messages'    => [
+                            ['role' => 'system', 'content' => 'You are a friendly, expert IELTS examiner giving personalised feedback.'],
+                            ['role' => 'user',   'content' => $prompt],
+                        ],
+                        'temperature' => 0.7,
+                        'max_tokens'  => 300,
+                    ]);
+
+                $answer = $response->json('choices.0.message.content');
+            }
+
+            return response()->json(['answer' => trim($answer ?? 'I could not generate a response. Please try again.')]);
+
+        } catch (\Exception $e) {
+            \Log::error('Examiner clarify failed: ' . $e->getMessage());
+            return response()->json(['answer' => 'Sorry, I am temporarily unavailable. Please try again shortly.'], 500);
+        }
+    }
+
+    /**
      * Analyze vocabulary level (for real-time feedback)
      */
     public function analyzeVocabulary(Request $request)
@@ -252,40 +425,42 @@ class WritingTestController extends Controller
         }
 
         try {
-            // Use OpenAI to categorize vocabulary
-            $response = \Illuminate\Support\Facades\Http::timeout(15)
-                ->withHeaders([
-                    'Authorization' => 'Bearer ' . config('services.openai.api_key'),
-                    'Content-Type' => 'application/json',
-                ])
-                ->post(config('services.openai.base_url', 'https://api.openai.com/v1') . '/chat/completions', [
-                    'model' => config('services.openai.model', 'gpt-4o-mini'),
-                    'messages' => [
-                        [
-                            'role' => 'system',
-                            'content' => 'You are a vocabulary analyzer. Respond ONLY with valid JSON.',
-                        ],
-                        [
-                            'role' => 'user',
-                            'content' => "Analyze this text and categorize words as Basic (common everyday words), Intermediate (academic/professional), or Advanced (sophisticated/rare). Return percentages as JSON: {\"basic\": X, \"intermediate\": Y, \"advanced\": Z}\n\nText: " . substr($text, 0, 500),
-                        ],
-                    ],
-                    'temperature' => 0.3,
-                    'response_format' => ['type' => 'json_object'],
-                ]);
+            $prompt = 'Analyze this IELTS essay text and categorize vocabulary as Basic (common everyday words), Intermediate (academic/professional), or Advanced (sophisticated/rare). Return percentages as JSON: {"basic": X, "intermediate": Y, "advanced": Z}' . "\n\nText: " . substr($text, 0, 500);
 
-            if (!$response->successful()) {
-                throw new \Exception('API request failed');
+            // Try Gemini first (free)
+            $gemini = app(\App\Services\GeminiService::class);
+            $analysis = null;
+
+            if ($gemini->isAvailable()) {
+                $analysis = $gemini->generateJson($prompt, 0.3, 100);
             }
 
-            $data = $response->json();
-            $content = $data['choices'][0]['message']['content'] ?? null;
-            
-            if (!$content) {
-                throw new \Exception('No content in response');
-            }
+            // Fallback to OpenAI
+            if (!$analysis) {
+                $response = \Illuminate\Support\Facades\Http::timeout(15)
+                    ->withHeaders([
+                        'Authorization' => 'Bearer ' . config('services.openai.api_key'),
+                        'Content-Type' => 'application/json',
+                    ])
+                    ->post(config('services.openai.base_url', 'https://api.openai.com/v1') . '/chat/completions', [
+                        'model' => config('services.openai.model', 'gpt-4o-mini'),
+                        'messages' => [
+                            ['role' => 'system', 'content' => 'You are a vocabulary analyzer. Respond ONLY with valid JSON.'],
+                            ['role' => 'user', 'content' => $prompt],
+                        ],
+                        'temperature' => 0.3,
+                        'max_tokens' => 100,
+                        'response_format' => ['type' => 'json_object'],
+                    ]);
 
-            $analysis = json_decode($content, true);
+                if (!$response->successful()) {
+                    throw new \Exception('API request failed');
+                }
+
+                $content = $response->json('choices.0.message.content');
+                if (!$content) throw new \Exception('No content in response');
+                $analysis = json_decode($content, true);
+            }
 
             return response()->json([
                 'basic' => $analysis['basic'] ?? 60,

@@ -1,197 +1,185 @@
-{{-- resources/views/pricing.blade.php --}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Upgrade to Pro - IELTS Band AI</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>Upgrade to Pro — IELTS Band AI</title>
+    <link rel="preconnect" href="https://fonts.bunny.net">
+    <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800&display=swap" rel="stylesheet" />
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-    </style>
 </head>
-<body class="bg-gray-50">
+<body class="bg-surface-950 text-surface-200 font-sans antialiased">
 
-<!-- Header -->
-<header class="bg-white border-b border-gray-200">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between items-center h-16">
-            <a href="{{ route('home') }}" class="text-gray-700 hover:text-indigo-600">
-                <i class="fas fa-arrow-left text-xl"></i>
-            </a>
-            <span class="text-lg sm:text-xl font-bold text-gray-900">Upgrade to Pro</span>
-            <div class="w-8"></div>
-        </div>
+{{-- Ambient glow --}}
+<div class="pointer-events-none fixed inset-0 overflow-hidden -z-10">
+    <div class="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[500px] bg-brand-500/8 rounded-full blur-3xl"></div>
+    <div class="absolute bottom-0 right-0 w-80 h-80 bg-purple-600/6 rounded-full blur-3xl"></div>
+</div>
+
+{{-- Header --}}
+<header class="sticky top-0 z-50 bg-surface-950/80 backdrop-blur-md border-b border-surface-700/50">
+    <div class="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
+        <a href="{{ route('home') }}" class="btn-ghost text-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+            Back
+        </a>
+        <a href="{{ route('home') }}" class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-400 to-brand-700 flex items-center justify-center">
+                <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                    <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                </svg>
+            </div>
+            <span class="font-bold text-surface-50 text-sm">IELTS Band <span class="text-brand-400">AI</span></span>
+        </a>
+        <div class="w-16"></div>
     </div>
 </header>
 
-<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <!-- Hero Section -->
-    <div class="text-center mb-8">
-        <div class="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-full mb-4">
-            <i class="fas fa-crown text-white text-3xl"></i>
+<div class="max-w-3xl mx-auto px-4 py-12 space-y-8">
+
+    {{-- Hero --}}
+    <div class="text-center">
+        <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center mx-auto mb-5 shadow-lg">
+            <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 1L9 9H1l6.5 5-2.5 8L12 17l7 5-2.5-8L23 9h-8z"/>
+            </svg>
         </div>
-        <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 mb-3">Upgrade to Pro</h1>
-        <p class="text-lg sm:text-xl text-gray-600">Unlimited Speaking + Writing AI Tests</p>
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-surface-50 mb-2">Upgrade to Pro</h1>
+        <p class="text-surface-400 text-lg">Unlimited IELTS practice · All four skills · AI-powered</p>
     </div>
 
-    <!-- Pricing Card -->
-    <div class="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-8 sm:p-12 text-white text-center mb-8 shadow-2xl">
-        <p class="text-lg mb-2 opacity-90">Monthly Subscription</p>
-        <div class="flex items-center justify-center gap-2 mb-6">
-            <span class="text-6xl sm:text-7xl font-bold">₹99</span>
-            <span class="text-2xl opacity-90">/month</span>
+    {{-- Pricing card --}}
+    <div class="relative rounded-3xl overflow-hidden bg-gradient-to-br from-brand-900/60 via-surface-800 to-purple-900/40 border border-brand-700/40 p-8 sm:p-12 text-center">
+        <div class="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-24 bg-brand-500/15 rounded-full blur-2xl pointer-events-none"></div>
+        <p class="text-surface-400 text-sm uppercase tracking-widest mb-3">Monthly Subscription</p>
+        <div class="flex items-end justify-center gap-2 mb-2">
+            <span class="text-6xl sm:text-7xl font-extrabold text-surface-50">₹99</span>
+            <span class="text-xl text-surface-400 mb-3">/mo</span>
         </div>
-        <p class="text-base opacity-90">Cancel anytime • No hidden fees</p>
+        <p class="text-surface-500 text-sm mb-6">Cancel anytime · No hidden fees · 7-day refund</p>
+        <div class="flex items-center justify-center gap-4 text-xs text-surface-400">
+            <div class="flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                Secure via Razorpay
+            </div>
+            <div class="flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Cancel anytime
+            </div>
+        </div>
     </div>
 
-    <!-- Benefits List -->
-    <div class="bg-white rounded-2xl shadow-md p-6 sm:p-8 mb-8">
-        <h2 class="text-xl sm:text-2xl font-bold text-gray-900 mb-6">Pro Benefits</h2>
+    {{-- Benefits --}}
+    <div class="card p-6 sm:p-8">
+        <h2 class="text-surface-50 font-bold text-xl mb-6">Everything in Pro</h2>
         <div class="space-y-4">
-            <div class="flex items-start gap-4">
-                <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-check text-green-600 text-lg"></i>
+            @foreach([
+                ['Unlimited tests per day', 'Take as many Speaking, Writing, Listening and Reading tests as you want every day — no daily cap.', 'brand'],
+                ['Full error analysis', 'Every grammatical, lexical and coherence error highlighted with exact corrections and explanations.', 'brand'],
+                ['Band 9 model answers', 'See a complete Band 9 rewrite of your essay or speaking response to understand exactly what top scores look like.', 'brand'],
+                ['PDF reports & history', 'Download a beautiful PDF report of every test. Track your band score improvement over time.', 'brand'],
+                ['Vocabulary booster', 'Topic-specific vocabulary lists generated by AI for every essay you write.', 'brand'],
+                ['Priority support', 'Get faster responses from our support team for any technical issues.', 'brand'],
+            ] as [$title, $desc, $color])
+            <div class="flex gap-4">
+                <div class="w-8 h-8 rounded-lg bg-brand-500/15 flex items-center justify-center shrink-0 mt-0.5">
+                    <svg class="w-4 h-4 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                    </svg>
                 </div>
                 <div>
-                    <h3 class="font-bold text-gray-900 mb-1">Unlimited Tests</h3>
-                    <p class="text-gray-600">Take as many Speaking and Writing tests as you want every day</p>
+                    <p class="font-semibold text-surface-100 mb-0.5">{{ $title }}</p>
+                    <p class="text-surface-400 text-sm leading-relaxed">{{ $desc }}</p>
                 </div>
             </div>
-            <div class="flex items-start gap-4">
-                <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-check text-green-600 text-lg"></i>
-                </div>
-                <div>
-                    <h3 class="font-bold text-gray-900 mb-1">Full Correction Details</h3>
-                    <p class="text-gray-600">Get comprehensive error analysis with explanations for every mistake</p>
-                </div>
-            </div>
-            <div class="flex items-start gap-4">
-                <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-check text-green-600 text-lg"></i>
-                </div>
-                <div>
-                    <h3 class="font-bold text-gray-900 mb-1">PDF Reports</h3>
-                    <p class="text-gray-600">Download detailed PDF reports of your test results and progress</p>
-                </div>
-            </div>
-            <div class="flex items-start gap-4">
-                <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-check text-green-600 text-lg"></i>
-                </div>
-                <div>
-                    <h3 class="font-bold text-gray-900 mb-1">Progress Analytics</h3>
-                    <p class="text-gray-600">Track your improvement over time with detailed charts and insights</p>
-                </div>
-            </div>
-            <div class="flex items-start gap-4">
-                <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-check text-green-600 text-lg"></i>
-                </div>
-                <div>
-                    <h3 class="font-bold text-gray-900 mb-1">Priority Support</h3>
-                    <p class="text-gray-600">Get faster responses from our support team</p>
-                </div>
-            </div>
+            @endforeach
         </div>
     </div>
 
-    <!-- CTA Button -->
-    <form action="{{ route('payment.initiate') }}" method="POST" id="payment-form">
-        @csrf
-        <input type="hidden" name="plan" value="monthly">
-        <input type="hidden" name="amount" value="9900">
-        <button type="submit" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-5 rounded-xl text-xl font-bold hover:from-indigo-700 hover:to-purple-700 shadow-xl hover:shadow-2xl transition-all mb-4">
-            <i class="fas fa-lock mr-2"></i>Pay with Razorpay
-        </button>
-    </form>
+    {{-- CTA Button --}}
+    <div>
+        <form action="{{ route('payment.initiate') }}" method="POST" id="payment-form">
+            @csrf
+            <input type="hidden" name="plan" value="monthly">
+            <input type="hidden" name="amount" value="9900">
+            <button type="submit" id="pay-btn" class="btn-primary w-full py-4 text-base font-bold shadow-glow-lg text-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+                Pay ₹99 with Razorpay
+            </button>
+        </form>
 
-    <!-- Trust Badges -->
-    <div class="flex items-center justify-center gap-6 text-gray-500 text-sm">
-        <div class="flex items-center gap-2">
-            <i class="fas fa-shield-alt"></i>
-            <span>Secure Payment</span>
-        </div>
-        <div class="flex items-center gap-2">
-            <i class="fas fa-undo"></i>
-            <span>Cancel Anytime</span>
+        <div class="flex items-center justify-center gap-6 mt-4 text-xs text-surface-500">
+            <span>UPI · Cards · Net Banking · Wallets</span>
         </div>
     </div>
 
-    <!-- Testimonials Section -->
-    <div class="mt-12 bg-white rounded-2xl shadow-md p-6 sm:p-8">
-        <h2 class="text-xl sm:text-2xl font-bold text-gray-900 mb-6 text-center">What Our Pro Users Say</h2>
-        <div class="space-y-6">
-            <div class="border-l-4 border-indigo-600 pl-4">
-                <p class="text-gray-700 mb-2">"The unlimited tests helped me improve from 6.5 to 7.5 in just 2 months!"</p>
-                <p class="text-sm text-gray-500 font-medium">- Rahul Sharma, Mumbai</p>
+    {{-- Testimonials --}}
+    <div class="card p-6 sm:p-8">
+        <h2 class="text-surface-50 font-bold text-lg mb-6 text-center">What Pro users say</h2>
+        <div class="space-y-5">
+            @foreach([
+                ['"The unlimited tests helped me improve from 6.5 to 7.5 in just 2 months!"', 'Rahul Sharma, Mumbai'],
+                ['"Detailed feedback on every mistake made all the difference in my preparation."', 'Priya Patel, Ahmedabad'],
+                ['"Best investment for IELTS prep. The AI feedback is incredibly accurate!"', 'Amit Kumar, Delhi'],
+            ] as [$quote, $author])
+            <div class="flex gap-4">
+                <div class="w-1 rounded-full bg-gradient-to-b from-brand-500 to-brand-700 shrink-0"></div>
+                <div>
+                    <p class="text-surface-300 text-sm leading-relaxed mb-1">{{ $quote }}</p>
+                    <p class="text-surface-500 text-xs font-semibold">— {{ $author }}</p>
+                </div>
             </div>
-            <div class="border-l-4 border-indigo-600 pl-4">
-                <p class="text-gray-700 mb-2">"Detailed feedback on every mistake made all the difference in my preparation."</p>
-                <p class="text-sm text-gray-500 font-medium">- Priya Patel, Ahmedabad</p>
-            </div>
-            <div class="border-l-4 border-indigo-600 pl-4">
-                <p class="text-gray-700 mb-2">"Best investment for IELTS prep. The AI feedback is incredibly accurate!"</p>
-                <p class="text-sm text-gray-500 font-medium">- Amit Kumar, Delhi</p>
-            </div>
+            @endforeach
         </div>
     </div>
 
-    <!-- FAQ Section -->
-    <div class="mt-12 bg-white rounded-2xl shadow-md p-6 sm:p-8">
-        <h2 class="text-xl sm:text-2xl font-bold text-gray-900 mb-6 text-center">Frequently Asked Questions</h2>
-        <div class="space-y-4">
-            <div class="border-b border-gray-200 pb-4">
-                <h3 class="font-bold text-gray-900 mb-2">Can I cancel anytime?</h3>
-                <p class="text-gray-600">Yes, you can cancel your subscription at any time from your account settings. No questions asked.</p>
+    {{-- FAQ --}}
+    <div class="card p-6 sm:p-8">
+        <h2 class="text-surface-50 font-bold text-lg mb-6 text-center">Frequently Asked Questions</h2>
+        <div class="space-y-5">
+            @foreach([
+                ['Can I cancel anytime?', 'Yes, cancel from your account settings at any time. No questions asked, no penalties.'],
+                ['What payment methods do you accept?', 'All major credit/debit cards, UPI, net banking, and digital wallets via Razorpay.'],
+                ['Is there a refund policy?', 'Yes — 7-day money-back guarantee if you are not satisfied with Pro features.'],
+                ['How accurate is the AI scoring?', 'Our AI is trained on thousands of real IELTS responses and matches human examiner scores within ±0.5 band in 90%+ of cases.'],
+            ] as [$q, $a])
+            <div class="border-b border-surface-700 pb-5 last:border-0 last:pb-0">
+                <p class="font-semibold text-surface-100 mb-2">{{ $q }}</p>
+                <p class="text-surface-400 text-sm leading-relaxed">{{ $a }}</p>
             </div>
-            <div class="border-b border-gray-200 pb-4">
-                <h3 class="font-bold text-gray-900 mb-2">What payment methods do you accept?</h3>
-                <p class="text-gray-600">We accept all major credit/debit cards, UPI, net banking, and digital wallets through Razorpay.</p>
-            </div>
-            <div class="border-b border-gray-200 pb-4">
-                <h3 class="font-bold text-gray-900 mb-2">Is there a refund policy?</h3>
-                <p class="text-gray-600">Yes, we offer a 7-day money-back guarantee if you're not satisfied with the Pro features.</p>
-            </div>
-            <div class="pb-4">
-                <h3 class="font-bold text-gray-900 mb-2">How accurate is the AI scoring?</h3>
-                <p class="text-gray-600">Our AI is trained on thousands of IELTS responses and provides band scores with 90%+ accuracy compared to human examiners.</p>
-            </div>
+            @endforeach
         </div>
     </div>
+
 </div>
+
+<footer class="border-t border-surface-700/50 py-6 text-center">
+    <p class="text-surface-600 text-sm">&copy; {{ date('Y') }} IELTS Band AI. All rights reserved.</p>
+</footer>
 
 <script>
 document.getElementById('payment-form').addEventListener('submit', function(e) {
     e.preventDefault();
-    
-    // Show loading state
-    const button = this.querySelector('button[type="submit"]');
-    const originalText = button.innerHTML;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
-    button.disabled = true;
-    
-    // Send request to backend
+    const btn = document.getElementById('pay-btn');
+    const original = btn.innerHTML;
+    btn.innerHTML = '<svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg> Processing...';
+    btn.disabled = true;
+
     fetch(this.action, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': '{{ csrf_token() }}'
-        },
-        body: JSON.stringify({
-            plan: 'monthly',
-            amount: 9900
-        })
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+        body: JSON.stringify({ plan: 'monthly', amount: 9900 })
     })
-    .then(response => response.json())
+    .then(r => r.json())
     .then(data => {
         if (data.success) {
-            // Initialize Razorpay
-            const options = {
+            const rzp = new Razorpay({
                 key: data.razorpay_key,
                 amount: data.amount,
                 currency: 'INR',
@@ -199,38 +187,29 @@ document.getElementById('payment-form').addEventListener('submit', function(e) {
                 description: 'Pro Monthly Subscription',
                 order_id: data.order_id,
                 handler: function(response) {
-                    // Payment successful
                     window.location.href = '/payment/success?payment_id=' + response.razorpay_payment_id;
                 },
                 prefill: {
                     name: '{{ auth()->user()->name ?? "" }}',
                     email: '{{ auth()->user()->email ?? "" }}'
                 },
-                theme: {
-                    color: '#4F46E5'
-                }
-            };
-            
-            const razorpay = new Razorpay(options);
-            razorpay.open();
-            
-            // Reset button
-            button.innerHTML = originalText;
-            button.disabled = false;
+                theme: { color: '#06b6d4' }
+            });
+            rzp.open();
+            btn.innerHTML = original;
+            btn.disabled = false;
         } else {
             alert('Payment initiation failed. Please try again.');
-            button.innerHTML = originalText;
-            button.disabled = false;
+            btn.innerHTML = original;
+            btn.disabled = false;
         }
     })
-    .catch(error => {
-        console.error('Error:', error);
+    .catch(() => {
         alert('Something went wrong. Please try again.');
-        button.innerHTML = originalText;
-        button.disabled = false;
+        btn.innerHTML = original;
+        btn.disabled = false;
     });
 });
 </script>
-
 </body>
 </html>

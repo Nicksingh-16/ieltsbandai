@@ -8,6 +8,7 @@ use App\Models\TestScore;
 use App\Repositories\WritingRepository;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use App\Services\GeminiService;
 
 class WritingTestService
 {
@@ -65,38 +66,58 @@ class WritingTestService
     }
 
     /**
-     * Submit and evaluate a writing test
+     * Save the student's answer and mark test as 'evaluating'.
+     * The actual AI scoring is dispatched as a background job.
      */
-    public function submitWritingTest($testId, $answer)
+    public function saveAnswerForEvaluation($testId, $answer): void
+    {
+        $test = Test::findOrFail($testId);
+
+        $test->update([
+            'answer'     => $answer,
+            'status'     => 'evaluating',
+            'metadata'   => json_encode(array_merge(
+                is_array($test->metadata) ? $test->metadata : (json_decode($test->metadata ?? '{}', true) ?? []),
+                ['submitted_at' => now()->toISOString(), 'word_count' => str_word_count($answer)]
+            )),
+        ]);
+    }
+
+    /**
+     * Score a previously saved answer — called by WritingEvaluationJob.
+     */
+    public function scoreAndComplete($testId): array
     {
         DB::beginTransaction();
         try {
             $test = Test::findOrFail($testId);
-            
-            // Get question through the test_questions relationship
+
+            $answer = $test->answer;
+            if (empty($answer)) {
+                throw new \Exception('No answer saved on test');
+            }
+
             $testQuestion = TestQuestion::where('test_id', $testId)->first();
             if (!$testQuestion) {
                 throw new \Exception('Test question relationship not found');
             }
-            
+
             $question = $this->writingRepo->getQuestionById($testQuestion->question_id);
             if (!$question) {
                 throw new \Exception('Question not found');
             }
 
-            // Validate word count
             $wordCount = str_word_count($answer);
-            $minWords = $this->getWordLimit($question->category);
-            
+            $minWords  = $this->getWordLimit($question->category);
+
             if ($wordCount < $minWords) {
-                Log::warning('Writing test submitted with insufficient words', [
-                    'test_id' => $testId,
+                Log::warning('Writing submitted with insufficient words', [
+                    'test_id'    => $testId,
                     'word_count' => $wordCount,
-                    'required' => $minWords,
+                    'required'   => $minWords,
                 ]);
             }
 
-            // Score the writing using AI
             $scoring = $this->scoringService->scoreWriting($answer, $question);
             if (!$scoring) {
                 throw new \Exception('Failed to score writing test');
@@ -144,7 +165,7 @@ class WritingTestService
                 
                 // New examiner fields
                 'band_confidence_range' => $scoring['band_confidence_range'] ?? (($overallBand - 0.5) . ' - ' . ($overallBand + 0.5)),
-                'band_9_rewrite' => $scoring['band_9_rewrite'] ?? '',
+                'band_9_rewrite' => '', // Generated lazily on demand
                 'topic_vocabulary' => $scoring['topic_vocabulary'] ?? [],
                 'examiner_comments' => $scoring['examiner_comments'] ?? [],
                 'error_summary' => $scoring['error_summary'] ?? [],
@@ -183,17 +204,27 @@ class WritingTestService
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Writing test submission failed', [
+            Log::error('Writing scoring failed', [
                 'test_id' => $testId,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'error'   => $e->getMessage(),
+                'trace'   => $e->getTraceAsString(),
             ]);
 
-            return [
-                'success' => false,
-                'error' => 'Failed to process your writing test. Please try again.',
-            ];
+            // Mark as failed so the result page can show an error state
+            Test::where('id', $testId)->update(['status' => 'failed']);
+
+            return ['success' => false, 'error' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Legacy synchronous method — kept for backward compat. Now just saves + scores inline.
+     * @deprecated Use saveAnswerForEvaluation() + dispatch WritingEvaluationJob instead.
+     */
+    public function submitWritingTest($testId, $answer): array
+    {
+        $this->saveAnswerForEvaluation($testId, $answer);
+        return $this->scoreAndComplete($testId);
     }
 
     /**
@@ -202,9 +233,14 @@ class WritingTestService
     public function getWritingTestResults($testId)
 {
     $test = Test::with(['testQuestions.question'])->findOrFail($testId);
+
+    if ($test->status !== 'completed' || empty($test->result)) {
+        throw new \RuntimeException('Test result not ready. Status: ' . $test->status);
+    }
+
     $result = json_decode($test->result, true);
 
-    $original = $result['original_answer'];
+    $original = $result['original_answer'] ?? '';
     $rawErrors = $result['errors'] ?? [];
 $errors = [];
 
@@ -225,14 +261,18 @@ foreach ($rawErrors as $i => $e) {
     [$highlightedEssay, $positioned, $unpositioned] =
         $this->processErrorsForHighlighting($original, $errors);
 
+    $testQuestion = $test->testQuestions->first();
+    $question = $testQuestion?->question ?? null;
+
     return [
-        'test' => $test,
+        'test'     => $test,
+        'question' => $question,
         'scores' => [
-            'task_achievement'   => $result['task_achievement'],
-            'coherence_cohesion' => $result['coherence_cohesion'],
-            'lexical_resource'   => $result['lexical_resource'],
-            'grammar'            => $result['grammar'],
-            'overall_band'       => $result['overall_band'],
+            'task_achievement'   => $result['task_achievement']   ?? 0,
+            'coherence_cohesion' => $result['coherence_cohesion'] ?? 0,
+            'lexical_resource'   => $result['lexical_resource']   ?? 0,
+            'grammar'            => $result['grammar']            ?? 0,
+            'overall_band'       => $result['overall_band']       ?? 0,
             'band_confidence_range' => $result['band_confidence_range'] ?? null,
         ],
         'feedback' => $result['feedback'],
@@ -557,6 +597,54 @@ protected function getErrorColorClass(string $category): string
         }
 
         return $info;
+    }
+
+    public function generateBand9Rewrite(string $answer, $question = null): string
+    {
+        $questionContent = $question->content ?? '';
+        $taskType = $question ? $this->determineTaskType($question->category ?? '') : 'IELTS Writing';
+
+        $prompt = <<<PROMPT
+You are a Band 9 IELTS examiner. Write a complete model Band 9 answer for the following task.
+
+TASK TYPE: {$taskType}
+QUESTION: {$questionContent}
+
+The candidate's answer for reference:
+{$answer}
+
+Write a full Band 9 model response. Use sophisticated vocabulary, varied sentence structures, perfect grammar, excellent cohesion, and fully address all parts of the task. Return ONLY the essay text — no explanations, no labels.
+PROMPT;
+
+        // Try Gemini first (free)
+        $gemini = app(GeminiService::class);
+        if ($gemini->isAvailable()) {
+            $result = $gemini->generate($prompt, 0.5, 900);
+            if ($result) {
+                return $result;
+            }
+            Log::warning('GeminiService failed for Band 9 rewrite, falling back to OpenAI');
+        }
+
+        // Fallback: OpenAI
+        $response = \Illuminate\Support\Facades\Http::timeout(45)->withHeaders([
+            'Authorization' => 'Bearer ' . config('services.openai.api_key'),
+            'Content-Type'  => 'application/json',
+        ])->post(config('services.openai.base_url', 'https://api.openai.com/v1') . '/chat/completions', [
+            'model'       => config('services.openai.model', 'gpt-4o-mini'),
+            'messages'    => [
+                ['role' => 'system', 'content' => 'You are an IELTS Band 9 expert. Return only the essay text.'],
+                ['role' => 'user', 'content' => $prompt],
+            ],
+            'temperature' => 0.4,
+            'max_tokens'  => 900,
+        ]);
+
+        if (!$response->successful()) {
+            throw new \Exception('Band 9 rewrite API call failed');
+        }
+
+        return $response->json('choices.0.message.content') ?? '';
     }
 
     public function getBandDescription($score)

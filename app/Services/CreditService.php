@@ -60,22 +60,45 @@ class CreditService
     }
 
     /**
-     * Check if user is pro (and not expired)
+     * Check if user is pro — Subscription model is the single source of truth.
+     * `users.is_pro` is a cached convenience field; always verify against subscriptions table.
      */
     public function isPro(User $user): bool
     {
-        if (!$user->is_pro) {
+        // Institute students get unlimited access via their institute seat plan
+        if ($this->hasSeatAccess($user)) {
+            return true;
+        }
+
+        $sub = $user->subscription;
+
+        if (!$sub || $sub->status !== 'active' || !$sub->ends_at || $sub->ends_at->isPast()) {
+            // Sync cached field if stale
+            if ($user->is_pro) {
+                $user->update(['is_pro' => false]);
+            }
             return false;
         }
 
-        // Check if pro expired
-        if ($user->pro_expires_at && Carbon::now()->isAfter($user->pro_expires_at)) {
-            // Auto-expire pro status
-            $user->update(['is_pro' => false]);
-            return false;
+        // Sync cached field if needed
+        if (!$user->is_pro) {
+            $user->update(['is_pro' => true, 'pro_expires_at' => $sub->ends_at]);
         }
 
         return true;
+    }
+
+    /**
+     * Institute students get unlimited test access via their institute's seat plan.
+     */
+    public function hasSeatAccess(User $user): bool
+    {
+        if (!$user->institute_id || !in_array($user->institute_role, ['student', 'teacher', 'owner'])) {
+            return false;
+        }
+
+        $institute = $user->institute;
+        return $institute && $institute->is_active;
     }
 
     /**

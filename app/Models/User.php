@@ -18,9 +18,9 @@ class User extends Authenticatable
      * @var array<int, string>
      */
     protected $fillable = [
-        'name',
-        'email',
-        'password',
+        'name', 'email', 'password',
+        'is_admin', 'institute_id', 'institute_role',
+        'referral_code', 'referred_by', 'referral_credits_earned',
     ];
 
     /**
@@ -42,8 +42,29 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'password'          => 'hashed',
+            'is_admin'          => 'boolean',
         ];
+    }
+
+    public function institute()
+    {
+        return $this->belongsTo(Institute::class);
+    }
+
+    public function batches()
+    {
+        return $this->belongsToMany(Batch::class, 'batch_user')->withTimestamps();
+    }
+
+    public function isInstituteOwner(): bool
+    {
+        return $this->institute_role === 'owner';
+    }
+
+    public function isTeacher(): bool
+    {
+        return in_array($this->institute_role, ['owner', 'teacher']);
     }
 
     /**
@@ -161,5 +182,17 @@ class User extends Authenticatable
     public function tests()
     {
         return $this->hasMany(Test::class);
+    }
+
+    public function assignedTestRecords()
+    {
+        return $this->hasMany(AssignedTestStudent::class);
+    }
+
+    public function pendingAssignments()
+    {
+        return $this->assignedTestRecords()
+            ->whereIn('status', ['pending', 'started'])
+            ->whereHas('assignment', fn($q) => $q->where('status', 'active'));
     }
 }

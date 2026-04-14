@@ -28,16 +28,17 @@ class WritingScoringService
     try {
         $prompt = $this->buildWritingScoringPrompt($answer, $question);
 
-        $response = Http::timeout(60)->withHeaders([
+        $response = Http::timeout(45)->withHeaders([
             'Authorization' => 'Bearer ' . $this->apiKey,
             'Content-Type'  => 'application/json',
         ])->post($this->baseUrl . '/chat/completions', [
             'model' => config('services.openai.model', 'gpt-4o-mini'),
             'messages' => [
-                ['role' => 'system', 'content' => 'You are an IELTS examiner. Return JSON only.'],
+                ['role' => 'system', 'content' => 'You are an IELTS examiner. Return JSON only. No markdown. No code blocks.'],
                 ['role' => 'user', 'content' => $prompt],
             ],
             'temperature' => 0.2,
+            'max_tokens' => 3000,
             'response_format' => ['type' => 'json_object'],
         ]);
 
@@ -106,32 +107,58 @@ class WritingScoringService
     $questionContent = $question->content ?? '';
     $taskType = $this->determineTaskType($question->category ?? '');
 
-return <<<PROMPT
-Evaluate the IELTS Writing response.
+    return <<<PROMPT
+You are a certified IELTS examiner. Score the candidate's writing and return ONLY valid JSON — no markdown, no code blocks.
 
-Return JSON ONLY.
+TASK TYPE: {$taskType}
+QUESTION: {$questionContent}
 
-DO NOT include HTML.
-DO NOT include positions.
-DO NOT rewrite the essay.
+CANDIDATE ANSWER:
+{$answer}
 
-Provide:
-- Band scores (0–9, 0.5 steps)
-- Examiner-style feedback
-- Strengths & improvements
-- Errors using EXACT incorrect text
+Use official IELTS band descriptors. Scores must be 0–9 in 0.5 increments.
 
-ERROR FORMAT:
+Return this EXACT JSON structure (no extra keys, no missing keys):
 {
-  "text": "exact wrong phrase",
-  "type": "grammar|vocabulary|cohesion",
-  "severity": "low|medium|high",
-  "correction": "correct form",
-  "explanation": "IELTS-style explanation"
+  "task_achievement": <number>,
+  "coherence_cohesion": <number>,
+  "lexical_resource": <number>,
+  "grammar": <number>,
+  "feedback": "<2-3 sentence overall examiner comment in formal tone>",
+  "summary": {
+    "estimated_band": <number>,
+    "strength": "<single most notable strength, 10 words max>",
+    "weakness": "<single most critical weakness, 10 words max>",
+    "tip": "<one actionable improvement tip, 12 words max>"
+  },
+  "band_explanations": {
+    "task_achievement": {"why": "<why this band score, 1-2 sentences>", "tip": "<how to raise it by 0.5>"},
+    "coherence_cohesion": {"why": "<why this band score, 1-2 sentences>", "tip": "<how to raise it by 0.5>"},
+    "lexical_resource": {"why": "<why this band score, 1-2 sentences>", "tip": "<how to raise it by 0.5>"},
+    "grammar": {"why": "<why this band score, 1-2 sentences>", "tip": "<how to raise it by 0.5>"}
+  },
+  "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
+  "improvements": ["<improvement area 1>", "<improvement area 2>", "<improvement area 3>"],
+  "examiner_comments": ["<high-level insight 1 an experienced examiner would note>", "<high-level insight 2>"],
+  "topic_vocabulary": ["<advanced topic word 1>", "<word 2>", "<word 3>", "<word 4>", "<word 5>", "<word 6>"],
+  "error_summary": {"grammar": <count>, "vocabulary": <count>, "cohesion": <count>, "punctuation": <count>},
+  "errors": [
+    {
+      "text": "<EXACT verbatim text copied from the candidate answer>",
+      "type": "grammar",
+      "category": "grammar",
+      "severity": "high",
+      "correction": "<corrected version>",
+      "explanation": "<IELTS-style explanation of why this is wrong>"
+    }
+  ]
 }
 
-ESSAY:
-{$answer}
+Rules for errors array:
+- text field MUST be copied verbatim from the candidate answer (used for highlighting)
+- Include 5–12 errors covering grammar, vocabulary, cohesion, and punctuation
+- type and category must both be one of: grammar, vocabulary, cohesion, punctuation
+- severity must be: low, medium, or high
 PROMPT;
 }
 

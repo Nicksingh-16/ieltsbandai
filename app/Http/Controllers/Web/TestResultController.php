@@ -57,24 +57,26 @@ class TestResultController extends Controller
             $task_info = $this->getTaskInfo($test->category ?? '');
             
         } else {
-            // For speaking/listening tests, extract from testScores relationship
-            $scores = [
-                'overall_band' => $test->overall_band ?? 0,
-            ];
-            
-            // Group scores by criteria
+            // For speaking tests — dedicated view
+            $scores = ['overall_band' => $test->overall_band ?? 0];
             foreach ($test->testScores as $testScore) {
                 $scores[$testScore->criteria] = $testScore->band_score;
             }
-            
-            $feedback = $test->feedback ?? '';
-            $strengths = [];
-            $improvements = [];
-            $word_count = null;
-            $errors = [];
-            $originalAnswer = null;
-            $highlightedEssay = null;
-            $task_info = ['title' => 'Speaking/Listening Test'];
+
+            $metadata       = json_decode($test->metadata ?? '{}', true);
+            $fillerAnalysis = $metadata['filler_analysis']    ?? [];
+            $repetitionData = $metadata['repetition_analysis'] ?? [];
+            $examinerComments = $metadata['examiner_comments'] ?? [];
+            $confidenceRange  = $metadata['band_confidence_range'] ?? null;
+
+            return view('pages.speaking.result', compact(
+                'test',
+                'scores',
+                'fillerAnalysis',
+                'repetitionData',
+                'examinerComments',
+                'confidenceRange'
+            ));
         }
 
         return view('pages.results.index', compact(

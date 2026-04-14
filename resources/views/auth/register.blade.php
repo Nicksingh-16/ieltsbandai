@@ -1,246 +1,105 @@
-{{-- resources/views/auth/register.blade.php --}}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up - IELTS Band AI</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-    </style>
-</head>
-<body class="bg-gradient-to-br from-indigo-50 via-white to-purple-50 min-h-screen">
+<x-guest-layout>
+    <div class="mb-6">
+        <h2 class="text-2xl font-bold text-surface-50">Create your account</h2>
+        <p class="text-surface-400 text-sm mt-1">Free forever. 3 credits on signup. No card required.</p>
+    </div>
 
-    <div class="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0 px-4 py-8">
-        <!-- Logo -->
-        <div class="mb-8">
-            <a href="{{ route('home') }}" class="flex flex-col items-center">
-                <div class="bg-gradient-to-r from-indigo-600 to-purple-600 w-16 h-16 rounded-2xl flex items-center justify-center mb-3 shadow-lg">
-                    <i class="fas fa-microphone text-white text-2xl"></i>
-                </div>
-                <span class="text-2xl font-bold text-indigo-600">IELTS Band AI</span>
-            </a>
-        </div>
-
-        <!-- Register Card -->
-        <div class="w-full sm:max-w-md bg-white rounded-3xl shadow-xl overflow-hidden">
-            <!-- Header -->
-            <div class="bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-6">
-                <h2 class="text-2xl font-bold text-white text-center">Create Your Account</h2>
-                <p class="text-indigo-100 text-center mt-1">Start your free IELTS practice today</p>
-            </div>
-
-            <!-- Form -->
-            <div class="px-8 py-8">
-                <form method="POST" action="{{ route('register') }}">
-                    @csrf
-
-                    <!-- Name -->
-                    <div class="mb-5">
-                        <label for="name" class="block text-sm font-semibold text-gray-700 mb-2">
-                            Full Name
-                        </label>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <i class="fas fa-user text-gray-400"></i>
-                            </div>
-                            <input 
-                                id="name" 
-                                type="text" 
-                                name="name" 
-                                value="{{ old('name') }}" 
-                                required 
-                                autofocus 
-                                autocomplete="name"
-                                class="block w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all @error('name') border-red-500 @enderror"
-                                placeholder="John Doe"
-                            >
-                        </div>
-                        @error('name')
-                            <p class="mt-2 text-sm text-red-600 flex items-center gap-1">
-                                <i class="fas fa-exclamation-circle text-xs"></i>
-                                {{ $message }}
-                            </p>
-                        @enderror
-                    </div>
-
-                    <!-- Email Address -->
-                    <div class="mb-5">
-                        <label for="email" class="block text-sm font-semibold text-gray-700 mb-2">
-                            Email Address
-                        </label>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <i class="fas fa-envelope text-gray-400"></i>
-                            </div>
-                            <input 
-                                id="email" 
-                                type="email" 
-                                name="email" 
-                                value="{{ old('email') }}" 
-                                required 
-                                autocomplete="username"
-                                class="block w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all @error('email') border-red-500 @enderror"
-                                placeholder="your@email.com"
-                            >
-                        </div>
-                        @error('email')
-                            <p class="mt-2 text-sm text-red-600 flex items-center gap-1">
-                                <i class="fas fa-exclamation-circle text-xs"></i>
-                                {{ $message }}
-                            </p>
-                        @enderror
-                    </div>
-
-                    <!-- Password -->
-                    <div class="mb-5">
-                        <label for="password" class="block text-sm font-semibold text-gray-700 mb-2">
-                            Password
-                        </label>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <i class="fas fa-lock text-gray-400"></i>
-                            </div>
-                            <input 
-                                id="password" 
-                                type="password" 
-                                name="password" 
-                                required 
-                                autocomplete="new-password"
-                                class="block w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all @error('password') border-red-500 @enderror"
-                                placeholder="Create a strong password"
-                            >
-                        </div>
-                        @error('password')
-                            <p class="mt-2 text-sm text-red-600 flex items-center gap-1">
-                                <i class="fas fa-exclamation-circle text-xs"></i>
-                                {{ $message }}
-                            </p>
-                        @enderror
-                    </div>
-
-                    <!-- Confirm Password -->
-                    <div class="mb-6">
-                        <label for="password_confirmation" class="block text-sm font-semibold text-gray-700 mb-2">
-                            Confirm Password
-                        </label>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <i class="fas fa-lock text-gray-400"></i>
-                            </div>
-                            <input 
-                                id="password_confirmation" 
-                                type="password" 
-                                name="password_confirmation" 
-                                required 
-                                autocomplete="new-password"
-                                class="block w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all @error('password_confirmation') border-red-500 @enderror"
-                                placeholder="Re-enter your password"
-                            >
-                        </div>
-                        @error('password_confirmation')
-                            <p class="mt-2 text-sm text-red-600 flex items-center gap-1">
-                                <i class="fas fa-exclamation-circle text-xs"></i>
-                                {{ $message }}
-                            </p>
-                        @enderror
-                    </div>
-
-                    <!-- Terms & Privacy -->
-                    <div class="mb-6">
-                        <p class="text-xs text-gray-600 text-center">
-                            By signing up, you agree to our 
-                            <a href="#" class="text-indigo-600 hover:text-indigo-700 font-medium">Terms of Service</a> 
-                            and 
-                            <a href="#" class="text-indigo-600 hover:text-indigo-700 font-medium">Privacy Policy</a>
-                        </p>
-                    </div>
-
-                    <!-- Submit Button -->
-                    <button 
-                        type="submit" 
-                        class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                        <span class="flex items-center justify-center gap-2">
-                            <i class="fas fa-user-plus"></i>
-                            Create Account
-                        </span>
-                    </button>
-                </form>
-
-                <!-- Divider -->
-                <div class="relative my-6">
-                    <div class="absolute inset-0 flex items-center">
-                        <div class="w-full border-t border-gray-300"></div>
-                    </div>
-                    <div class="relative flex justify-center text-sm">
-                        <span class="px-4 bg-white text-gray-500">Or sign up with</span>
-                    </div>
-                </div>
-
-                <!-- Social Sign Up -->
-                <div class="grid grid-cols-2 gap-3 mb-6">
-                    <a href="{{ route('auth.google') }}" class="flex items-center justify-center gap-2 bg-white border-2 border-gray-300 hover:border-indigo-400 text-gray-700 font-medium py-3 px-4 rounded-xl transition-all hover:bg-gray-50 hover:shadow-md">
-                        <i class="fab fa-google text-red-500"></i>
-                        Google
-                    </a>
-                    <button type="button" disabled class="flex items-center justify-center gap-2 bg-gray-100 border-2 border-gray-200 text-gray-400 font-medium py-3 px-4 rounded-xl cursor-not-allowed">
-                        <i class="fab fa-facebook text-gray-400"></i>
-                        Coming Soon
-                    </button>
-                </div>
-
-                <!-- Login Link -->
-                <div class="text-center">
-                    <p class="text-gray-600">
-                        Already have an account? 
-                        <a href="{{ route('login') }}" class="text-indigo-600 hover:text-indigo-700 font-semibold">
-                            Log in
-                        </a>
-                    </p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Benefits Section -->
-        <div class="mt-8 max-w-md">
-            <div class="bg-white/50 backdrop-blur rounded-2xl p-6 border border-white/20">
-                <h3 class="text-center font-bold text-gray-900 mb-4">Why Join IELTS Band AI?</h3>
-                <div class="space-y-3">
-                    <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
-                            <i class="fas fa-check text-indigo-600 text-sm"></i>
-                        </div>
-                        <p class="text-sm text-gray-700">Free daily practice tests</p>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
-                            <i class="fas fa-check text-indigo-600 text-sm"></i>
-                        </div>
-                        <p class="text-sm text-gray-700">Instant AI band score feedback</p>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
-                            <i class="fas fa-check text-indigo-600 text-sm"></i>
-                        </div>
-                        <p class="text-sm text-gray-700">Detailed error corrections</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Footer Links -->
-        <div class="mt-6 text-center text-sm text-gray-600">
-            <a href="{{ route('home') }}" class="hover:text-indigo-600 mx-3">Home</a>
-            <span class="text-gray-400">•</span>
-            <a href="#" class="hover:text-indigo-600 mx-3">Privacy</a>
-            <span class="text-gray-400">•</span>
-            <a href="#" class="hover:text-indigo-600 mx-3">Terms</a>
+    {{-- Benefits strip --}}
+    <div class="flex items-center gap-4 mb-6 p-3 bg-brand-500/10 border border-brand-500/25 rounded-xl">
+        <div class="flex gap-3 flex-wrap text-xs text-brand-300 font-medium">
+            <span class="flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                Instant AI feedback
+            </span>
+            <span class="flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                All 4 IELTS skills
+            </span>
+            <span class="flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                Band score in seconds
+            </span>
         </div>
     </div>
 
-</body>
-</html>
+    <form method="POST" action="{{ route('register') }}" class="space-y-4">
+        @csrf
+
+        {{-- Name --}}
+        <div>
+            <x-input-label for="name" :value="__('Full Name')" />
+            <x-text-input id="name" type="text" name="name" :value="old('name')"
+                required autofocus autocomplete="name" placeholder="Your full name" />
+            <x-input-error :messages="$errors->get('name')" />
+        </div>
+
+        {{-- Email --}}
+        <div>
+            <x-input-label for="email" :value="__('Email')" />
+            <x-text-input id="email" type="email" name="email" :value="old('email')"
+                required autocomplete="username" placeholder="you@email.com" />
+            <x-input-error :messages="$errors->get('email')" />
+        </div>
+
+        {{-- Password --}}
+        <div>
+            <x-input-label for="password" :value="__('Password')" />
+            <x-text-input id="password" type="password" name="password"
+                required autocomplete="new-password" placeholder="Min. 8 characters" />
+            <x-input-error :messages="$errors->get('password')" />
+        </div>
+
+        {{-- Confirm Password --}}
+        <div>
+            <x-input-label for="password_confirmation" :value="__('Confirm Password')" />
+            <x-text-input id="password_confirmation" type="password" name="password_confirmation"
+                required autocomplete="new-password" placeholder="Re-enter password" />
+            <x-input-error :messages="$errors->get('password_confirmation')" />
+        </div>
+
+        {{-- Terms --}}
+        <p class="text-xs text-surface-500">
+            By creating an account you agree to our
+            <a href="#" class="text-brand-400 hover:text-brand-300">Terms</a> and
+            <a href="#" class="text-brand-400 hover:text-brand-300">Privacy Policy</a>.
+        </p>
+
+        {{-- Submit --}}
+        <x-primary-button class="w-full justify-center py-3">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+            </svg>
+            Create Account — It's Free
+        </x-primary-button>
+    </form>
+
+    {{-- Divider --}}
+    <div class="relative my-5">
+        <div class="absolute inset-0 flex items-center">
+            <div class="w-full border-t border-surface-600"></div>
+        </div>
+        <div class="relative flex justify-center">
+            <span class="px-3 bg-surface-800 text-xs text-surface-500">or sign up with</span>
+        </div>
+    </div>
+
+    {{-- Google --}}
+    <a href="{{ route('auth.google') }}"
+       class="flex items-center justify-center gap-3 w-full px-4 py-2.5 bg-surface-700 hover:bg-surface-600 border border-surface-600 rounded-xl text-sm font-medium text-surface-200 transition-colors">
+        <svg class="w-4 h-4" viewBox="0 0 24 24">
+            <path fill="#EA4335" d="M5.266 9.765A7.077 7.077 0 0 1 12 4.909c1.69 0 3.218.6 4.418 1.582L19.91 3C17.782 1.145 15.055 0 12 0 7.27 0 3.198 2.698 1.24 6.65l4.026 3.115Z"/>
+            <path fill="#34A853" d="M16.04 18.013c-1.09.703-2.474 1.078-4.04 1.078a7.077 7.077 0 0 1-6.723-4.823l-4.04 3.067A11.965 11.965 0 0 0 12 24c2.933 0 5.735-1.043 7.834-3l-3.793-2.987Z"/>
+            <path fill="#4A90E2" d="M19.834 21c2.195-2.048 3.62-5.096 3.62-9 0-.71-.109-1.473-.272-2.182H12v4.637h6.436c-.317 1.559-1.17 2.766-2.395 3.558L19.834 21Z"/>
+            <path fill="#FBBC05" d="M5.277 14.268A7.12 7.12 0 0 1 4.909 12c0-.782.125-1.533.357-2.235L1.24 6.65A11.934 11.934 0 0 0 0 12c0 1.92.445 3.73 1.237 5.335l4.04-3.067Z"/>
+        </svg>
+        Continue with Google
+    </a>
+
+    {{-- Login link --}}
+    <p class="text-center text-sm text-surface-400 mt-5">
+        Already have an account?
+        <a href="{{ route('login') }}" class="text-brand-400 hover:text-brand-300 font-medium transition-colors">
+            Sign in
+        </a>
+    </p>
+</x-guest-layout>

@@ -42,4 +42,56 @@ return [
         ],
         'badge' => 'Best Value',
     ],
+
+    // ── Institute (B2B) Plans ─────────────────────────────────────────────────
+    'institute' => [
+        'starter' => [
+            'name'       => 'Starter Institute',
+            'price'      => 2999,           // ₹2,999 / month
+            'seat_limit' => 30,
+            'duration_days' => 30,
+            'features'   => [
+                'Up to 30 students',
+                'All 4 IELTS modules',
+                'Batch management',
+                'Question bank (50 questions)',
+                'Assignment & tracking',
+                'Batch analytics dashboard',
+                'Email support',
+            ],
+            'badge' => null,
+        ],
+        'pro' => [
+            'name'       => 'Pro Institute',
+            'price'      => 5999,           // ₹5,999 / month
+            'seat_limit' => 100,
+            'duration_days' => 30,
+            'features'   => [
+                'Up to 100 students',
+                'All Starter features',
+                'Unlimited question bank',
+                'Custom assignments & mock tests',
+                'Student progress delta tracking',
+                'PDF score reports for students',
+                'Priority support + onboarding call',
+            ],
+            'badge' => 'Most Popular',
+        ],
+        'enterprise' => [
+            'name'       => 'Enterprise',
+            'price'      => 12999,          // ₹12,999 / month
+            'seat_limit' => 500,
+            'duration_days' => 30,
+            'features'   => [
+                'Up to 500 students',
+                'All Pro features',
+                'Dedicated account manager',
+                'Custom branding (coming soon)',
+                'API access',
+                'SLA guarantee',
+                'Quarterly performance reviews',
+            ],
+            'badge' => 'Enterprise',
+        ],
+    ],
 ];

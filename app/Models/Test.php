@@ -24,10 +24,11 @@ class Test extends Model
         'duration_seconds' => 'integer',
     ];
 
-    public function user()   { return $this->belongsTo(User::class); }
-    public function testScores() { return $this->hasMany(TestScore::class); }
-    public function testQuestions() { return $this->hasMany(TestQuestion::class); }
-    public function audioFiles() { return $this->hasMany(AudioFile::class); }
+    public function user()         { return $this->belongsTo(User::class); }
+    public function testScores()   { return $this->hasMany(TestScore::class); }
+    public function testQuestions(){ return $this->hasMany(TestQuestion::class); }
+    public function audioFiles()   { return $this->hasMany(AudioFile::class); }
+    public function questions()    { return $this->belongsToMany(Question::class, 'test_questions')->withPivot('part'); }
 
     /** Universal band getter */
     public function getBandAttribute()
@@ -36,24 +37,19 @@ class Test extends Model
     }
 
     /** Universal result page route */
-   public function getResultRouteAttribute()
-{
-    // Only allow result pages for completed tests
-    if ($this->status !== 'completed') {
-        return route('dashboard');
-    }
+    public function getResultRouteAttribute(): string
+    {
+        if ($this->status !== 'completed') {
+            return route('dashboard');
+        }
 
-    if ($this->type === 'writing') {
-        return route('writing.result', $this->id);
+        return match($this->type) {
+            'writing'   => route('writing.result', $this->id),
+            'listening' => route('listening.result', $this->id),
+            'reading'   => route('reading.result', $this->id),
+            default     => route('test.result', $this->id), // speaking uses TestResultController
+        };
     }
-
-    if ($this->type === 'speaking') {
-        return route('speaking.result', $this->id);
-    }
-
-    // fallback
-    return route('dashboard');
-}
 
 }
 

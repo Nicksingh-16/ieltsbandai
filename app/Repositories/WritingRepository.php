@@ -14,13 +14,38 @@ class WritingRepository
      * @param string $category e.g., 'writing_academic_task1'
      * @return Question|null
      */
-    public function getWritingQuestionByCategory($category)
+    public function getWritingQuestionByCategory($category, ?int $userId = null)
     {
-        return Question::where('type', 'writing')
+        $query = Question::where('type', 'writing')
             ->where('category', $category)
-            ->where('active', true)
-            ->inRandomOrder()
-            ->first();
+            ->where('active', true);
+
+        if ($userId) {
+            $seen = DB::table('test_questions')
+                ->join('tests', 'tests.id', '=', 'test_questions.test_id')
+                ->where('tests.user_id', $userId)
+                ->where('tests.type', 'writing')
+                ->orderByDesc('tests.created_at')
+                ->limit(20)
+                ->pluck('test_questions.question_id');
+
+            if ($seen->isNotEmpty()) {
+                $query->whereNotIn('id', $seen);
+            }
+        }
+
+        $question = $query->inRandomOrder()->first();
+
+        // Fallback: if all questions have been seen, ignore deduplication
+        if (!$question && $userId) {
+            $question = Question::where('type', 'writing')
+                ->where('category', $category)
+                ->where('active', true)
+                ->inRandomOrder()
+                ->first();
+        }
+
+        return $question;
     }
 
     /**

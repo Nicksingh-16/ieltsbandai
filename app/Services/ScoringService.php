@@ -27,7 +27,7 @@ class ScoringService
         try {
             $prompt = $this->buildSpeakingScoringPrompt($transcript);
 
-            $response = Http::withHeaders([
+            $response = Http::timeout(90)->withHeaders([
                 'Authorization' => 'Bearer ' . $this->apiKey,
                 'Content-Type' => 'application/json',
             ])
@@ -36,7 +36,7 @@ class ScoringService
                 'messages' => [
                     [
                         'role' => 'system',
-                        'content' => 'You are an expert IELTS speaking examiner. You must respond ONLY with valid JSON, no other text.',
+                        'content' => 'You are a standardised IELTS Speaking examiner certified by the British Council and IDP. You score transcripts using the official IELTS Speaking Band Descriptors exactly as trained. You must respond ONLY with valid JSON, no prose before or after.',
                     ],
                     [
                         'role' => 'user',
@@ -118,7 +118,7 @@ class ScoringService
         try {
             $prompt = $this->buildWritingScoringPrompt($answer, $question);
 
-            $response = Http::timeout(60)->withHeaders([
+            $response = Http::timeout(120)->withHeaders([
                 'Authorization' => 'Bearer ' . $this->apiKey,
                 'Content-Type' => 'application/json',
             ])
@@ -127,7 +127,7 @@ class ScoringService
                 'messages' => [
                     [
                         'role' => 'system',
-                        'content' => 'You are an expert IELTS writing examiner certified by Cambridge. Evaluate writing samples according to official IELTS band descriptors. You must respond ONLY with valid JSON.',
+                        'content' => 'You are a standardised IELTS Writing examiner certified by Cambridge Assessment English. You score writing responses using the official IELTS Writing Band Descriptors exactly as trained. You must respond ONLY with valid JSON, no prose before or after.',
                     ],
                     [
                         'role' => 'user',
@@ -289,18 +289,78 @@ class ScoringService
     protected function buildSpeakingScoringPrompt(string $transcript): string
     {
         return <<<PROMPT
-Role: Senior IELTS Examiner (10+ years experience).
-Objective: Evaluate the transcript with strict, conservative, examiner-accurate judgment.
-Scoring Philosophy:
-- Band 8–9 scores are RARE and must be awarded ONLY in exceptional cases (near-native, effortless control).
-- If there is ANY doubt, assign the LOWER band.
-- Most candidates fall between Band 5.5–6.5.
-- Trust over encouragement. Accuracy > range.
+You are a trained IELTS Speaking examiner with 15+ years of examining experience, certified by the British Council and IDP. You have been standardised against the official IELTS Speaking Band Descriptors and apply them with the same precision as a live examiner.
 
-Transcript:
+Your task: score the following speaking transcript against the four official IELTS Speaking criteria using the OFFICIAL PUBLIC BAND DESCRIPTORS reproduced below.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OFFICIAL IELTS SPEAKING BAND DESCRIPTORS
+(Public Version — British Council / IDP / Cambridge)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CRITERION 1 — FLUENCY AND COHERENCE (FC)
+Band 9: Speaks fluently with only rare repetition or self-correction; any hesitation is content-related rather than to find words or grammar; speaks coherently with fully coherent discourse; develops topics fully and appropriately.
+Band 8: Speaks fluently with only occasional repetition or self-correction; hesitation is usually content-related and only rarely to search for language; develops topics coherently and appropriately.
+Band 7: Speaks at length without noticeable effort or loss of coherence; may demonstrate language-related hesitation at times, or some repetition and/or self-correction; uses a range of connectives and discourse markers with some flexibility.
+Band 6: Is willing to speak at length, though may lose coherence at times due to occasional digression, repetition or self-correction; uses a range of connectives and discourse markers but not always appropriately.
+Band 5: Usually maintains flow of speech but uses repetition, self-correction and/or slow speech to keep going; may over-use certain connectives and discourse markers; produces simple speech fluently, but more complex communication causes fluency problems.
+Band 4: Cannot always maintain fluency and is often hesitant with limited language resources; hesitation is often associated with mid-utterance; limited ability to link utterances or ideas coherently; often uses only basic discourse markers.
+
+CRITERION 2 — LEXICAL RESOURCE (LR)
+Band 9: Uses vocabulary with full flexibility and precision in all topics; uses idiomatic language naturally and accurately.
+Band 8: Uses a wide vocabulary resource readily and flexibly to convey precise meaning; uses less common and idiomatic vocabulary skilfully, with occasional inaccuracies; uses paraphrase effectively as required.
+Band 7: Uses vocabulary resource flexibly to discuss a variety of topics; uses some less common and idiomatic vocabulary and shows some awareness of style and collocation, with some inappropriate choices; uses paraphrase effectively.
+Band 6: Has a wide enough vocabulary to discuss topics at length and make meaning clear in spite of some inappropriacies; generally paraphrases successfully.
+Band 5: Manages to talk about familiar and unfamiliar topics but uses vocabulary with limited flexibility; attempts to use paraphrase but with mixed success.
+Band 4: Can talk about familiar topics but can only convey basic meaning on unfamiliar topics and makes frequent errors in word choice; rarely attempts paraphrase.
+
+CRITERION 3 — GRAMMATICAL RANGE AND ACCURACY (GRA)
+Band 9: Uses a full range of structures naturally and appropriately; produces consistently accurate structures apart from 'slips' characteristic of native speaker speech.
+Band 8: Uses a wide range of structures flexibly; produces a majority of error-free sentences with only very occasional inappropriacies or basic non-systematic errors.
+Band 7: Uses a range of complex structures with some flexibility; frequently produces error-free sentences, though some grammatical mistakes persist.
+Band 6: Uses a mix of simple and complex structures, but with limited flexibility; may make frequent mistakes with complex structures, though these rarely cause comprehension difficulties.
+Band 5: Produces basic sentence forms with reasonable accuracy; uses a limited range of more complex structures, but these are usually inaccurate; errors can cause some comprehension difficulties.
+Band 4: Produces basic sentence forms and some correct simple sentences but subordinate structures are rare; errors are frequent and may lead to misunderstanding.
+
+CRITERION 4 — PRONUNCIATION (PRON)
+Band 9: Uses a full range of phonological features with precision and subtlety; sustains flexible use of features, with only rare lapses; is easy to understand throughout.
+Band 8: Uses a wide range of phonological features with precision and subtlety; only very occasional lapses in control; is easy to understand throughout; L1 accent has minimal effect on intelligibility.
+Band 7: Uses phonological features effectively; accent is non-intrusive; individual sounds and word stress are generally accurate.
+Band 6: Uses a range of phonological features with mixed control; can generally be understood throughout, though mispronunciation of individual words or sounds reduces clarity at times.
+Band 5: Shows evidence of an attempt to produce phonological features, but control is limited; mispronunciations are frequent and cause some difficulty for the listener.
+Band 4: Uses a limited range of phonological features; mispronunciations are frequent and cause considerable difficulty for the listener.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CALIBRATION ANCHORS (Examiner Standardisation Reference)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Band 5.0 anchor: Candidate speaks on familiar topics with simple fluency; frequent grammatical errors in complex structures; vocabulary is adequate but repetitive; accent requires occasional listener effort.
+Band 6.0 anchor: Candidate speaks at reasonable length; some language-related hesitation; uses a mix of simple and complex grammar with limited accuracy on complex forms; vocabulary adequate with some inappropriate choices; generally intelligible.
+Band 6.5 anchor: Better than Band 6 on most criteria but not yet consistently meeting Band 7 — award 6.5 when candidate oscillates between descriptors.
+Band 7.0 anchor: Candidate speaks at length without noticeable effort; uses a RANGE of complex structures with FREQUENT error-free sentences; vocabulary is flexible and includes less common items used accurately; accent does not impede.
+Band 8.0 anchor: Near-expert control; hesitation is content-driven not language-driven; the MAJORITY of sentences are error-free; idiomatic vocabulary used with skill.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXAMINER SCORING RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Score each criterion independently against its descriptor — do NOT average first.
+2. Half-bands (5.5, 6.5, 7.5) are awarded when the candidate sits between two descriptors.
+3. Overall band = arithmetic mean of 4 criteria, rounded to nearest 0.5.
+4. Band 8+ requires the candidate to MEET the Band 8 descriptor on ALL 4 criteria. A single Band 6 criterion prevents Band 8 overall.
+5. Fillers ("uh", "um", "like", "you know") exceeding 15 per 100 words → FC ≤ 5.5.
+6. Memorised or rehearsed responses that lack spontaneous development → FC ≤ 5.5, LR ≤ 6.0.
+7. Accent that causes the listener repeated effort → PRON ≤ 5.5.
+8. If the transcript is very short (< 80 words) or refuses to engage, cap all criteria at Band 5.0.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TRANSCRIPT TO EVALUATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {$transcript}
 
-Provide your evaluation in JSON format:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REQUIRED JSON OUTPUT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Return ONLY valid JSON. No prose before or after.
+
 {
   "fluency": X.X,
   "lexical": X.X,
@@ -308,35 +368,31 @@ Provide your evaluation in JSON format:
   "pronunciation": X.X,
   "overall_band": X.X,
   "band_confidence_range": "X.X – X.X",
+  "descriptor_match": {
+    "fluency": "Exact descriptor phrase from the band awarded",
+    "lexical": "Exact descriptor phrase from the band awarded",
+    "grammatical_range_accuracy": "Exact descriptor phrase from the band awarded",
+    "pronunciation": "Exact descriptor phrase from the band awarded"
+  },
   "examiner_comments": [
-    "Examiner-style comments explaining score limitations."
+    "Evidence-based comment citing specific transcript moments that justify the fluency score.",
+    "Evidence-based comment citing specific transcript moments that justify the lexical score.",
+    "Evidence-based comment citing specific transcript moments that justify the grammar score.",
+    "Evidence-based comment citing specific transcript moments that justify the pronunciation score."
   ],
+  "strengths": ["Specific positive features observed in the transcript"],
+  "areas_to_improve": ["Specific, actionable improvement targets tied to descriptor gaps"],
   "error_summary": {
     "grammar_errors_per_100_words": X,
-    "repeated_errors": ["..."]
+    "repeated_errors": ["specific repeated error patterns observed"]
   },
   "metadata": {
     "fillers_detected": X,
+    "word_count_estimate": X,
     "repetition_flags": true|false,
-    "pronunciation_notes": ["..."]
+    "pronunciation_notes": ["specific phonological observations"]
   }
 }
-
-STRICT HIGH-BAND GATES (🚫 Band 7+ GATE):
-- Position/Response must be clear, nuanced, and consistently maintained.
-- Ideas must be fully developed beyond obvious/memorised points.
-- NO repeated grammar errors.
-- Vocabulary is natural/flexible, NOT forced or memorised.
-- If ANY generic ideas, slight misuse of vocab, or repeated minor errors are present -> CAP Overall Band at 6.5.
-
-STRICT SPEAKING RULES:
-- Fluency matters MORE than complexity.
-- Excessive fillers ("uh", "um", "you know") -> Fluency <= 6.0.
-- Repetition or reformulation of the same idea -> Coherence/Fluency <= 6.0.
-- Pronunciation: Causes listener effort -> <= 6.0; Inconsistent -> <= 6.5.
-- Memorised answers or rehearsed phrases must be penalized.
-
-Return ONLY valid JSON.
 PROMPT;
     }
 
@@ -382,12 +438,76 @@ TASK2;
         }
 
         return <<<PROMPT
-Role: Senior IELTS Examiner (10+ years experience).
-Objective: Evaluate the response ACCURATELY based on official IELTS public band descriptors.
-Scoring Philosophy:
-- Award Band 7+ if the user meets the descriptors (e.g., "frequent error-free sentences", "range of complex structures").
-- Do NOT artificially cap scores. If the English is good, award the score.
-- Be fair: isolated errors should not pull down a high-quality essay significantly.
+You are a trained IELTS Writing examiner with 15+ years of examining experience, certified by Cambridge Assessment English. You apply the official IELTS Writing Band Descriptors with the same precision and consistency as a live examiner, having undergone regular standardisation training.
+
+Your task: score the following writing response against the four official IELTS Writing criteria using the OFFICIAL PUBLIC BAND DESCRIPTORS reproduced below.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OFFICIAL IELTS WRITING BAND DESCRIPTORS
+(Public Version — Cambridge Assessment English)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CRITERION 1A — TASK ACHIEVEMENT (TA) [Task 1 Academic & General]
+Band 9: Fully satisfies all requirements of the task. Clearly presents a fully developed response.
+Band 8: Covers all requirements of the task sufficiently. Presents, highlights and illustrates key features / bullet points clearly and appropriately.
+Band 7: Covers the requirements of the task; clearly presents and highlights key features / bullet points but could be more fully extended.
+Band 6: Addresses the requirements of the task; key features are selected and highlighted but could be more clearly described; may include some irrelevant, inappropriate or inaccurate information.
+Band 5: Recounts detail mechanically with no clear overview; there may be some attempt to compare data but it is not clearly presented; there may be irrelevant information present.
+Band 4: The prompt is inadequately addressed or the response is tangentially related to the task; key features may be selected but not highlighted; the format may be inappropriate.
+
+CRITERION 1B — TASK RESPONSE (TR) [Task 2 Academic & General]
+Band 9: Fully addresses all parts of the task. Presents a fully developed position with relevant, fully extended and well-supported ideas.
+Band 8: Sufficiently addresses all parts of the task. Presents a well-developed response with relevant, extended and supported ideas.
+Band 7: Addresses all parts of the task. Presents a clear position throughout; extends and supports main ideas, but there may be a tendency to over-generalise and/or supporting ideas may lack focus.
+Band 6: Addresses all parts of the task although some parts may be more fully covered than others. Presents a relevant position although the conclusions may become unclear or repetitive; presents relevant main ideas but some may be inadequately developed/unclear.
+Band 5: Addresses the task only partially. Expresses a position but the development is not always clear; limited relevant ideas are presented and these may be inadequately supported.
+Band 4: Responds to the task only in a minimal way or the answer is tangential. A position is discernible but the reader has to read carefully to find it; limited ideas are presented and these may be repetitive or inadequately supported.
+
+CRITERION 2 — COHERENCE AND COHESION (CC)
+Band 9: Uses cohesion in such a way that it attracts no attention; skilfully manages paragraphing.
+Band 8: Sequences information and ideas logically; manages all aspects of cohesion well; uses paragraphing sufficiently and appropriately.
+Band 7: Logically organises information and ideas; there is clear progression throughout; uses a range of cohesive devices appropriately although there may be some under-/over-use.
+Band 6: Arranges information and ideas coherently and there is a clear overall progression; uses cohesive devices effectively but cohesion within and/or between sentences may be faulty or mechanical; uses paragraphing but not always logically.
+Band 5: Presents information with some organisation but there may be a lack of overall progression; makes inadequate, inaccurate or over-use of cohesive devices; uses paragraphing but not always logically.
+Band 4: Presents information and ideas but these are not arranged coherently and there is no clear progression; uses some basic cohesive devices but these may be inaccurate or repetitive; may not write in paragraphs or paragraphing may be inadequate.
+
+CRITERION 3 — LEXICAL RESOURCE (LR)
+Band 9: Uses a wide range of vocabulary with very natural and sophisticated control of lexical features; rare minor errors occur only as 'slips'.
+Band 8: Uses a wide range of vocabulary fluently and flexibly to convey precise meanings; skilfully uses uncommon lexical items but there may be occasional inaccuracies in word choice and collocation; produces rare errors in spelling and/or word formation.
+Band 7: Uses a sufficient range of vocabulary to allow some flexibility and precision; uses less common lexical items with some awareness of style and collocation; may produce occasional errors in word choice, spelling and/or word formation.
+Band 6: Uses an adequate range of vocabulary for the task; attempts to use less common vocabulary but with some inaccuracy; makes some errors in spelling and/or word formation, but these do not impede communication.
+Band 5: Uses a limited range of vocabulary, but this is minimally adequate for the task; may make noticeable errors in spelling and/or word formation that may cause some difficulty for the reader; over-relies on particular words and phrases.
+Band 4: Uses only basic vocabulary which may be used repetitively or which may be inappropriate for the task; has limited control of word formation and/or spelling; errors may cause strain for the reader.
+
+CRITERION 4 — GRAMMATICAL RANGE AND ACCURACY (GRA)
+Band 9: Uses a wide range of structures with full flexibility and accuracy; rare minor errors occur only as 'slips'.
+Band 8: Uses a wide range of structures; the majority of sentences are error-free; makes only very occasional errors or inappropriacies.
+Band 7: Uses a variety of complex structures; produces frequent error-free sentences; has good control of grammar and punctuation but may make a few errors.
+Band 6: Uses a mix of simple and complex sentence forms; makes some errors in grammar and punctuation but they rarely impede communication.
+Band 5: Uses only a limited range of structures; attempts complex sentences but these tend to be less accurate than simple sentences; may make frequent grammatical errors and punctuation may be faulty; errors can cause some difficulty for the reader.
+Band 4: Uses only a very limited range of structures with only rare use of subordinate clauses; some structures are accurate but errors predominate; punctuation is often faulty.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CALIBRATION ANCHORS (Examiner Standardisation Reference)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Band 5.0 essay anchor: Task partially addressed, no clear overview (Task 1) or unclear position (Task 2); limited range of structures; frequent grammatical errors; limited vocabulary range.
+Band 6.0 essay anchor: Task adequately addressed with overview/position; mix of simple and complex sentences with some errors; adequate vocabulary with attempts at less common items; some errors in cohesion.
+Band 6.5 anchor: Clearly better than Band 6 on most criteria but not consistently meeting Band 7 — award when oscillating.
+Band 7.0 essay anchor: Task fully addressed; variety of complex structures with FREQUENT error-free sentences; less common vocabulary used with some precision; clear logical organisation with appropriate cohesive devices.
+Band 8.0 essay anchor: All parts addressed fully; wide range of structures with MAJORITY error-free; wide vocabulary with precision and only occasional inaccuracies; seamless cohesion.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXAMINER SCORING RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Score each criterion independently against its descriptor — the four scores may differ.
+2. Half-bands (5.5, 6.5, 7.5) are awarded when the response sits between two descriptors.
+3. Overall band = arithmetic mean of 4 criteria, rounded to nearest 0.5.
+4. Task 1: Award TA ≤ 5.0 if NO overview is present. A present-but-weak overview → TA 5.5–6.0.
+5. Task 2: Award TR ≤ 5.0 if the position is absent or if only one idea is developed.
+6. Word count below minimum (Task 1 < 150 words, Task 2 < 250 words) → reduce TA/TR by 0.5.
+7. Band 7+ GRA requires: VARIETY of complex structures AND frequent error-free sentences. If the response has only isolated complex sentences or repeated complex forms, GRA ≤ 6.5.
+8. Band 7+ LR requires: less common vocabulary used accurately AND few errors. If vocabulary is wide but frequently inaccurate, LR ≤ 6.5.
+9. Do NOT penalise different-but-valid phrasings. Only flag genuine errors.
 
 TASK TYPE: {$taskType}
 QUESTION:
@@ -399,17 +519,6 @@ USER'S ANSWER:
 {$specificCriteria}
 {$task1MetadataInstructions}
 {$task2Instructions}
-
-HIGH-BAND GATES (Band 7+ Guidance):
-- Band 7 requires: "frequent error-free sentences", "good control of grammar/punctuation but may make a few errors".
-- Band 8 requires: "wide range of structures", "the majority of sentences are error-free", "occasional inaccuracies".
-- Key difference: Band 6 has "mix of simple and complex forms", Band 7 has "variety of complex structures".
-- Vocabulary: Band 7 allows "occasional errors in word choice".
-
-SCORING RULES:
-- Accuracy > Range (but do not penalize attempts at complexity too harshly).
-- Deduct for REPEATED errors that impede communication.
-- Reward natural language and clear progression of ideas.
 
 ERROR DETECTION REQUIREMENTS (ACCURATE & HELPFUL):
 - Identify REAL errors that actually impact clarity, accuracy, or IELTS band criteria.
@@ -487,56 +596,62 @@ CRITICAL: ERROR DETECTION vs BAND SCORING:
 
 Provide evaluation in JSON:
 {
-  "task_response": 0.0, 
+  "task_response": 0.0,
   "coherence_cohesion": 0.0,
   "lexical_resource": 0.0,
   "grammatical_range_accuracy": 0.0,
   "overall_band": 0.0,
   "band_confidence_range": "X.X – X.X",
-  "examiner_comments": ["Examiner-style comments explaining specific scoring limitations based on highlighted patterns."],
+  "descriptor_match": {
+    "task_achievement": "Exact phrase from the official descriptor that best matches the awarded band",
+    "coherence_cohesion": "Exact phrase from the official descriptor that best matches the awarded band",
+    "lexical_resource": "Exact phrase from the official descriptor that best matches the awarded band",
+    "grammatical_range_accuracy": "Exact phrase from the official descriptor that best matches the awarded band"
+  },
+  "examiner_comments": ["Evidence-based comment citing specific writing patterns that justify each criterion score."],
   "band_explanations": {
     "task_achievement": {
-      "why": "Specific examiner explanation of why this band was awarded for Task Achievement.",
-      "tip": "Actionable tip to improve this criterion."
+      "why": "2–3 sentence explanation citing specific evidence from the response (e.g., 'The overview identifies the two main trends — X and Y — which satisfies the Band 7 descriptor').",
+      "tip": "Specific, actionable advice tied to the next band descriptor (e.g., 'To reach Band 7 TA, include a more precise overview that identifies the most significant feature across all data sets')."
     },
     "coherence_cohesion": {
-      "why": "Specific examiner explanation of why this band was awarded for Coherence & Cohesion.",
-      "tip": "Actionable tip to improve this criterion."
+      "why": "2–3 sentence explanation citing specific evidence from the response.",
+      "tip": "Specific, actionable advice tied to the next band descriptor."
     },
     "lexical_resource": {
-      "why": "Specific examiner explanation of why this band was awarded for Lexical Resource.",
-      "tip": "Actionable tip to improve this criterion."
+      "why": "2–3 sentence explanation citing specific vocabulary choices from the response.",
+      "tip": "Specific, actionable advice tied to the next band descriptor."
     },
     "grammar": {
-      "why": "Specific examiner explanation of why this band was awarded for Grammatical Range & Accuracy.",
-      "tip": "Actionable tip to improve this criterion."
+      "why": "2–3 sentence explanation citing specific grammatical patterns from the response.",
+      "tip": "Specific, actionable advice tied to the next band descriptor."
     }
   },
   "error_summary": {
     "grammar_errors_per_100_words": 0,
-    "repeated_errors": ["..."]
+    "repeated_errors": ["specific repeated error patterns observed"]
   },
-  "band_9_rewrite": "Full Band 9 model response.",
-  "topic_vocabulary": ["5–7 topic-specific advanced but natural words"],
+  "band_9_rewrite": "A complete Band 9 model response to the same question.",
+  "topic_vocabulary": ["5–7 topic-specific advanced and natural lexical items appropriate for this task"],
   "errors": [
     {
-      "text": "EXACT incorrect text from user essay",
+      "text": "EXACT 1–5 word span from the user response (character-for-character match)",
       "type": "Grammar|Vocabulary|Punctuation|Cohesion",
       "severity": "low|medium|high",
-      "correction": "Corrected version",
-      "explanation": "Senior examiner explanation of WHY this is an error and HOW it affects the band."
+      "correction": "Corrected version of the extracted span",
+      "explanation": "Examiner explanation of WHY this is an error, which descriptor it affects, and how fixing it would improve the band."
     }
   ]
 }
 
-MANDATORY - BAND EXPLANATIONS:
-- You MUST generate detailed "why" and "tip" for EACH of the 4 criteria.
-- The "why" field must explain the specific reasons for the band score (2-3 sentences).
-- The "tip" field must provide actionable advice to improve (1-2 sentences).
-- DO NOT use generic placeholders like "pending" or "rationale pending".
-- Example for Task Achievement Band 6.0:
-  "why": "The response addresses all parts of the task with a clear overview and main trends identified. However, the overview lacks specificity and some data points are not fully developed."
-  "tip": "Provide more specific details in your overview and ensure all data points are fully supported with accurate figures."
+MANDATORY — BAND EXPLANATIONS:
+- You MUST generate detailed "why" and "tip" for ALL 4 criteria. No exceptions.
+- The "why" field must cite SPECIFIC evidence from the response — quote or reference actual sentences/words.
+- The "tip" field must be tied to what the NEXT band descriptor requires — tell the candidate exactly what to do differently.
+- DO NOT use generic placeholders like "pending", "rationale pending", or "see above".
+- Example for Task Achievement Band 6.0 (Task 1):
+  "why": "The overview correctly identifies that urban populations increased while rural populations declined, satisfying the Band 6 descriptor of 'key features are selected and highlighted'. However, the overview lacks a comparative endpoint figure, which prevents it from being 'clearly presented' at Band 7."
+  "tip": "At Band 7, your overview must identify the most significant feature AND include a key comparator (e.g., 'by 2020, urban residents outnumbered rural by 2:1'). Add one precise comparative statement to your overview paragraph."
 
 CRITICAL ERROR EXTRACTION RULES:
 - Extract ONLY the MINIMAL error portion (1-5 words maximum). DO NOT extract full sentences.

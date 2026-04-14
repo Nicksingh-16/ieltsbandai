@@ -77,53 +77,68 @@ class IELTSQuestionSeeder extends Seeder
 
         // 3. Insert Standardized Writing Questions
         
-        // --- Writing Task 1 Academic (with Metadata) ---
+        // --- Writing Task 1 Academic (with Metadata + Chart Data) ---
         $writingAcademicTask1 = [
             [
-                'title' => 'Population Growth in Urban and Rural Areas',
-                'content' => 'The chart below shows the percentage of the population living in urban and rural areas in a particular country between 1950 and 2010.',
+                'title' => 'Urban and Rural Population Growth (1950–2010)',
+                'content' => "The line graph below shows the percentage of the population living in urban and rural areas in a particular country between 1950 and 2010.\n\nSummarise the information by selecting and reporting the main features, and make comparisons where relevant.",
                 'metadata' => [
                     'chart_type' => 'line',
-                    'time_range' => '1950–2010',
-                    'units' => 'percentage',
-                    'key_trends' => [
-                        'Steady increase in urban population from 20% in 1950 to 65% in 2010',
-                        'Consistent decline in rural population from 80% to 35% over the same period',
-                        'The two lines crossed around 1985 when both were at 50%'
+                    'chart_title' => 'Urban vs Rural Population (%) — 1950 to 2010',
+                    'y_label' => 'Population (%)',
+                    'labels' => ['1950','1960','1970','1980','1990','2000','2010'],
+                    'datasets' => [
+                        ['label' => 'Urban', 'data' => [20, 28, 38, 48, 55, 60, 65], 'color' => '#06b6d4'],
+                        ['label' => 'Rural', 'data' => [80, 72, 62, 52, 45, 40, 35], 'color' => '#f97316'],
                     ],
-                    'major_comparisons' => [
-                        'Urban population surpassed rural population in the mid-1980s',
-                        'The rate of urban growth was fastest between 1970 and 1990'
+                    'key_features' => 'Urban population rose steadily from 20% to 65%. Rural declined from 80% to 35%. Lines crossed around 1985 at ~50% each.',
+                ]
+            ],
+            [
+                'title' => 'Household Expenditure on Different Categories (2000 vs 2020)',
+                'content' => "The bar chart below shows the average household expenditure (in percentage) across five categories in a developed country in 2000 and 2020.\n\nSummarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+                'metadata' => [
+                    'chart_type' => 'bar',
+                    'chart_title' => 'Household Expenditure by Category (%) — 2000 and 2020',
+                    'y_label' => 'Expenditure (%)',
+                    'labels' => ['Housing','Food','Transport','Healthcare','Entertainment'],
+                    'datasets' => [
+                        ['label' => '2000', 'data' => [30, 25, 18, 10, 17], 'color' => '#8b5cf6'],
+                        ['label' => '2020', 'data' => [35, 18, 15, 17, 15], 'color' => '#06b6d4'],
                     ],
-                    'extremes' => [
-                        'Highest urban population: 65% in 2010',
-                        'Lowest rural population: 35% in 2010'
+                    'key_features' => 'Housing increased by 5%. Food spending fell sharply from 25% to 18%. Healthcare rose 7% — largest proportional increase.',
+                ]
+            ],
+            [
+                'title' => 'Electricity Production by Source (2020)',
+                'content' => "The pie chart below shows the proportions of electricity generated from different energy sources in a country in 2020.\n\nSummarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+                'metadata' => [
+                    'chart_type' => 'pie',
+                    'chart_title' => 'Electricity Generation by Source (%) — 2020',
+                    'labels' => ['Coal','Natural Gas','Nuclear','Solar','Wind','Hydro'],
+                    'datasets' => [
+                        ['label' => 'Share', 'data' => [35, 28, 15, 8, 9, 5], 'color' => null],
                     ],
-                    'overview_required' => true
+                    'key_features' => 'Coal dominates at 35%. Fossil fuels combined (coal + gas) account for 63%. Renewables (solar + wind + hydro) total 22%.',
                 ]
             ],
             [
                 'title' => 'Coffee Production Process',
-                'content' => 'The diagram below shows how coffee is produced and prepared for sale.',
+                'content' => "The diagram below shows how coffee is produced and prepared for sale.\n\nSummarise the information by selecting and reporting the main features, and make comparisons where relevant.",
                 'metadata' => [
                     'chart_type' => 'process',
-                    'time_range' => 'n/a',
-                    'units' => 'steps',
-                    'key_trends' => [
-                        '11 distinct stages from bean to supermarket',
-                        'Initial stages involve harvesting and drying',
-                        'Mid stages involve roasting and grinding',
-                        'Final stages involve packaging and delivery'
+                    'chart_title' => 'The Coffee Production Process',
+                    'steps' => [
+                        ['icon' => '🌱', 'label' => 'Planting', 'detail' => 'Seeds planted in large beds in shaded nurseries'],
+                        ['icon' => '🍒', 'label' => 'Harvesting', 'detail' => 'Cherries picked by hand when fully ripe (red)'],
+                        ['icon' => '💧', 'label' => 'Processing', 'detail' => 'Wet or dry method to remove fruit flesh'],
+                        ['icon' => '☀️', 'label' => 'Drying', 'detail' => 'Beans dried on raised beds in sunlight (2–6 weeks)'],
+                        ['icon' => '⚙️', 'label' => 'Milling', 'detail' => 'Hulling, polishing, grading and sorting'],
+                        ['icon' => '🔥', 'label' => 'Roasting', 'detail' => 'Beans roasted at 200–230°C — light, medium or dark'],
+                        ['icon' => '📦', 'label' => 'Packaging', 'detail' => 'Sealed bags with one-way valve to release CO₂'],
+                        ['icon' => '🛒', 'label' => 'Distribution', 'detail' => 'Shipped to retailers worldwide'],
                     ],
-                    'major_comparisons' => [
-                        'Complexity of roasting vs simple harvesting',
-                        'Transformation from raw bean to consumer product'
-                    ],
-                    'extremes' => [
-                        'First step: Picked by hand',
-                        'Last step: Supermarket delivery'
-                    ],
-                    'overview_required' => true
+                    'key_features' => 'An 8-stage linear process from seed to shelf. Key transformation occurs at roasting stage. Process takes several months in total.',
                 ]
             ],
         ];

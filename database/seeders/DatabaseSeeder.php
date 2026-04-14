@@ -25,6 +25,10 @@ class DatabaseSeeder extends Seeder
 
         $this->call([
             IELTSQuestionSeeder::class,
+            ListeningReadingSeeder::class,
+            ListeningReadingExpandedSeeder::class,
+            WritingQuestionSeeder::class,
+            SpeakingQuestionSeeder::class,
         ]);
     }
 }

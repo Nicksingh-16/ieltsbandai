@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Web\ReferralController;
 use App\Models\User;
+use App\Mail\WelcomeMail;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rules;
 use Illuminate\View\View;
 
@@ -44,6 +47,12 @@ class RegisteredUserController extends Controller
         event(new Registered($user));
 
         Auth::login($user);
+
+        // Apply referral bonus if user came via referral link
+        ReferralController::applyReferral($user);
+
+        // Send welcome email (queued — non-blocking)
+        Mail::to($user)->queue(new WelcomeMail($user));
 
         return redirect(route('dashboard', absolute: false));
     }

@@ -12,7 +12,8 @@ RUN apt-get update && apt-get install -y \
     unzip \
     libpq-dev \
     nodejs \
-    npm
+    npm \
+    supervisor
 
 # Clear cache
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -51,5 +52,5 @@ RUN npm install && npm run build
 # Expose port (can be overridden by PORT env var)
 EXPOSE 80
 
-# Start Apache with migrations
-CMD ["sh", "-c", "php artisan migrate --force && php artisan config:clear && apache2-foreground"]
+# Entrypoint: run migrations then start supervisor (manages both Apache + queue worker)
+CMD ["sh", "-c", "php artisan migrate --force && php artisan storage:link --force 2>/dev/null || true && php artisan config:cache && supervisord -c /var/www/html/supervisord.conf"]

@@ -18,6 +18,10 @@ class SpeakingEvaluationJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public $tries   = 3;
+    public $timeout = 360; // 6 minutes max (3 audio files × ~90s each + scoring)
+    public $backoff = [30, 60]; // retry after 30s, then 60s
+
     protected $testId;
 
     /**

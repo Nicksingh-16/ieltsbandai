@@ -40,17 +40,18 @@ RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cac
 # Update Apache site config to serve /public
 RUN sed -i 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf
 
-# Update Apache to listen on the port provided by Render/Railway
-RUN sed -i "s/80/\${PORT}/g" /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf
-
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader
 
 # Install and build frontend assets
 RUN npm install && npm run build
 
-# Expose port (can be overridden by PORT env var)
+# Copy and prepare entrypoint (PORT substitution happens at runtime, not build time)
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Expose default port
 EXPOSE 80
 
-# Entrypoint: run migrations then start supervisor (manages both Apache + queue worker)
-CMD ["sh", "-c", "php artisan migrate --force && php artisan storage:link --force 2>/dev/null || true && php artisan config:cache && supervisord -c /var/www/html/supervisord.conf"]
+# Entrypoint: substitutes PORT at runtime, then runs migrations and starts supervisor
+CMD ["/entrypoint.sh"]

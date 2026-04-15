@@ -244,17 +244,53 @@
 </div>
 
 {{-- Loading overlay --}}
-<div id="loadingOverlay" class="fixed inset-0 z-50 bg-surface-950/95 backdrop-blur-sm hidden flex items-center justify-center">
-    <div class="text-center px-6">
-        <div class="w-20 h-20 rounded-full bg-brand-500/15 border border-brand-500/30 flex items-center justify-center mx-auto mb-6">
+<div id="loadingOverlay" class="fixed inset-0 z-50 bg-surface-950/97 backdrop-blur-sm hidden flex items-center justify-center">
+    <div class="text-center px-6 max-w-lg mx-auto">
+
+        {{-- Spinner --}}
+        <div class="w-20 h-20 rounded-full bg-brand-500/15 border border-brand-500/30 flex items-center justify-center mx-auto mb-7">
             <svg class="w-10 h-10 text-brand-400 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
             </svg>
         </div>
-        <h3 class="text-xl font-bold text-surface-50 mb-2">Scoring your essay…</h3>
-        <p class="text-surface-400 text-sm mb-1">GPT-4 is reading your writing and applying IELTS band descriptors.</p>
-        <p class="text-surface-600 text-xs">This takes about 10–20 seconds</p>
+
+        {{-- Scoring step --}}
+        <h3 class="text-xl font-bold text-surface-50 mb-1">Scoring your essay…</h3>
+        <p class="text-surface-500 text-xs mb-8">This takes about 10–20 seconds</p>
+
+        {{-- Rotating feature cards --}}
+        <div id="featureSlider" class="relative h-28">
+            <div class="feature-slide absolute inset-0 flex flex-col items-center justify-center transition-opacity duration-700" data-index="0">
+                <div class="text-2xl mb-2">✍️</div>
+                <p class="text-brand-300 font-semibold text-sm mb-1">GPT-4 is reading your writing</p>
+                <p class="text-surface-500 text-xs leading-relaxed">Applying official IELTS band descriptors across all 4 criteria — Task Achievement, Coherence, Lexical Resource, and Grammar.</p>
+            </div>
+            <div class="feature-slide absolute inset-0 flex flex-col items-center justify-center transition-opacity duration-700 opacity-0" data-index="1">
+                <div class="text-2xl mb-2">🎤</div>
+                <p class="text-brand-300 font-semibold text-sm mb-1">We evaluate all 4 IELTS modules</p>
+                <p class="text-surface-500 text-xs leading-relaxed">Writing · Speaking · Reading · Listening — full AI evaluation across every module, not just writing.</p>
+            </div>
+            <div class="feature-slide absolute inset-0 flex flex-col items-center justify-center transition-opacity duration-700 opacity-0" data-index="2">
+                <div class="text-2xl mb-2">🏫</div>
+                <p class="text-brand-300 font-semibold text-sm mb-1">Built for IELTS coaching institutes</p>
+                <p class="text-surface-500 text-xs leading-relaxed">Manage students, create batches, assign tests, and track every student's band progress — all from one dashboard.</p>
+            </div>
+            <div class="feature-slide absolute inset-0 flex flex-col items-center justify-center transition-opacity duration-700 opacity-0" data-index="3">
+                <div class="text-2xl mb-2">🎓</div>
+                <p class="text-brand-300 font-semibold text-sm mb-1">Real Exam Simulation Mode</p>
+                <p class="text-surface-500 text-xs leading-relaxed">Pixel-accurate IELTS computer-based test UI — fullscreen, anti-cheat, strict timer, text highlighting, and question flagging. Just like the real exam.</p>
+            </div>
+        </div>
+
+        {{-- Dot indicators --}}
+        <div class="flex justify-center gap-2 mt-4">
+            <div class="dot w-1.5 h-1.5 rounded-full bg-brand-400" data-dot="0"></div>
+            <div class="dot w-1.5 h-1.5 rounded-full bg-surface-600" data-dot="1"></div>
+            <div class="dot w-1.5 h-1.5 rounded-full bg-surface-600" data-dot="2"></div>
+            <div class="dot w-1.5 h-1.5 rounded-full bg-surface-600" data-dot="3"></div>
+        </div>
+
     </div>
 </div>
 
@@ -379,6 +415,31 @@ function updateWordCount(textarea) {
     }
 }
 
+// ── Feature slider ──
+let sliderIndex = 0;
+let sliderInterval = null;
+
+function startSlider() {
+    const slides = document.querySelectorAll('.feature-slide');
+    const dots   = document.querySelectorAll('.dot');
+    if (!slides.length) return;
+
+    sliderInterval = setInterval(function () {
+        // Hide current
+        slides[sliderIndex].style.opacity = '0';
+        slides[sliderIndex].style.pointerEvents = 'none';
+        dots[sliderIndex].classList.replace('bg-brand-400', 'bg-surface-600');
+
+        // Advance
+        sliderIndex = (sliderIndex + 1) % slides.length;
+
+        // Show next
+        slides[sliderIndex].style.opacity = '1';
+        slides[sliderIndex].style.pointerEvents = '';
+        dots[sliderIndex].classList.replace('bg-surface-600', 'bg-brand-400');
+    }, 3500);
+}
+
 const demoForm = document.getElementById('demoForm');
 if (demoForm) demoForm.addEventListener('submit', function(e) {
     const textarea = document.getElementById('essayTextarea');
@@ -391,6 +452,7 @@ if (demoForm) demoForm.addEventListener('submit', function(e) {
     document.getElementById('loadingOverlay').classList.remove('hidden');
     document.getElementById('submitBtn').disabled = true;
     document.getElementById('submitText').textContent = 'Scoring…';
+    startSlider();
 });
 
 </script>

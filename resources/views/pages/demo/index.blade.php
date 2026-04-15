@@ -18,9 +18,8 @@
 </div>
 
 @php
-    $demoEmail   = 'hello@ieltsbandai.com';
-    $demoSubject = urlencode('Institute Demo Request — Saw AI Writing Evaluation');
-    $demoBody    = urlencode("Hi,\n\nI tried the IELTS Band AI demo and would like to see a full walkthrough for my institute.\n\nInstitute name:\nCity:\nApprox. number of students:\n\nBest time to connect:\n");
+    $calendlyUrl = 'https://calendly.com/nishantshekhawat2001';
+    $demoEmail   = 'ieltsband25@gmail.com';
 @endphp
 
 {{-- Institute Banner --}}
@@ -30,7 +29,7 @@
             <span>🎓</span>
             <span><strong>Institute Demo</strong> — Submit one essay and see AI scoring live. Full report unlocks after a demo call.</span>
         </div>
-        <a href="mailto:{{ $demoEmail }}?subject={{ $demoSubject }}&body={{ $demoBody }}"
+        <a href="{{ $calendlyUrl }}" target="_blank"
            class="shrink-0 text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 px-3 py-1.5 rounded-lg transition-colors">
             Schedule Full Demo →
         </a>
@@ -49,7 +48,7 @@
             </div>
             <span class="font-bold text-surface-50 text-sm">IELTS Band <span class="text-brand-400">AI</span></span>
         </a>
-        <a href="mailto:{{ $demoEmail }}?subject={{ $demoSubject }}&body={{ $demoBody }}"
+        <a href="{{ $calendlyUrl }}" target="_blank"
            class="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-400 hover:text-amber-300 transition-colors">
             📅 Schedule Demo for My Institute
         </a>
@@ -112,12 +111,7 @@
         <p class="text-surface-400 text-sm mb-6 max-w-md mx-auto leading-relaxed">
             The free demo is limited to one essay submission per visitor. To see the full AI report — error highlights, examiner comments, vocabulary suggestions and Band 9 rewrite — schedule a demo call.
         </p>
-        @php
-            $demoEmail   = 'hello@ieltsbandai.com';
-            $demoSubject = urlencode('Institute Demo Request — Saw AI Writing Evaluation');
-            $demoBody    = urlencode("Hi,\n\nI tried the IELTS Band AI demo and would like to see a full walkthrough for my institute.\n\nInstitute name:\nCity:\nApprox. number of students:\n\nBest time to connect:\n");
-        @endphp
-        <a href="mailto:{{ $demoEmail }}?subject={{ $demoSubject }}&body={{ $demoBody }}"
+        <a href="{{ $calendlyUrl }}" target="_blank"
            class="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-black font-bold px-6 py-3 rounded-xl text-sm transition-colors shadow-lg mb-3">
             📅 Schedule Full Demo for My Institute
         </a>
@@ -240,7 +234,7 @@
                 <h3 class="font-bold text-surface-50 mb-1">Running an IELTS coaching institute?</h3>
                 <p class="text-surface-400 text-sm">Get AI scoring for all your students. Manage batches, assign tests, track progress — all in one dashboard.</p>
             </div>
-            <a href="mailto:hello@ieltsbandai.com?subject=Institute%20Demo%20Request"
+            <a href="{{ $calendlyUrl }}" target="_blank"
                class="shrink-0 btn-primary text-sm">
                 Book a Demo Call →
             </a>

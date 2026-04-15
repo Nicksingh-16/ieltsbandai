@@ -49,8 +49,31 @@
             </div>
         @endif
 
-        <form action="{{ route('reading.start') }}" method="POST" class="space-y-5">
+        <form action="{{ route('reading.start') }}" method="POST" class="space-y-5" id="readingStartForm">
             @csrf
+            <input type="hidden" name="exam_mode" id="examModeInput" value="0">
+
+            {{-- Mode Selector --}}
+            <div class="grid grid-cols-2 gap-3">
+                <label class="cursor-pointer" onclick="setMode('practice')">
+                    <div id="practiceCard" class="card p-4 border-2 border-brand-500 bg-brand-500/10 transition-all">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-lg">📝</span>
+                            <p class="font-semibold text-surface-100 text-sm">Practice Mode</p>
+                        </div>
+                        <p class="text-surface-500 text-xs">With AI hints, dark UI, live progress</p>
+                    </div>
+                </label>
+                <label class="cursor-pointer" onclick="setMode('exam')">
+                    <div id="examCard" class="card p-4 border-2 border-transparent hover:border-surface-500 transition-all">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-lg">🎓</span>
+                            <p class="font-semibold text-surface-100 text-sm">Exam Simulation</p>
+                        </div>
+                        <p class="text-surface-500 text-xs">Real IELTS UI — highlights, flagging, strict timer</p>
+                    </div>
+                </label>
+            </div>
 
             <div class="card p-6">
                 <h2 class="text-sm font-semibold text-surface-400 uppercase tracking-wider mb-4">Test Type</h2>
@@ -86,13 +109,29 @@
                 </div>
             </div>
 
-            <button type="submit" class="btn-primary w-full py-4 text-base font-bold shadow-glow">
+            <button type="submit" id="startBtn" class="btn-primary w-full py-4 text-base font-bold shadow-glow">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13"/>
                 </svg>
-                Start Reading Test
+                <span id="startBtnText">Start Reading Test</span>
             </button>
         </form>
+
+        @push('scripts')
+        <script>
+        function setMode(mode) {
+            const isExam = mode === 'exam';
+            document.getElementById('examModeInput').value = isExam ? '1' : '0';
+            document.getElementById('practiceCard').classList.toggle('border-brand-500', !isExam);
+            document.getElementById('practiceCard').classList.toggle('bg-brand-500/10', !isExam);
+            document.getElementById('practiceCard').classList.toggle('border-transparent', isExam);
+            document.getElementById('examCard').classList.toggle('border-brand-500', isExam);
+            document.getElementById('examCard').classList.toggle('bg-brand-500/10', isExam);
+            document.getElementById('examCard').classList.toggle('border-transparent', !isExam);
+            document.getElementById('startBtnText').textContent = isExam ? 'Start Exam Simulation' : 'Start Reading Test';
+        }
+        </script>
+        @endpush
 
     </div>
 </div>

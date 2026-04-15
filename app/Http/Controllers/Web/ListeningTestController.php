@@ -72,7 +72,9 @@ class ListeningTestController extends Controller
 
         $sections = json_decode($question->metadata ?? '{}', true);
 
-        return view('pages.listening.test', compact('test', 'question', 'testType', 'sections'));
+        $viewName = $request->boolean('exam_mode') ? 'exam.listening' : 'pages.listening.test';
+
+        return view($viewName, compact('test', 'question', 'testType', 'sections'));
     }
 
     public function submit(Request $request, $testId)

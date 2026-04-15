@@ -98,6 +98,7 @@
             <nav class="hidden md:flex items-center gap-1">
                 <a href="#features" class="text-sm text-surface-400 hover:text-surface-100 px-3 py-2 rounded-lg hover:bg-surface-800/60 transition-all">Features</a>
                 <a href="#how-it-works" class="text-sm text-surface-400 hover:text-surface-100 px-3 py-2 rounded-lg hover:bg-surface-800/60 transition-all">How it works</a>
+                <a href="#exam-simulation" class="text-sm text-amber-400 hover:text-amber-300 px-3 py-2 rounded-lg hover:bg-amber-500/10 transition-all font-medium">Exam Simulation ✦</a>
                 <a href="#sample-result" class="text-sm text-surface-400 hover:text-surface-100 px-3 py-2 rounded-lg hover:bg-surface-800/60 transition-all">Sample result</a>
                 <a href="{{ route('pricing') }}" class="text-sm text-surface-400 hover:text-surface-100 px-3 py-2 rounded-lg hover:bg-surface-800/60 transition-all">Pricing</a>
             </nav>
@@ -180,10 +181,7 @@
                         </svg>
                         Start Free Mock Test
                     </a>
-                    <a href="{{ route('demo') }}" class="btn-secondary text-base px-7 py-3.5 font-semibold">
-                        Try Demo — No Signup
-                    </a>
-                    <a href="#sample-result" class="btn-secondary text-base px-7 py-3.5 font-semibold">
+<a href="#sample-result" class="btn-secondary text-base px-7 py-3.5 font-semibold">
                         See Sample Feedback
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -692,6 +690,180 @@
     </div>
 </section>
 
+
+{{-- ════════════════════════════════════════
+     SECTION 5B — EXAM SIMULATION SHOWCASE
+════════════════════════════════════════ --}}
+<div class="section-divider"></div>
+
+<section id="exam-simulation" class="py-20 px-5 sm:px-8 overflow-hidden">
+    <div class="max-w-6xl mx-auto">
+
+        {{-- Header --}}
+        <div class="text-center mb-14">
+            <div class="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/25 text-amber-400 text-xs font-semibold px-3.5 py-1.5 rounded-full mb-4">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
+                </svg>
+                New — Exam Simulation Mode
+            </div>
+            <h2 class="text-3xl sm:text-4xl font-black text-surface-50 mb-4">
+                Feels Exactly Like<br>
+                <span class="text-gradient">The Real IELTS Exam.</span>
+            </h2>
+            <p class="text-surface-400 text-base max-w-2xl mx-auto">
+                Not just a practice tool — a full exam replica. Same white interface, same strict timer, same pressure. So when test day comes, you've been there before.
+            </p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
+
+            {{-- Left: Feature list --}}
+            <div class="space-y-5">
+
+                @foreach([
+                    ['🎓', 'Official IELTS-Style Interface', 'White, clean, distraction-free UI that mirrors the real computer-based IELTS test — not our dark practice mode.', 'amber'],
+                    ['⏱', 'Strict Countdown Timer', 'Full-screen timer with automatic submission when time runs out. Warnings at 10 minutes and 5 minutes remaining.', 'brand'],
+                    ['🖊', 'Text Highlighting Tool', 'Highlight passages in yellow, green, or pink — exactly like the real exam. Click to remove. Saved automatically.', 'emerald'],
+                    ['⚑', 'Flag Questions for Review', 'Mark any question to revisit before submitting. See your flagged vs answered status at a glance.', 'purple'],
+                    ['📝', 'Scratchpad Notes', 'Built-in notepad for rough work and planning. Notes are never submitted — only your answers are.', 'rose'],
+                    ['🔒', 'Full-Screen Exam Mode', 'Locks the browser into fullscreen. Detects tab switching. Disables copy-paste. Real exam conditions.', 'amber'],
+                ] as [$icon, $title, $desc, $color])
+                @php
+                    $colors = [
+                        'amber'   => ['bg-amber-500/10 border-amber-500/20',   'text-amber-400'],
+                        'brand'   => ['bg-brand-500/10 border-brand-500/20',   'text-brand-400'],
+                        'emerald' => ['bg-emerald-500/10 border-emerald-500/20','text-emerald-400'],
+                        'purple'  => ['bg-purple-500/10 border-purple-500/20', 'text-purple-400'],
+                        'rose'    => ['bg-rose-500/10 border-rose-500/20',     'text-rose-400'],
+                    ];
+                    [$bg, $text] = $colors[$color];
+                @endphp
+                <div class="flex items-start gap-4">
+                    <div class="w-10 h-10 rounded-xl {{ $bg }} border flex items-center justify-center text-lg shrink-0">
+                        {{ $icon }}
+                    </div>
+                    <div>
+                        <p class="text-sm font-bold text-surface-100 mb-0.5">{{ $title }}</p>
+                        <p class="text-sm text-surface-400 leading-relaxed">{{ $desc }}</p>
+                    </div>
+                </div>
+                @endforeach
+
+                <div class="pt-2">
+                    <a href="{{ route('register') }}" class="btn-primary px-6 py-3 font-bold shadow-glow">
+                        Try Exam Simulation Free
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+
+            {{-- Right: UI mockup --}}
+            <div class="relative" style="max-width:100%;overflow:hidden;">
+                {{-- Glow --}}
+                <div class="absolute inset-0 bg-brand-500/5 rounded-2xl blur-3xl pointer-events-none"></div>
+
+                {{-- Exam UI preview --}}
+                <div class="relative rounded-xl overflow-hidden border border-surface-600 shadow-card-hover bg-white">
+
+                    {{-- Fake IELTS header --}}
+                    <div style="background:#fff;border-bottom:2px solid #003087;height:44px;display:flex;align-items:center;padding:0 16px;font-family:Arial,sans-serif;">
+                        <span style="font-size:10px;font-weight:bold;color:#003087;letter-spacing:.06em;text-transform:uppercase;min-width:120px;">IELTS Band AI</span>
+                        <span style="flex:1;text-align:center;font-size:13px;font-weight:bold;color:#1a1a1a;">Academic Reading Test</span>
+                        <div style="display:flex;align-items:center;gap:6px;min-width:120px;justify-content:flex-end;">
+                            <span style="font-size:11px;color:#555;">Time</span>
+                            <span style="font-family:'Courier New',monospace;font-size:14px;font-weight:bold;color:#003087;">45:23</span>
+                        </div>
+                    </div>
+
+                    {{-- Fake toolbar --}}
+                    <div style="background:#F0F2F7;border-bottom:1px solid #D0D3DC;height:32px;display:flex;align-items:center;padding:0 12px;gap:6px;font-family:Arial,sans-serif;">
+                        <span style="padding:2px 8px;font-size:11px;border:1px solid #B0B3BC;background:#FFEF9F;border-radius:2px;cursor:pointer;">Highlight</span>
+                        <span style="padding:2px 8px;font-size:11px;border:1px solid #B0B3BC;background:#BDFFC7;border-radius:2px;cursor:pointer;"></span>
+                        <span style="padding:2px 8px;font-size:11px;border:1px solid #B0B3BC;background:#FFCECE;border-radius:2px;cursor:pointer;"></span>
+                        <span style="width:1px;height:16px;background:#ccc;margin:0 4px;"></span>
+                        <span style="padding:2px 8px;font-size:11px;border:1px solid #B0B3BC;background:#fff;border-radius:2px;">📝 Notes</span>
+                        <span style="margin-left:auto;font-size:11px;color:#555;"><strong>12</strong> / 14 answered</span>
+                    </div>
+
+                    {{-- Fake split panel --}}
+                    <div style="display:grid;grid-template-columns:1fr 1fr;height:180px;font-family:Arial,sans-serif;">
+                        {{-- Passage --}}
+                        <div style="padding:14px;border-right:1px solid #D0D3DC;overflow:hidden;">
+                            <div style="font-size:10px;font-weight:bold;color:#003087;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Reading Passage</div>
+                            <div style="font-size:11px;color:#1a1a1a;line-height:1.7;">
+                                The development of <mark style="background:#FFEF9F;">artificial intelligence</mark> in the 21st century has transformed industries at an unprecedented rate. Researchers suggest that automation will <mark style="background:#BDFFC7;">reshape the labour market</mark> significantly over the coming decade…
+                            </div>
+                        </div>
+                        {{-- Questions --}}
+                        <div style="padding:14px;background:#FAFBFE;overflow:hidden;">
+                            <div style="font-size:10px;font-weight:bold;color:#003087;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Questions</div>
+                            <div style="margin-bottom:10px;">
+                                <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                                    <span style="width:18px;height:18px;background:#003087;color:#fff;font-size:9px;font-weight:bold;display:flex;align-items:center;justify-content:center;border-radius:2px;flex-shrink:0;">1</span>
+                                    <span style="font-size:11px;color:#1a1a1a;">The passage states that AI has changed industries</span>
+                                </div>
+                                <div style="display:flex;gap:4px;margin-left:24px;">
+                                    @foreach(['True','False','Not Given'] as $opt)
+                                    <span style="padding:3px 8px;border:1px solid {{ $opt === 'True' ? '#003087' : '#B0B3BC' }};background:{{ $opt === 'True' ? '#003087' : '#fff' }};color:{{ $opt === 'True' ? '#fff' : '#555' }};font-size:10px;border-radius:2px;cursor:pointer;">{{ $opt }}</span>
+                                    @endforeach
+                                </div>
+                            </div>
+                            <div style="margin-bottom:10px;">
+                                <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                                    <span style="width:18px;height:18px;background:#E07B00;color:#fff;font-size:9px;font-weight:bold;display:flex;align-items:center;justify-content:center;border-radius:2px;flex-shrink:0;">2</span>
+                                    <span style="font-size:11px;color:#1a1a1a;">What will automation reshape?</span>
+                                    <span style="margin-left:auto;font-size:10px;color:#E07B00;">⚑ flagged</span>
+                                </div>
+                                <input style="border:1px solid #B0B3BC;padding:3px 7px;font-size:11px;border-radius:2px;width:80%;background:#fff;" placeholder="Write answer..." value="" readonly>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Fake nav panel --}}
+                    <div style="background:#F0F2F7;border-top:2px solid #003087;padding:6px 12px;display:flex;align-items:center;gap:8px;font-family:Arial,sans-serif;">
+                        <div style="display:flex;gap:3px;flex:1;flex-wrap:wrap;">
+                            @for($i=1;$i<=14;$i++)
+                            <span style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:bold;border:1px solid {{ $i <= 12 ? '#003087' : '#B0B3BC' }};background:{{ $i === 2 ? '#E07B00' : ($i <= 12 ? '#003087' : '#fff') }};color:{{ $i <= 12 ? '#fff' : '#555' }};border-radius:2px;">{{ $i }}</span>
+                            @endfor
+                        </div>
+                        <span style="padding:5px 14px;background:#003087;color:#fff;font-size:11px;font-weight:bold;border-radius:2px;white-space:nowrap;">Submit →</span>
+                    </div>
+                </div>
+
+                {{-- Badge overlay --}}
+                <div class="absolute -top-3 -right-3 bg-surface-800 border border-amber-500/40 text-amber-400 text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
+                    🔒 Fullscreen + Anti-cheat
+                </div>
+            </div>
+        </div>
+
+        {{-- Comparison strip --}}
+        <div class="mt-14 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
+            <div class="card p-5">
+                <p class="text-xs font-bold text-surface-500 uppercase tracking-wider mb-3">📝 Practice Mode</p>
+                <ul class="space-y-2 text-sm text-surface-400">
+                    <li class="flex items-center gap-2"><span class="text-brand-400">✓</span> Dark UI with live analysis</li>
+                    <li class="flex items-center gap-2"><span class="text-brand-400">✓</span> AI hints available</li>
+                    <li class="flex items-center gap-2"><span class="text-brand-400">✓</span> Flexible timer</li>
+                    <li class="flex items-center gap-2"><span class="text-brand-400">✓</span> Instant word count feedback</li>
+                </ul>
+            </div>
+            <div class="card p-5 border-amber-500/30 bg-amber-500/5">
+                <p class="text-xs font-bold text-amber-400 uppercase tracking-wider mb-3">🎓 Exam Simulation Mode</p>
+                <ul class="space-y-2 text-sm text-surface-300">
+                    <li class="flex items-center gap-2"><span class="text-amber-400">✓</span> Real IELTS white interface</li>
+                    <li class="flex items-center gap-2"><span class="text-amber-400">✓</span> Fullscreen + tab detection</li>
+                    <li class="flex items-center gap-2"><span class="text-amber-400">✓</span> Strict auto-submit timer</li>
+                    <li class="flex items-center gap-2"><span class="text-amber-400">✓</span> Highlight, flag & notes tools</li>
+                </ul>
+            </div>
+        </div>
+
+    </div>
+</section>
 
 {{-- ════════════════════════════════════════
      SECTION 6 — SAMPLE RESULT (Report mockup)

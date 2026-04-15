@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Services\WritingScoringService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cookie;
 
 class DemoController extends Controller
 {
@@ -21,14 +22,41 @@ class DemoController extends Controller
         ];
     }
 
-    public function index()
+    private const DEMO_COOKIE = 'demo_used';
+    private const DEMO_COOKIE_DAYS = 30;
+
+    public function index(Request $request)
     {
+        // If this visitor already used the demo, send them back to the result
+        // (session still alive) or show the locked gate.
+        if ($request->cookie(self::DEMO_COOKIE)) {
+            $scoring = session('demo_result');
+            $answer  = session('demo_answer');
+            if ($scoring) {
+                return redirect()->route('demo.result');
+            }
+            // Session expired but cookie exists — show locked page
+            $question = $this->demoQuestion();
+            $locked = true;
+            return view('pages.demo.index', compact('question', 'locked'));
+        }
+
         $question = $this->demoQuestion();
-        return view('pages.demo.index', compact('question'));
+        $locked = false;
+        return view('pages.demo.index', compact('question', 'locked'));
     }
 
     public function submit(Request $request, WritingScoringService $scorer)
     {
+        // Block repeat submissions
+        if ($request->cookie(self::DEMO_COOKIE)) {
+            $scoring = session('demo_result');
+            if ($scoring) {
+                return redirect()->route('demo.result');
+            }
+            return redirect()->route('demo')->with('error', 'You have already used the demo. Schedule a call to see the full product.');
+        }
+
         $request->validate([
             'answer' => ['required', 'string', 'min:50', 'max:5000'],
         ]);
@@ -45,15 +73,19 @@ class DemoController extends Controller
         $overall = $scorer->calculateOverallBand($scoring);
         $scoring['overall_band'] = $overall;
 
-        session(['demo_result' => $scoring, 'demo_answer' => $answer]);
+        $demoMode = $request->input('demo_mode', 'practice') === 'exam' ? 'exam' : 'practice';
+        session(['demo_result' => $scoring, 'demo_answer' => $answer, 'demo_mode' => $demoMode]);
 
-        return redirect()->route('demo.result');
+        $cookie = Cookie::make(self::DEMO_COOKIE, '1', self::DEMO_COOKIE_DAYS * 24 * 60);
+
+        return redirect()->route('demo.result')->withCookie($cookie);
     }
 
     public function result()
     {
-        $scoring = session('demo_result');
-        $answer  = session('demo_answer');
+        $scoring  = session('demo_result');
+        $answer   = session('demo_answer');
+        $demoMode = session('demo_mode', 'practice');
 
         if (!$scoring) {
             return redirect()->route('demo');
@@ -61,6 +93,6 @@ class DemoController extends Controller
 
         $question = $this->demoQuestion();
 
-        return view('pages.demo.result', compact('scoring', 'answer', 'question'));
+        return view('pages.demo.result', compact('scoring', 'answer', 'question', 'demoMode'));
     }
 }

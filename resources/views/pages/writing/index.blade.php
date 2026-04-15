@@ -22,6 +22,29 @@
 
         <form action="{{ route('writing.start') }}" method="POST" class="space-y-6">
             @csrf
+            <input type="hidden" name="exam_mode" id="examModeInput" value="0">
+
+            {{-- Mode Selector --}}
+            <div class="grid grid-cols-2 gap-3">
+                <label class="cursor-pointer" onclick="setMode('practice')">
+                    <div id="practiceCard" class="card p-4 border-2 border-brand-500 bg-brand-500/10 transition-all">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-lg">📝</span>
+                            <p class="font-semibold text-surface-100 text-sm">Practice Mode</p>
+                        </div>
+                        <p class="text-surface-500 text-xs">Live word analysis, AI hints, dark UI</p>
+                    </div>
+                </label>
+                <label class="cursor-pointer" onclick="setMode('exam')">
+                    <div id="examCard" class="card p-4 border-2 border-transparent hover:border-surface-500 transition-all">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-lg">🎓</span>
+                            <p class="font-semibold text-surface-100 text-sm">Exam Simulation</p>
+                        </div>
+                        <p class="text-surface-500 text-xs">Real IELTS UI — strict timer, clean interface, notes</p>
+                    </div>
+                </label>
+            </div>
 
             {{-- Step 1: Test Type --}}
             <div class="card p-6">
@@ -99,8 +122,24 @@
             {{-- Start button --}}
             <button type="submit" class="btn-primary w-full py-4 text-base font-bold shadow-glow">
                 <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                Start Writing Test
+                <span id="startBtnText">Start Writing Test</span>
             </button>
+
+            @push('scripts')
+            <script>
+            function setMode(mode) {
+                const isExam = mode === 'exam';
+                document.getElementById('examModeInput').value = isExam ? '1' : '0';
+                document.getElementById('practiceCard').classList.toggle('border-brand-500', !isExam);
+                document.getElementById('practiceCard').classList.toggle('bg-brand-500/10', !isExam);
+                document.getElementById('practiceCard').classList.toggle('border-transparent', isExam);
+                document.getElementById('examCard').classList.toggle('border-brand-500', isExam);
+                document.getElementById('examCard').classList.toggle('bg-brand-500/10', isExam);
+                document.getElementById('examCard').classList.toggle('border-transparent', !isExam);
+                document.getElementById('startBtnText').textContent = isExam ? 'Start Exam Simulation' : 'Start Writing Test';
+            }
+            </script>
+            @endpush
         </form>
     </div>
 </div>

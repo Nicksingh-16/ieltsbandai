@@ -66,6 +66,11 @@ class WritingTestController extends Controller
         $creditService = app(\App\Services\CreditService::class);
         $creditService->deductCredit(Auth::user());
 
+        // Store exam mode in session so showTest can read it after redirect
+        if ($request->boolean('exam_mode')) {
+            session(['exam_mode_' . $test->id => true]);
+        }
+
         // PRG pattern: redirect to GET so refresh doesn't re-submit start form
         return redirect()->route('writing.test', $test->id);
     }
@@ -100,7 +105,9 @@ class WritingTestController extends Controller
         $question->time_limit = str_contains($test->category ?? '', 'task1') ? 1200 : 2400;
         $question->min_words  = str_contains($test->category ?? '', 'task1') ? 150 : 250;
 
-        return view('pages.writing.test', compact('test', 'question', 'testType', 'task'));
+        $viewName = session('exam_mode_' . $testId) ? 'exam.writing' : 'pages.writing.test';
+
+        return view($viewName, compact('test', 'question', 'testType', 'task'));
     }
 
     /**

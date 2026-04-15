@@ -75,7 +75,9 @@ class ReadingTestController extends Controller
 
         $meta = json_decode($question->metadata ?? '{}', true);
 
-        return view('pages.reading.test', compact('test', 'question', 'testType', 'meta'));
+        $viewName = $request->boolean('exam_mode') ? 'exam.reading' : 'pages.reading.test';
+
+        return view($viewName, compact('test', 'question', 'testType', 'meta'));
     }
 
     public function submit(Request $request, $testId)

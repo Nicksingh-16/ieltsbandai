@@ -25,25 +25,29 @@ class DemoController extends Controller
     private const DEMO_COOKIE = 'demo_used';
     private const DEMO_COOKIE_DAYS = 30;
 
-    public function index(Request $request)
+    public function tour(Request $request)
     {
-        // If this visitor already used the demo, send them back to the result
-        // (session still alive) or show the locked gate.
-        if ($request->cookie(self::DEMO_COOKIE)) {
-            $scoring = session('demo_result');
-            $answer  = session('demo_answer');
-            if ($scoring) {
-                return redirect()->route('demo.result');
-            }
-            // Session expired but cookie exists — show locked page
-            $question = $this->demoQuestion();
-            $locked = true;
-            return view('pages.demo.index', compact('question', 'locked'));
+        $question = $this->demoQuestion();
+        $used     = (bool) $request->cookie(self::DEMO_COOKIE);
+
+        if ($used && session('demo_result')) {
+            return redirect()->route('demo.result');
         }
 
+        return view('pages.demo.tour', compact('question', 'used'));
+    }
+
+    public function index(Request $request)
+    {
         $question = $this->demoQuestion();
-        $locked = false;
-        return view('pages.demo.index', compact('question', 'locked'));
+        $used     = (bool) $request->cookie(self::DEMO_COOKIE);
+
+        // If they've already submitted AND session result still lives, jump to result
+        if ($used && session('demo_result')) {
+            return redirect()->route('demo.result');
+        }
+
+        return view('pages.demo.index', compact('question', 'used'));
     }
 
     public function submit(Request $request, WritingScoringService $scorer)

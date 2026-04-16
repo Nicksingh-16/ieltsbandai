@@ -391,33 +391,62 @@
 
 
     {{-- ══════════════════════════════════
-         BOTTOM CTA
+         STEP 8 — FINAL DEMO PITCH
     ══════════════════════════════════ --}}
-    <div class="card p-7 border border-amber-500/25 bg-gradient-to-br from-amber-500/5 to-surface-900 text-center">
-        <div class="text-3xl mb-3">🎓</div>
-        <h3 class="font-bold text-surface-50 text-xl mb-2">Liked what you saw?</h3>
-        <p class="text-surface-400 text-sm mb-1 max-w-lg mx-auto">
-            This is what every student in your institute gets — instant GPT-4 band scores, error highlights, examiner-style comments, and improvement tips.
-        </p>
-        <div class="flex flex-wrap justify-center gap-4 text-xs text-surface-500 my-4">
-            <span>✓ Student & batch management</span>
-            <span>✓ Assign tests to batches</span>
-            <span>✓ Track every student's progress</span>
-            <span>✓ INR pricing</span>
-            <span>✓ Writing + Reading + Listening + Speaking</span>
-        </div>
-        <a href="{{ $calendlyUrl }}" target="_blank"
-           class="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-black font-bold px-7 py-3.5 rounded-xl text-sm transition-colors shadow-lg">
-            📅 Book a Demo Call — It's Free
-        </a>
-        <p class="text-surface-600 text-xs mt-3">30-minute walkthrough · No commitment · For institute owners &amp; directors</p>
-    </div>
+    <div class="relative overflow-hidden card border-0 bg-gradient-to-br from-indigo-600/15 via-surface-900 to-purple-600/10 p-0">
+        {{-- Decorative glows --}}
+        <div class="pointer-events-none absolute -top-20 left-1/2 -translate-x-1/2 w-[500px] h-[300px] bg-indigo-600/10 rounded-full blur-3xl"></div>
 
-    {{-- B2C fallback --}}
-    <div class="text-center py-2">
-        <p class="text-surface-500 text-sm">Individual student?
-            <a href="{{ route('register') }}" class="text-brand-400 hover:text-brand-300 font-semibold">Create a free account →</a>
-        </p>
+        <div class="relative px-6 pt-10 pb-8 text-center">
+            <div class="inline-flex items-center gap-2 bg-emerald-500/15 border border-emerald-500/25 px-4 py-1.5 rounded-full mb-5">
+                <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                <span class="text-xs text-emerald-300 font-semibold uppercase tracking-wider">Tour Complete</span>
+            </div>
+            <h2 class="text-2xl sm:text-3xl font-extrabold text-surface-50 mb-3 leading-tight">
+                Everything Your Institute Needs,<br class="hidden sm:block">In One Platform
+            </h2>
+            <p class="text-surface-400 text-sm max-w-xl mx-auto leading-relaxed mb-8">
+                Automate writing evaluation, manage batches, assign tests, and track every student's band progression — all in one dashboard built for IELTS coaching institutes.
+            </p>
+
+            {{-- Feature grid --}}
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-2xl mx-auto mb-8 text-left">
+                @foreach([
+                    ['🤖', 'AI Writing Evaluation',     'GPT-4 scoring across all 4 criteria'],
+                    ['🏫', 'Batch Management',          'Organise students into groups'],
+                    ['📋', 'Test Creation & Assignment','Custom mocks for any module'],
+                    ['📊', 'Results & Analytics',       'Track band progression over time'],
+                    ['🎓', 'All 4 IELTS Modules',       'Writing, Speaking, Reading, Listening'],
+                    ['💰', 'INR Pricing',                'Affordable plans for Indian institutes'],
+                ] as [$icon, $title, $sub])
+                <div class="flex items-start gap-2.5 bg-surface-800/60 border border-surface-700 rounded-xl p-3">
+                    <span class="text-base shrink-0 mt-0.5">{{ $icon }}</span>
+                    <div>
+                        <p class="text-xs font-semibold text-surface-100">{{ $title }}</p>
+                        <p class="text-[10px] text-surface-500 mt-0.5">{{ $sub }}</p>
+                    </div>
+                </div>
+                @endforeach
+            </div>
+
+            {{-- Primary CTA --}}
+            <a href="{{ $calendlyUrl }}" target="_blank"
+               class="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-black font-bold px-8 py-4 rounded-xl text-sm transition-colors shadow-lg shadow-amber-500/25 mb-3">
+                📅 Book a Free Demo Call for My Institute
+            </a>
+            <p class="text-surface-600 text-xs mb-6">30-minute walkthrough · No commitment · For institute owners &amp; directors</p>
+
+            {{-- Secondary CTAs --}}
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4 border-t border-surface-700/50">
+                <a href="mailto:{{ $demoEmail }}" class="text-sm text-surface-400 hover:text-surface-200 transition-colors">
+                    ✉️ Email us at {{ $demoEmail }}
+                </a>
+                <span class="hidden sm:inline text-surface-700">·</span>
+                <p class="text-surface-500 text-sm">Individual student?
+                    <a href="{{ route('register') }}" class="text-brand-400 hover:text-brand-300 font-semibold">Create a free account →</a>
+                </p>
+            </div>
+        </div>
     </div>
 
 </div>

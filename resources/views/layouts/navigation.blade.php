@@ -27,7 +27,8 @@
                         Dashboard
                     </a>
 
-                    {{-- ── Tests Dropdown ── --}}
+                    {{-- ── Tests Dropdown (hidden for admins) ── --}}
+                    @if(!auth()->user()->is_admin)
                     @php
                     $testRoutes = ['writing.*','speaking.*','listening.*','reading.*','mock-test.*'];
                     $testActive = collect($testRoutes)->contains(fn($r) => request()->routeIs($r));
@@ -104,6 +105,7 @@
                             </a>
                         </div>
                     </div>
+                    @endif {{-- end !is_admin Tests dropdown --}}
 
                     @if(auth()->user()->institute_id && auth()->user()->isTeacher())
                     <a href="{{ route('institute.dashboard') }}"

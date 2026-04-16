@@ -29,7 +29,8 @@ Route::view('/privacy', 'pages.privacy')->name('privacy');
 Route::view('/terms', 'pages.terms')->name('terms');
 
 // Demo — no signup required
-Route::get('/demo', [DemoController::class, 'index'])->name('demo');
+Route::get('/demo', [DemoController::class, 'tour'])->name('demo');
+Route::get('/demo/write', [DemoController::class, 'index'])->name('demo.write');
 Route::post('/demo/submit', [DemoController::class, 'submit'])->name('demo.submit');
 Route::get('/demo/result', [DemoController::class, 'result'])->name('demo.result');
 

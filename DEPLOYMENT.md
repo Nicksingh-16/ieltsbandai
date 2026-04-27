@@ -146,15 +146,32 @@ QUEUE_CONNECTION=database
 ### API Keys
 
 ```bash
-# OpenAI (Required)
-OPENAI_API_KEY=sk-proj-your-openai-key
-OPENAI_MODEL=gpt-4o
+# LLM Provider (free tier: Gemini via OpenAI-compat endpoint)
+# Get free keys at: https://aistudio.google.com/apikey
+OPENAI_API_KEY=PUT_GEMINI_KEY_1_HERE
+OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+OPENAI_MODEL=gemini-2.5-pro
+
+# Gemini key pool (round-robin + Pro→Flash fallback). Each key gives
+# 50 Pro req/day + 1500 Flash req/day. Five keys = ~7500 calls/day total.
+GEMINI_API_KEY_1=PUT_GEMINI_KEY_1_HERE
+GEMINI_API_KEY_2=PUT_GEMINI_KEY_2_HERE
+GEMINI_API_KEY_3=PUT_GEMINI_KEY_3_HERE
+GEMINI_API_KEY_4=PUT_GEMINI_KEY_4_HERE
+GEMINI_API_KEY_5=PUT_GEMINI_KEY_5_HERE
+GEMINI_PRIMARY_MODEL=gemini-2.5-pro
+GEMINI_FALLBACK_MODEL=gemini-2.5-flash
+
+# To migrate to a real OpenAI key on production launch, swap:
+#   OPENAI_BASE_URL=https://api.openai.com/v1
+#   OPENAI_MODEL=gpt-4o-mini
+# No code changes required.
 
 # Speech-to-Text (Choose one)
 TRANSCRIPTION_PROVIDER=assemblyai
-ASSEMBLYAI_API_KEY=your-assemblyai-key
+ASSEMBLYAI_API_KEY=PUT_ASSEMBLYAI_KEY_HERE
 # OR
-# DEEPGRAM_API_KEY=your-deepgram-key
+# DEEPGRAM_API_KEY=PUT_DEEPGRAM_KEY_HERE
 
 # Razorpay (For payments)
 RAZORPAY_KEY=your-razorpay-key

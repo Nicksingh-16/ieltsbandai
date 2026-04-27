@@ -1,0 +1,15 @@
+services:
+  languagetool:
+    image: silviof/docker-languagetool:latest
+    container_name: ieltsbandai-languagetool
+    restart: unless-stopped
+    ports:
+      - "8010:8010"
+    environment:
+      Java_Xms: "512m"
+      Java_Xmx: "1g"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8010/v2/check?language=en-US&text=ok || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

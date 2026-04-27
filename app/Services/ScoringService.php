@@ -2,18 +2,43 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * LLM Provider Note
+ * -----------------
+ * This service delegates all LLM transport to LLMRouter, which calls Gemini
+ * via its OpenAI-compatible endpoint. Despite legacy OPENAI_* env vars and
+ * config('services.openai.*') names, the active provider is Gemini 2.5 Pro
+ * (with Flash as the quota-fallback). Free tier; ~95% of GPT-4o-mini quality.
+ *
+ * Migration to a real OpenAI key (production launch):
+ *   1. Set OPENAI_API_KEY=<real OpenAI key> in production secrets.
+ *   2. Set OPENAI_BASE_URL=https://api.openai.com/v1
+ *   3. Set OPENAI_MODEL=gpt-4o-mini (or whichever model is purchased).
+ *   No code changes required — LLMRouter and prompt-building stay identical.
+ *
+ * What this service still owns: prompt construction (Cambridge band
+ * descriptors + Layer 3 few-shot calibration anchors via CalibrationService)
+ * and post-LLM validation/normalization of scores. The HTTP call itself
+ * lives in LLMRouter.
+ */
 class ScoringService
 {
-    protected $apiKey;
-    protected $baseUrl;
+    /**
+     * Pinned to every benchmark JSON so prompt regressions are diff-able.
+     * Bump on any material change to the prompt body or retrieval strategy
+     * (e.g. L3-v2 = topic-keyword-ranked few-shot, L4-v1 = LanguageTool block).
+     */
+    public const PROMPT_VERSION = 'L4-v2';
 
-    public function __construct()
+    protected CalibrationService $calibration;
+    protected LLMRouter $router;
+
+    public function __construct(?CalibrationService $calibration = null, ?LLMRouter $router = null)
     {
-        $this->apiKey = config('services.openai.api_key');
-        $this->baseUrl = config('services.openai.base_url', 'https://api.openai.com/v1');
+        $this->calibration = $calibration ?? app(CalibrationService::class);
+        $this->router      = $router ?? app(LLMRouter::class);
     }
 
     /**
@@ -27,12 +52,7 @@ class ScoringService
         try {
             $prompt = $this->buildSpeakingScoringPrompt($transcript);
 
-            $response = Http::timeout(90)->withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-                'Content-Type' => 'application/json',
-            ])
-            ->post($this->baseUrl . '/chat/completions', [
-                'model' => config('services.openai.model', 'gpt-4o-mini'),
+            $data = $this->router->chatCompletion([
                 'messages' => [
                     [
                         'role' => 'system',
@@ -47,19 +67,10 @@ class ScoringService
                 'response_format' => ['type' => 'json_object'],
             ]);
 
-            if (!$response->successful()) {
-                Log::error('OpenAI API error', [
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                ]);
-                return null;
-            }
-
-            $data = $response->json();
             $content = $data['choices'][0]['message']['content'] ?? null;
 
             if (!$content) {
-                Log::error('OpenAI response missing content');
+                Log::error('LLM response missing content');
                 return null;
             }
 
@@ -118,12 +129,7 @@ class ScoringService
         try {
             $prompt = $this->buildWritingScoringPrompt($answer, $question);
 
-            $response = Http::timeout(120)->withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-                'Content-Type' => 'application/json',
-            ])
-            ->post($this->baseUrl . '/chat/completions', [
-                'model' => config('services.openai.model', 'gpt-4o-mini'),
+            $data = $this->router->chatCompletion([
                 'messages' => [
                     [
                         'role' => 'system',
@@ -138,19 +144,10 @@ class ScoringService
                 'response_format' => ['type' => 'json_object'],
             ]);
 
-            if (!$response->successful()) {
-                Log::error('OpenAI API error for writing scoring', [
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                ]);
-                return null;
-            }
-
-            $data = $response->json();
             $content = $data['choices'][0]['message']['content'] ?? null;
 
             if (!$content) {
-                Log::error('OpenAI response missing content');
+                Log::error('LLM response missing content for writing scoring');
                 return null;
             }
 
@@ -284,7 +281,11 @@ class ScoringService
     }
 
     /**
-     * Build the scoring prompt for speaking AI evaluation
+     * Build the scoring prompt for speaking AI evaluation.
+     *
+     * TODO Phase A.5: inject speaking few-shot examples once calibration set
+     * covers parts 1–3. The CalibrationService already returns an empty
+     * Collection for speaking_part_* so wiring will be a no-op until then.
      */
     protected function buildSpeakingScoringPrompt(string $transcript): string
     {
@@ -404,25 +405,43 @@ PROMPT;
         $questionContent = $question->content ?? '';
         $category = $question->category ?? '';
         $metadata = json_decode($question->metadata ?? '{}', true);
-        
+
         // Determine task type and specific criteria
         $taskType = $this->determineTaskType($category);
         $specificCriteria = $this->getTaskSpecificCriteria($taskType);
+
+        // Layer 3: pull 3 calibrated reference essays (low/mid/high band anchors)
+        // for the matching task type and inject them as few-shot anchors. Empty
+        // collection => no block rendered (e.g. unknown task type).
+        $calibTaskType = $this->mapToCalibrationTaskType($taskType);
+        $fewShotBlock = $this->buildCalibratedExamplesBlock($answer, $calibTaskType);
+
+        // Layer 4: deterministic ground-truth signals (LanguageTool grammar
+        // count + LinguisticAnalyzer TTR/CEFR/cohesion). Injected so the LLM
+        // does not have to count or estimate these features itself.
+        $signalsBlock = $this->buildGroundTruthSignalsBlock($answer);
 
         $task1MetadataInstructions = "";
         if (str_contains($taskType, 'Task 1') && str_contains($taskType, 'Academic')) {
             $metaJson = json_encode($metadata, JSON_PRETTY_PRINT);
             $task1MetadataInstructions = <<<META
 CRITICAL - DATA SOURCES:
-The following is the ground truth metadata for the graph/chart. 
+The following is the ground truth metadata for the graph/chart.
 Evaluate ONLY based on this data. Do NOT interpret or hallucinate from any external knowledge.
 METADATA:
 {$metaJson}
 
-STRICT TASK 1 RULES:
-- Overview is mandatory. No overview or unclear overview -> TA <= 5.5.
-- Correct overview + major trends -> TA >= 6.5.
-- Penalize incorrect trend descriptions.
+TASK 1 ACHIEVEMENT GUIDANCE:
+The presence and quality of an overview is a key TA signal but NOT a hard cap.
+- A clear, accurate overview (any summary statement of main trends/changes,
+  whether in second paragraph or conclusion) supports TA Band 7+.
+- A weak/partial overview (mentions some main features but incomplete) consider TA Band 6.
+- A completely absent overview is one Band 5 indicator, but other strengths
+  (data accuracy, comparisons, structure) can still support TA Band 6.
+- Defer to the official band descriptors and the calibrated examples above
+  rather than mechanical rules.
+- Penalize materially incorrect trend descriptions, but a single small
+  misreading does not cap TA.
 META;
         }
 
@@ -495,7 +514,8 @@ Band 6.0 essay anchor: Task adequately addressed with overview/position; mix of 
 Band 6.5 anchor: Clearly better than Band 6 on most criteria but not consistently meeting Band 7 — award when oscillating.
 Band 7.0 essay anchor: Task fully addressed; variety of complex structures with FREQUENT error-free sentences; less common vocabulary used with some precision; clear logical organisation with appropriate cohesive devices.
 Band 8.0 essay anchor: All parts addressed fully; wide range of structures with MAJORITY error-free; wide vocabulary with precision and only occasional inaccuracies; seamless cohesion.
-
+{$fewShotBlock}
+{$signalsBlock}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EXAMINER SCORING RULES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -684,8 +704,118 @@ PROMPT;
         } elseif (str_contains($category, 'general_task2')) {
             return 'General Training Task 2 (Essay)';
         }
-        
+
         return 'Unknown';
+    }
+
+    /**
+     * Map the human-readable task label produced by determineTaskType() to the
+     * enum value stored on calibrated_essays.task_type. Used so the prompt
+     * builder can request matching few-shot examples from CalibrationService.
+     */
+    protected function mapToCalibrationTaskType(string $humanTaskType): string
+    {
+        if (str_contains($humanTaskType, 'Task 1') && str_contains($humanTaskType, 'Academic')) {
+            return 'writing_task_1_academic';
+        }
+        if (str_contains($humanTaskType, 'Task 1') && str_contains($humanTaskType, 'General')) {
+            return 'writing_task_1_general';
+        }
+        if (str_contains($humanTaskType, 'Task 2')) {
+            return 'writing_task_2';
+        }
+        return 'writing_task_2';
+    }
+
+    /**
+     * Render the GROUND-TRUTH LINGUISTIC SIGNALS block (Layer 4). Combines
+     * LanguageTool grammar counts with LinguisticAnalyzer TTR / CEFR / cohesion
+     * markers. Each measurement is computed deterministically; the LLM is
+     * told NOT to re-count these features, only to use them as evidence.
+     *
+     * If LanguageTool is unreachable (Docker not running) the block still
+     * renders with grammar/spelling marked "n/a" — TTR / CEFR / cohesion are
+     * pure PHP and always available.
+     */
+    protected function buildGroundTruthSignalsBlock(string $essay): string
+    {
+        /** @var LinguisticAnalyzer $analyzer */
+        $analyzer = app(LinguisticAnalyzer::class);
+        $signals = $analyzer->analyze($essay);
+
+        /** @var LanguageToolClient $lt */
+        $lt = app(LanguageToolClient::class);
+        $ltResult = $lt->check($essay);
+
+        $ltLine = $ltResult['available']
+            ? sprintf('%d grammar errors + %d spelling errors (LanguageTool, computed)',
+                $ltResult['grammar_errors'], $ltResult['spelling_errors'])
+            : 'n/a (LanguageTool service unreachable — fall back to your own assessment for GRA)';
+
+        $cefr = $signals['cefr_distribution'];
+        $cefrLine = sprintf(
+            'A1 %.1f%% | A2 %.1f%% | B1 %.1f%% | B2 %.1f%% | C1 %.1f%% | C2/unknown %.1f%%',
+            $cefr['A1'], $cefr['A2'], $cefr['B1'], $cefr['B2'], $cefr['C1'], $cefr['C2']
+        );
+
+        $cohesion = $signals['cohesion_markers'];
+        $cohesionList = !empty($cohesion['found']) ? implode(', ', $cohesion['found']) : '(none detected)';
+
+        $caveat = 'NOTE: The C2/unknown bucket includes both genuinely sophisticated vocabulary AND words outside our curated reference lists (proper nouns, topic-specific terms, less common forms). Treat a high C2 figure as "uses non-basic vocabulary" rather than as proof of mastery.';
+
+        return <<<SIG
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GROUND-TRUTH LINGUISTIC SIGNALS (computed, not estimated)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Use these factual measurements as evidence — do NOT re-count these features.
+
+Word count: {$signals['word_count']} ({$signals['unique_word_count']} unique)
+Grammar/spelling: {$ltLine}
+Lexical diversity (TTR): {$signals['ttr']} (Band 7+ writing typically >= 0.50; below 0.40 indicates lexical poverty)
+Average word length: {$signals['avg_word_length']} characters
+CEFR vocabulary distribution: {$cefrLine}
+Cohesion markers detected ({$cohesion['count']}): {$cohesionList}
+
+{$caveat}
+
+SIG;
+    }
+
+    /**
+     * Render the CALIBRATED REFERENCE EXAMPLES section for the writing prompt.
+     * Returns an empty string if no examples are available so the prompt simply
+     * omits the block.
+     */
+    protected function buildCalibratedExamplesBlock(string $answer, string $calibTaskType): string
+    {
+        // Feature-flagged so we can A/B compare with vs without few-shot.
+        if (! config('services.calibration.few_shot_enabled', true)) {
+            return '';
+        }
+
+        $examples = $this->calibration->findSimilarExamples($answer, $calibTaskType, 3);
+
+        if ($examples->isEmpty()) {
+            return '';
+        }
+
+        $blocks = $examples
+            ->map(fn ($e) => $e->toFewShotBlock())
+            ->implode("\n\n");
+
+        return <<<FS
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CALIBRATED REFERENCE EXAMPLES (Cambridge-scored)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The following essays were scored by certified Cambridge examiners.
+Use them as concrete anchors when judging this candidate's response.
+Compare features (overview, vocabulary range, error density, cohesion) against these benchmarks before assigning your scores.
+
+{$blocks}
+
+FS;
     }
 
     /**

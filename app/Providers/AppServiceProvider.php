@@ -51,12 +51,32 @@ $this->app->bind(
             // Refuse to boot in production with placeholder LLM credentials.
             // Catches the case where a deploy reuses the .env.example values
             // or a missing prod secret leaves the placeholder string in place.
-            $apiKey = (string) config('services.openai.api_key', '');
-            if ($apiKey === '' || str_contains($apiKey, 'PUT_GEMINI') || str_starts_with($apiKey, 'PUT_')) {
+            //
+            // Skip during console/CLI execution (artisan commands, queue
+            // workers, package:discover during docker build) — Render only
+            // injects env vars at HTTP-runtime, not during the build step, so
+            // this guard would otherwise kill the deploy before keys are
+            // available. The check still fires on every HTTP request, which is
+            // the only path that actually needs LLM credentials.
+            if ($this->app->runningInConsole()) {
+                return;
+            }
+
+            $orKey      = (string) config('services.openrouter.api_key', '');
+            $openaiKey  = (string) config('services.openai.api_key', '');
+            $groqKey    = (string) config('services.groq.api_key', '');
+            $geminiKeys = (array)  config('services.gemini.keys', []);
+
+            $hasOpenRouter = str_starts_with($orKey, 'sk-or-');
+            $hasOpenAI     = str_starts_with($openaiKey, 'sk-') && !str_starts_with($openaiKey, 'sk-or-');
+            $hasGroq       = $groqKey !== '' && !str_starts_with($groqKey, 'PUT_');
+            $hasGemini     = !empty(array_filter($geminiKeys, fn ($k) => $k !== '' && !str_starts_with((string) $k, 'PUT_')));
+
+            if (!$hasOpenRouter && !$hasOpenAI && !$hasGroq && !$hasGemini) {
                 throw new \RuntimeException(
                     'LLM API key not configured. Refusing to start in production. ' .
-                    'Set OPENAI_API_KEY (and ideally GEMINI_API_KEY_1..5) ' .
-                    'via your production secrets store.'
+                    'Set OPENROUTER_API_KEY (sk-or-...) or OPENAI_API_KEY (sk-...) ' .
+                    'or GROQ_API_KEY or GEMINI_API_KEY_1..5 via your production secrets store.'
                 );
             }
         }

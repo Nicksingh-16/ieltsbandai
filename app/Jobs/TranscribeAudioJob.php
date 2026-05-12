@@ -50,20 +50,31 @@ class TranscribeAudioJob implements ShouldQueue
             'file'          => $audioFile->file_url,
         ]);
 
-        $transcript = $transcriptionService->transcribe($audioFile->file_url);
+        $result = $transcriptionService->transcribeWithWords($audioFile->file_url);
 
-        if (!$transcript) {
+        if (!$result || empty($result['text'])) {
             // Will retry up to $tries times
             throw new \RuntimeException(
                 "Transcription returned null for audio file {$this->audioFileId}"
             );
         }
 
-        $audioFile->update(['transcript' => $transcript]);
+        $transcript = $result['text'];
+        $words      = $result['words'] ?? [];
+
+        // Persist words[] alongside the plain transcript. The 'array' cast on
+        // AudioFile::$casts handles JSON encoding. If the provider returned
+        // no word-level data we still save an empty array — the downstream
+        // analyzer gracefully skips when this is empty.
+        $audioFile->update([
+            'transcript'       => $transcript,
+            'transcript_words' => $words,
+        ]);
 
         Log::info("TranscribeAudioJob: transcription saved", [
             'audio_file_id'     => $this->audioFileId,
             'transcript_length' => strlen($transcript),
+            'word_count'        => count($words),
         ]);
 
         $this->checkAndDispatchScoring();

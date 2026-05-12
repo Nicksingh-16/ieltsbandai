@@ -55,20 +55,39 @@ class ListeningTestController extends Controller
             return back()->with('error', 'No listening questions available. Please try again later.');
         }
 
-        $test = DB::transaction(function () use ($question, $testType) {
-            $test = Test::create([
-                'user_id'    => Auth::id(),
-                'type'       => 'listening',
-                'test_type'  => $testType,
-                'category'   => "listening_{$testType}",
-                'status'     => 'in_progress',
-                'started_at' => now(),
+        // Audio guard — listening tests are unusable without audio. Check that
+        // the question has at least one of audio_url or section_audios before
+        // charging a credit and entering the test view (which otherwise renders
+        // a "Audio plays here" placeholder and traps the user).
+        $meta = is_string($question->metadata)
+            ? (json_decode($question->metadata, true) ?: [])
+            : (is_array($question->metadata) ? $question->metadata : []);
+        $hasAudio = !empty($meta['audio_url']) || !empty($meta['section_audios']);
+        if (!$hasAudio) {
+            \Illuminate\Support\Facades\Log::warning('Listening question missing audio', [
+                'question_id' => $question->id,
+                'category'    => $category,
             ]);
-            $test->questions()->attach($question->id, ['part' => 1]);
-            return $test;
-        });
+            return back()->with('error', 'This listening test is missing its audio. Please try another or contact support.');
+        }
 
-        app(CreditService::class)->deductCredit(Auth::user());
+        try {
+            $test = DB::transaction(function () use ($question, $testType) {
+                $test = Test::create([
+                    'user_id'    => Auth::id(),
+                    'type'       => 'listening',
+                    'test_type'  => $testType,
+                    'category'   => "listening_{$testType}",
+                    'status'     => 'in_progress',
+                    'started_at' => now(),
+                ]);
+                $test->questions()->attach($question->id, ['part' => 1]);
+                app(CreditService::class)->chargeForTest(Auth::user(), $test);
+                return $test;
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', 'Could not start test: ' . $e->getMessage());
+        }
 
         $sections = json_decode($question->metadata ?? '{}', true);
 
@@ -82,6 +101,13 @@ class ListeningTestController extends Controller
         $test = Test::where('id', $testId)
             ->where('user_id', Auth::id())
             ->firstOrFail();
+
+        // Idempotency: re-submitting a completed test would overwrite the
+        // score, re-fire Test::updated() observers (creditReferrer +
+        // EventTracker), and rot analytics. Bounce to the result page.
+        if ($test->status === 'completed') {
+            return redirect()->route('listening.result', $test->id);
+        }
 
         $submitted  = $request->input('answers', []);
         $question   = $test->questions()->first();

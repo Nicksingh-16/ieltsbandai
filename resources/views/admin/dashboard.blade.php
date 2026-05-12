@@ -8,12 +8,15 @@
             <h1 class="text-2xl font-bold text-surface-50">Admin Dashboard</h1>
             <p class="text-surface-400 text-sm mt-1">Platform overview</p>
         </div>
-        <div class="flex gap-3">
+        <div class="flex flex-wrap gap-2">
             <a href="{{ route('admin.users') }}" class="btn-secondary text-sm">Users</a>
             <a href="{{ route('admin.payments') }}" class="btn-secondary text-sm">Payments</a>
             <a href="{{ route('admin.questions') }}" class="btn-secondary text-sm">Questions</a>
-            <a href="{{ route('admin.question-sets.index') }}" class="btn-secondary text-sm">Question Sets</a>
+            <a href="{{ route('admin.question-sets.index') }}" class="btn-secondary text-sm">Sets</a>
             <a href="{{ route('admin.institutes') }}" class="btn-secondary text-sm">Institutes</a>
+            <a href="{{ route('admin.feedback') }}" class="btn-secondary text-sm">Feedback</a>
+            <a href="{{ route('admin.analytics') }}" class="btn-secondary text-sm">Analytics</a>
+            <a href="{{ route('admin.llm-usage') }}" class="btn-primary text-sm">LLM Usage</a>
         </div>
     </div>
 

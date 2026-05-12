@@ -14,6 +14,8 @@
 </head>
 <body class="h-full font-sans antialiased bg-surface-950 text-surface-200">
 
+    @include('partials.beta-banner')
+
     <div class="min-h-screen flex flex-col items-center justify-center px-4 py-12 relative">
 
         <!-- Background glow -->

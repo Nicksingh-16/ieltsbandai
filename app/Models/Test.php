@@ -18,11 +18,47 @@ class Test extends Model
     protected $casts = [
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
+        'credit_charged_at' => 'datetime',
+        'credit_refunded_at' => 'datetime',
         'result' => 'array',
         'metadata' => 'array',
         'overall_band' => 'float',
         'duration_seconds' => 'integer',
     ];
+
+    protected static function booted(): void
+    {
+        // Track test_started on creation.
+        static::created(function (Test $test) {
+            if ($test->user_id) {
+                app(\App\Services\EventTracker::class)->track('test_started', [
+                    'test_id'  => $test->id,
+                    'type'     => $test->type,
+                    'category' => $test->category,
+                ], $test->user);
+            }
+        });
+
+        // Fire referrer reward + analytics when a test transitions to 'completed'.
+        // Idempotent inside ReferralController::creditReferrer — safe to
+        // hit on every completion across writing/listening/reading/speaking.
+        static::updated(function (Test $test) {
+            if ($test->wasChanged('status') && $test->status === 'completed' && $test->user) {
+                \App\Http\Controllers\Web\ReferralController::creditReferrer($test->user);
+                app(\App\Services\EventTracker::class)->track('test_completed', [
+                    'test_id'      => $test->id,
+                    'type'         => $test->type,
+                    'overall_band' => $test->overall_band,
+                ], $test->user);
+            }
+            if ($test->wasChanged('status') && $test->status === 'failed') {
+                app(\App\Services\EventTracker::class)->track('test_failed', [
+                    'test_id' => $test->id,
+                    'type'    => $test->type,
+                ], $test->user);
+            }
+        });
+    }
 
     public function user()         { return $this->belongsTo(User::class); }
     public function testScores()   { return $this->hasMany(TestScore::class); }

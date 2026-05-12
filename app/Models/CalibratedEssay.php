@@ -83,9 +83,9 @@ class CalibratedEssay extends Model
         $bandStr = number_format($this->band_overall, 1);
         $essay = trim($this->essay_text);
         $notes = trim($this->examiner_notes ?? '');
-        $tag = $this->band_overall >= 8.5
-            ? '(EXAMINER-PREPARED MODEL — target ceiling reference)'
-            : '(STUDENT RESPONSE — Cambridge-scored)';
+        $tag = $this->band_overall >= 8.0
+            ? '(EXAMINER-PREPARED MODEL — target ceiling reference; demonstrates what Band 8+ looks like)'
+            : '(STUDENT RESPONSE — Cambridge-scored; representative of this band)';
 
         return <<<EOT
 ---

@@ -12,6 +12,7 @@ use App\Http\Controllers\Web\ListeningTestController;
 use App\Http\Controllers\Web\ReadingTestController;
 use App\Http\Controllers\Web\ContactController;
 use App\Http\Controllers\Web\DemoController;
+use App\Http\Controllers\Web\FeedbackController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\web\PricingController;
 use App\Http\Controllers\web\PaymentController;
@@ -28,10 +29,21 @@ Route::view('/faq', 'pages.faq')->name('faq');
 Route::view('/privacy', 'pages.privacy')->name('privacy');
 Route::view('/terms', 'pages.terms')->name('terms');
 
-// Demo — no signup required
+// Internal feedback — replaces external Tally/Form. Anonymous submissions
+// allowed (with optional email) so beta tour visitors can also send.
+Route::get('/feedback', [FeedbackController::class, 'create'])->name('feedback.create');
+Route::post('/feedback', [FeedbackController::class, 'store'])
+    ->middleware('throttle:6,60')
+    ->name('feedback.store');
+Route::get('/feedback/thanks', [FeedbackController::class, 'thanks'])->name('feedback.thanks');
+
+// Demo — no signup required. Throttled by IP to prevent unauth LLM scraping
+// (the cookie-based one-shot block is trivially bypassed via incognito).
 Route::get('/demo', [DemoController::class, 'tour'])->name('demo');
 Route::get('/demo/write', [DemoController::class, 'index'])->name('demo.write');
-Route::post('/demo/submit', [DemoController::class, 'submit'])->name('demo.submit');
+Route::post('/demo/submit', [DemoController::class, 'submit'])
+    ->middleware('throttle:3,1440') // 3 submissions per IP per day (1440 min)
+    ->name('demo.submit');
 Route::get('/demo/result', [DemoController::class, 'result'])->name('demo.result');
 
 // Social Authentication Routes
@@ -56,10 +68,11 @@ Route::middleware(['auth', 'verified'])->prefix('speaking')->name('speaking.')->
     })->name('index');
 
     Route::get('/test', [\App\Http\Controllers\Web\SpeakingTestController::class, 'show'])
-        ->middleware('check.credits')
+        ->middleware(['check.credits', 'throttle:10,1'])
         ->name('test');
 
     Route::post('/upload/audio', [\App\Http\Controllers\Web\SpeakingTestController::class, 'uploadAudio'])
+        ->middleware('throttle:30,1')
         ->name('upload.audio');
 });
 
@@ -68,7 +81,7 @@ Route::middleware(['auth', 'verified'])->prefix('writing')->name('writing.')->gr
     Route::get('/', [WritingTestController::class, 'index'])->name('index');
 
     Route::post('/start', [WritingTestController::class, 'start'])
-        ->middleware('check.credits')
+        ->middleware(['check.credits', 'throttle:5,1'])
         ->name('start');
 
     Route::get('/test/{testId}', [WritingTestController::class, 'showTest'])->name('test');
@@ -90,7 +103,7 @@ Route::middleware(['auth', 'verified'])->prefix('writing')->name('writing.')->gr
 // Listening Test Routes
 Route::middleware(['auth', 'verified'])->prefix('listening')->name('listening.')->group(function () {
     Route::get('/', [ListeningTestController::class, 'index'])->name('index');
-    Route::post('/start', [ListeningTestController::class, 'start'])->middleware('check.credits')->name('start');
+    Route::post('/start', [ListeningTestController::class, 'start'])->middleware(['check.credits', 'throttle:5,1'])->name('start');
     Route::post('/submit/{testId}', [ListeningTestController::class, 'submit'])->name('submit');
     Route::get('/result/{testId}', [ListeningTestController::class, 'result'])->name('result');
 });
@@ -98,7 +111,7 @@ Route::middleware(['auth', 'verified'])->prefix('listening')->name('listening.')
 // Reading Test Routes
 Route::middleware(['auth', 'verified'])->prefix('reading')->name('reading.')->group(function () {
     Route::get('/', [ReadingTestController::class, 'index'])->name('index');
-    Route::post('/start', [ReadingTestController::class, 'start'])->middleware('check.credits')->name('start');
+    Route::post('/start', [ReadingTestController::class, 'start'])->middleware(['check.credits', 'throttle:5,1'])->name('start');
     Route::post('/submit/{testId}', [ReadingTestController::class, 'submit'])->name('submit');
     Route::get('/result/{testId}', [ReadingTestController::class, 'result'])->name('result');
 });
@@ -129,7 +142,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 // ─── Full Mock Test Routes ────────────────────────────────────────────────────
 Route::middleware(['auth', 'verified'])->prefix('mock-test')->name('mock-test.')->group(function () {
     Route::get('/', [MockTestController::class, 'index'])->name('index');
-    Route::post('/start', [MockTestController::class, 'start'])->middleware('check.credits')->name('start');
+    Route::post('/start', [MockTestController::class, 'start'])->middleware(['check.credits', 'throttle:3,1'])->name('start');
     Route::get('/{mock}/module/{module}', [MockTestController::class, 'module'])->name('module');
     Route::post('/{mock}/advance/{module}', [MockTestController::class, 'advance'])->name('advance');
     Route::get('/{mock}/result', [MockTestController::class, 'result'])->name('result');
@@ -196,6 +209,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Payments
     Route::get('/payments', [AdminController::class, 'payments'])->name('payments');
+
+    // Feedback inbox + analytics
+    Route::get('/feedback', [AdminController::class, 'feedbackIndex'])->name('feedback');
+    Route::post('/feedback/{feedback}/status', [AdminController::class, 'feedbackStatus'])->name('feedback.status');
+    Route::get('/analytics', [AdminController::class, 'analytics'])->name('analytics');
+    Route::get('/llm-usage', [AdminController::class, 'llmUsage'])->name('llm-usage');
 
     // Institutes
     Route::get('/institutes', [AdminController::class, 'institutes'])->name('institutes');

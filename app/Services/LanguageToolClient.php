@@ -26,8 +26,13 @@ class LanguageToolClient
      */
     public function check(string $text, string $lang = 'en-US'): array
     {
-        $base = config('services.languagetool.base_url', 'http://localhost:8010');
-        $url  = rtrim($base, '/') . '/v2/check';
+        // Render's fromService.hostport resolver returns a bare "host:port"
+        // string without a scheme — prepend one so Http::post doesn't reject it.
+        $base = (string) config('services.languagetool.base_url', 'http://localhost:8010');
+        if ($base !== '' && !preg_match('#^https?://#i', $base)) {
+            $base = 'http://' . $base;
+        }
+        $url = rtrim($base, '/') . '/v2/check';
 
         try {
             $resp = Http::asForm()

@@ -55,23 +55,23 @@ class ReadingTestController extends Controller
             return back()->with('error', 'No reading passages available for this type. Please try again later.');
         }
 
-        $test = DB::transaction(function () use ($question, $testType) {
-            $test = Test::create([
-                'user_id'    => Auth::id(),
-                'type'       => 'reading',
-                'test_type'  => $testType,
-                'category'   => "reading_{$testType}",
-                'status'     => 'in_progress',
-                'started_at' => now(),
-            ]);
-
-            $test->questions()->attach($question->id, ['part' => 1]);
-
-            return $test;
-        });
-
-        $creditService = app(CreditService::class);
-        $creditService->deductCredit(Auth::user());
+        try {
+            $test = DB::transaction(function () use ($question, $testType) {
+                $test = Test::create([
+                    'user_id'    => Auth::id(),
+                    'type'       => 'reading',
+                    'test_type'  => $testType,
+                    'category'   => "reading_{$testType}",
+                    'status'     => 'in_progress',
+                    'started_at' => now(),
+                ]);
+                $test->questions()->attach($question->id, ['part' => 1]);
+                app(CreditService::class)->chargeForTest(Auth::user(), $test);
+                return $test;
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', 'Could not start test: ' . $e->getMessage());
+        }
 
         $meta = json_decode($question->metadata ?? '{}', true);
 
@@ -85,6 +85,11 @@ class ReadingTestController extends Controller
         $test = Test::where('id', $testId)
             ->where('user_id', Auth::id())
             ->firstOrFail();
+
+        // Idempotency guard — see ListeningTestController::submit.
+        if ($test->status === 'completed') {
+            return redirect()->route('reading.result', $test->id);
+        }
 
         $submitted  = $request->input('answers', []);
         $question   = $test->questions()->first();

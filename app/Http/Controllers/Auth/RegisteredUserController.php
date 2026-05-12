@@ -42,6 +42,10 @@ class RegisteredUserController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'test_credits' => config('beta.enabled')
+                ? config('beta.signup_credits')
+                : config('packages.free.credits', 3),
+            'ref_source' => $request->session()->pull('ref_source'),
         ]);
 
         event(new Registered($user));
@@ -50,6 +54,13 @@ class RegisteredUserController extends Controller
 
         // Apply referral bonus if user came via referral link
         ReferralController::applyReferral($user);
+
+        // First-party analytics — track signup with attribution.
+        app(\App\Services\EventTracker::class)->track('user_signed_up', [
+            'ref_source'  => $user->ref_source,
+            'referred_by' => $user->referred_by,
+            'beta'        => (bool) config('beta.enabled'),
+        ], $user);
 
         // Send welcome email (queued — non-blocking)
         Mail::to($user)->queue(new WelcomeMail($user));

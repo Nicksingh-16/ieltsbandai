@@ -471,11 +471,21 @@ async function submitForm() {
             headers: { 'X-CSRF-TOKEN': document.querySelector('input[name=_token]').value, 'Accept': 'application/json' },
             body: new FormData(form)
         });
-        const data = await res.json();
-        if (data.success && data.redirect) {
+        // Parse defensively — extract leading {…} if the dev server appended
+        // anything after the JSON (PHP notice, exception page, etc.). The
+        // backend job is hardened to swallow exceptions, but we don't want
+        // any future regression to break the user's submission flow.
+        const raw = await res.text();
+        let data;
+        try { data = JSON.parse(raw); }
+        catch (_) {
+            const m = raw && raw.match(/^\s*(\{[\s\S]*?\})/);
+            data = m ? JSON.parse(m[1]) : null;
+        }
+        if (data && data.success && data.redirect) {
             localStorage.removeItem('writing_draft_{{ $test->id }}');
             window.location.href = data.redirect;
-        } else throw new Error(data.message);
+        } else throw new Error((data && data.message) || `Submission failed (HTTP ${res.status})`);
     } catch(err) {
         hideEvaluatingOverlay();
         btn.disabled = false;
@@ -647,23 +657,39 @@ document.addEventListener('DOMContentLoaded', function() {
     // localStorage autosave every 20s
     setInterval(() => { if (editor.value.trim()) localStorage.setItem(draftKey, editor.value); }, 20000);
 
-    // DB autosave every 60s (silent — user never loses work even if browser crashes)
+    // DB autosave every 60s (silent — user never loses work even if browser crashes).
+    // saveDraft() validates {answer: required|string} — post the editor's value
+    // directly under that key. Old field names (task1_response/task2_response)
+    // were silently rejected by the validator, dropping autosave to localStorage-only.
     const draftUrl   = '{{ route('writing.draft', $test->id) }}';
     const csrfToken  = document.querySelector('meta[name="csrf-token"]')?.content;
     const savedLabel = document.getElementById('autosaveLabel');
+    let lastSavedSnapshot = '';
     setInterval(async () => {
-        const task1 = document.getElementById('task1_response')?.value ?? '';
-        const task2 = document.getElementById('task2_response')?.value ?? editor.value ?? '';
-        if (!task1 && !task2) return;
+        const answer = (editor.value || '').trim();
+        if (!answer || answer === lastSavedSnapshot) return;
         try {
-            await fetch(draftUrl, {
+            const res = await fetch(draftUrl, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
-                body: JSON.stringify({ task1_response: task1, task2_response: task2 }),
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+                body: JSON.stringify({ answer }),
             });
-            if (savedLabel) { savedLabel.textContent = 'Saved ' + new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
+            if (res.ok) {
+                lastSavedSnapshot = answer;
+                if (savedLabel) { savedLabel.textContent = 'Saved ' + new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
+            }
         } catch { /* silent — localStorage is backup */ }
     }, 60000);
+
+    // Prevent accidental tab-close from losing unsaved work. Only warns when
+    // there's content the user just typed that hasn't been DB-synced yet.
+    window.addEventListener('beforeunload', (e) => {
+        const current = (editor.value || '').trim();
+        if (current && current !== lastSavedSnapshot) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
 
     // Timer
     let time = {{ $totalTime }};

@@ -33,6 +33,16 @@ class SpeakingScoreJob implements ShouldQueue
         $test = Test::with(['audioFiles', 'testQuestions.question'])
             ->findOrFail($this->testId);
 
+        // Idempotency on retry: if a previous attempt scored successfully,
+        // don't re-run the LLM. testScores->delete() + re-insert from a retry
+        // can flip the band between attempts and waste tokens.
+        if ($test->status === 'completed') {
+            Log::info('SpeakingScoreJob skipping — test already completed', [
+                'test_id' => $this->testId,
+            ]);
+            return;
+        }
+
         // Safety guard — re-check all transcripts present
         $audioFiles    = $test->audioFiles()->orderBy('created_at')->get();
         $testQuestions = $test->testQuestions()->orderBy('part')->with('question')->get();
@@ -47,12 +57,24 @@ class SpeakingScoreJob implements ShouldQueue
         // Build combined transcript
         $combinedTranscript = $this->buildCombinedTranscript($audioFiles, $testQuestions);
 
+        // Collect persisted word-level timings across all parts for acoustic
+        // analysis. Legacy rows (pre transcript_words migration) will have
+        // an empty/null column — graceful skip happens inside scoreSpeaking().
+        $allWords = [];
+        foreach ($audioFiles as $audioFile) {
+            $words = $audioFile->transcript_words;
+            if (is_array($words) && !empty($words)) {
+                $allWords = array_merge($allWords, $words);
+            }
+        }
+
         Log::info("SpeakingScoreJob: sending to AI scorer", [
             'test_id'           => $this->testId,
             'transcript_length' => strlen($combinedTranscript),
+            'word_count'        => count($allWords),
         ]);
 
-        $scoring = $scoringService->scoreSpeaking($combinedTranscript);
+        $scoring = $scoringService->scoreSpeaking($combinedTranscript, $test->user_id, $test->id, $allWords);
 
         if (!$scoring) {
             throw new \RuntimeException("AI scoring returned null for test {$this->testId}");

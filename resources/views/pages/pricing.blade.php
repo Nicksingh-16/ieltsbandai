@@ -11,6 +11,8 @@
 </head>
 <body class="bg-surface-950 text-surface-200 font-sans antialiased">
 
+@include('partials.beta-banner')
+
 {{-- Ambient glow --}}
 <div class="pointer-events-none fixed inset-0 overflow-hidden -z-10">
     <div class="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[500px] bg-brand-500/8 rounded-full blur-3xl"></div>
@@ -102,41 +104,39 @@
 
     {{-- CTA Button --}}
     <div>
-        <form action="{{ route('payment.initiate') }}" method="POST" id="payment-form">
-            @csrf
-            <input type="hidden" name="plan" value="monthly">
-            <input type="hidden" name="amount" value="9900">
-            <button type="submit" id="pay-btn" class="btn-primary w-full py-4 text-base font-bold shadow-glow-lg text-lg">
+        @if(config('beta.hide_pay_cta'))
+            {{-- Beta mode: Razorpay flow not yet activated. Funnel users to
+                 the feedback form so we capture interest signal before
+                 paid launch. Reverts automatically when BETA_HIDE_PAY_CTA
+                 (or BETA_MODE) is false. --}}
+            <a href="{{ config('beta.feedback_url') ?: '#' }}"
+               @if(config('beta.feedback_url')) target="_blank" rel="noopener" @endif
+               class="btn-primary w-full py-4 text-base font-bold shadow-glow-lg text-lg flex items-center justify-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
                 </svg>
-                Pay ₹99 with Razorpay
-            </button>
-        </form>
-
-        <div class="flex items-center justify-center gap-6 mt-4 text-xs text-surface-500">
-            <span>UPI · Cards · Net Banking · Wallets</span>
-        </div>
-    </div>
-
-    {{-- Testimonials --}}
-    <div class="card p-6 sm:p-8">
-        <h2 class="text-surface-50 font-bold text-lg mb-6 text-center">What Pro users say</h2>
-        <div class="space-y-5">
-            @foreach([
-                ['"The unlimited tests helped me improve from 6.5 to 7.5 in just 2 months!"', 'Rahul Sharma, Mumbai'],
-                ['"Detailed feedback on every mistake made all the difference in my preparation."', 'Priya Patel, Ahmedabad'],
-                ['"Best investment for IELTS prep. The AI feedback is incredibly accurate!"', 'Amit Kumar, Delhi'],
-            ] as [$quote, $author])
-            <div class="flex gap-4">
-                <div class="w-1 rounded-full bg-gradient-to-b from-brand-500 to-brand-700 shrink-0"></div>
-                <div>
-                    <p class="text-surface-300 text-sm leading-relaxed mb-1">{{ $quote }}</p>
-                    <p class="text-surface-500 text-xs font-semibold">— {{ $author }}</p>
-                </div>
+                {{ config('beta.pay_replacement_text') }}
+            </a>
+            <div class="flex items-center justify-center gap-6 mt-4 text-xs text-surface-500">
+                <span>Pro plans coming soon · No card required during beta</span>
             </div>
-            @endforeach
-        </div>
+        @else
+            <form action="{{ route('payment.initiate') }}" method="POST" id="payment-form">
+                @csrf
+                <input type="hidden" name="plan" value="monthly">
+                <input type="hidden" name="amount" value="9900">
+                <button type="submit" id="pay-btn" class="btn-primary w-full py-4 text-base font-bold shadow-glow-lg text-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                    Pay ₹99 with Razorpay
+                </button>
+            </form>
+
+            <div class="flex items-center justify-center gap-6 mt-4 text-xs text-surface-500">
+                <span>UPI · Cards · Net Banking · Wallets</span>
+            </div>
+        @endif
     </div>
 
     {{-- FAQ --}}
@@ -147,7 +147,7 @@
                 ['Can I cancel anytime?', 'Yes, cancel from your account settings at any time. No questions asked, no penalties.'],
                 ['What payment methods do you accept?', 'All major credit/debit cards, UPI, net banking, and digital wallets via Razorpay.'],
                 ['Is there a refund policy?', 'Yes — 7-day money-back guarantee if you are not satisfied with Pro features.'],
-                ['How accurate is the AI scoring?', 'Our AI is trained on thousands of real IELTS responses and matches human examiner scores within ±0.5 band in 90%+ of cases.'],
+                ['How accurate is the AI scoring?', 'Our scoring is calibrated against published Cambridge IELTS model answers and standardised against the official public band descriptors. Beta scores are best treated as a strong indicator of your level — use them to identify gaps, not as a substitute for an official test.'],
             ] as [$q, $a])
             <div class="border-b border-surface-700 pb-5 last:border-0 last:pb-0">
                 <p class="font-semibold text-surface-100 mb-2">{{ $q }}</p>
@@ -164,7 +164,8 @@
 </footer>
 
 <script>
-document.getElementById('payment-form').addEventListener('submit', function(e) {
+const _payForm = document.getElementById('payment-form');
+if (_payForm) _payForm.addEventListener('submit', function(e) {
     e.preventDefault();
     const btn = document.getElementById('pay-btn');
     const original = btn.innerHTML;

@@ -17,10 +17,15 @@ class User extends Authenticatable
      *
      * @var array<int, string>
      */
+    /**
+     * Mass-assignable attributes. Privileged fields (is_admin, institute_role,
+     * institute_id, referral_credits_*) are deliberately OMITTED — they must be
+     * set via $user->forceFill([...])->save() inside an admin / system path.
+     * Don't add them back without auditing every User::create / ->update call.
+     */
     protected $fillable = [
         'name', 'email', 'password',
-        'is_admin', 'institute_id', 'institute_role',
-        'referral_code', 'referred_by', 'referral_credits_earned',
+        'referral_code', 'referred_by', 'ref_source',
     ];
 
     /**
@@ -41,9 +46,10 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
-            'password'          => 'hashed',
-            'is_admin'          => 'boolean',
+            'email_verified_at'    => 'datetime',
+            'referral_credited_at' => 'datetime',
+            'password'             => 'hashed',
+            'is_admin'             => 'boolean',
         ];
     }
 

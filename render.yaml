@@ -1,4 +1,16 @@
+# Render Blueprint for IELTS Band AI
+# ============================================================================
+# This file defines the production topology on Render. Push to main and
+# Render auto-applies. Manual env vars (API keys etc.) are set in the
+# Render dashboard, NOT here, so secrets never touch source control.
+# ============================================================================
+
 services:
+  # ---------------------------------------------------------------------------
+  # Main Laravel app — web + queue worker share a dyno (UptimeRobot keeps it
+  # warm so the queue doesn't sleep). When traffic justifies splitting, add a
+  # second service with the same image and `startCommand: php artisan queue:work`.
+  # ---------------------------------------------------------------------------
   - type: web
     name: ieltsbandai
     env: docker
@@ -39,6 +51,45 @@ services:
           name: ieltsbandai-db
           property: password
         key: DB_PASSWORD
+
+      # LanguageTool sidecar — see languagetool service below.
+      # Render auto-resolves the service name to an internal hostname
+      # reachable from this service. No public DNS, no auth needed.
+      - fromService:
+          name: languagetool
+          type: web
+          property: hostport
+        key: LANGUAGETOOL_BASE_URL
+
+  # ---------------------------------------------------------------------------
+  # LanguageTool grammar/spell checker — used by ScoringService for ground-truth
+  # error density signals in the writing scoring prompt. Self-hosted (free, no
+  # API key) via the silviof/docker-languagetool image, same as docker-compose
+  # locally.
+  #
+  # IMPORTANT — Render plan constraints:
+  #   • Free plan: 512MB RAM. LT needs ~1GB minimum or it OOM-kills on first
+  #     request. Either upgrade this service to Starter ($7/mo, 512MB still
+  #     but more reliable) or — better — Standard ($25/mo, 2GB).
+  #   • UptimeRobot must ping the health URL too, otherwise the dyno sleeps
+  #     after 15 min and the first scoring request takes 60s+ to wake it.
+  #     Health URL: https://ielts-languagetool.onrender.com/v2/check?language=en-US&text=ok
+  #
+  # If cost is a concern, alternative: keep LT off Render entirely and run it
+  # on a $5/month Hetzner / Contabo VPS — same Docker image, more RAM, no
+  # cold-start. Point LANGUAGETOOL_BASE_URL above at the VPS hostname.
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: languagetool
+    env: docker
+    plan: starter
+    dockerfilePath: ./docker/languagetool/Dockerfile
+    healthCheckPath: /v2/languages
+    envVars:
+      - key: Java_Xms
+        value: 256m
+      - key: Java_Xmx
+        value: 700m
 
 databases:
   - name: ieltsbandai-db

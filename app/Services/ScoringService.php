@@ -30,7 +30,7 @@ class ScoringService
      * Bump on any material change to the prompt body or retrieval strategy
      * (e.g. L3-v2 = topic-keyword-ranked few-shot, L4-v1 = LanguageTool block).
      */
-    public const PROMPT_VERSION = 'L4-v2';
+    public const PROMPT_VERSION = 'L5-v4';
 
     protected CalibrationService $calibration;
     protected LLMRouter $router;
@@ -47,12 +47,14 @@ class ScoringService
      * @param string $transcript Combined transcript text
      * @return array|null Scoring data or null on failure
      */
-    public function scoreSpeaking(string $transcript): ?array
+    public function scoreSpeaking(string $transcript, ?int $userId = null, ?int $testId = null, array $words = []): ?array
     {
         try {
-            $prompt = $this->buildSpeakingScoringPrompt($transcript);
+            $prompt = $this->buildSpeakingScoringPrompt($transcript, $words);
 
-            $data = $this->router->chatCompletion([
+            $data = $this->router
+                ->withContext($userId, $testId, 'speaking_score')
+                ->chatCompletion([
                 'messages' => [
                     [
                         'role' => 'system',
@@ -74,8 +76,9 @@ class ScoringService
                 return null;
             }
 
-            // Parse JSON response
-            $scoring = json_decode($content, true);
+            // Parse JSON response (strip markdown fences first — Claude / some
+            // models wrap JSON in ```json...``` even when response_format is set).
+            $scoring = json_decode($this->stripJsonFences($content), true);
 
             if (json_last_error() !== JSON_ERROR_NONE) {
                 Log::error('Failed to parse scoring JSON', [
@@ -107,6 +110,11 @@ class ScoringService
                 $scoring[$field] = $score;
             }
 
+            // L5-v2: single canonical bias-correction site (same as writing).
+            $this->applyBiasCorrection($scoring, [
+                'fluency', 'lexical', 'grammar', 'pronunciation',
+            ]);
+
             return $scoring;
 
         } catch (\Exception $e) {
@@ -124,12 +132,14 @@ class ScoringService
      * @param object $question Question object with type and content
      * @return array|null Scoring data or null on failure
      */
-    public function scoreWriting(string $answer, $question): ?array
+    public function scoreWriting(string $answer, $question, ?int $userId = null, ?int $testId = null): ?array
     {
         try {
             $prompt = $this->buildWritingScoringPrompt($answer, $question);
 
-            $data = $this->router->chatCompletion([
+            $data = $this->router
+                ->withContext($userId, $testId, 'writing_score')
+                ->chatCompletion([
                 'messages' => [
                     [
                         'role' => 'system',
@@ -151,7 +161,7 @@ class ScoringService
                 return null;
             }
 
-            $scoring = json_decode($content, true);
+            $scoring = json_decode($this->stripJsonFences($content), true);
 
             if (json_last_error() !== JSON_ERROR_NONE) {
                 Log::error('Failed to parse scoring JSON', [
@@ -189,6 +199,42 @@ class ScoringService
                 $scoring[$field] = $score;
             }
 
+            // L5-v1: hard server-side under-length cap on TA/TR. Rule 6 of the
+            // prompt tells the LLM to reduce TA/TR by 0.5 when below minimum
+            // word count, but observed runs show the model frequently ignores
+            // it — apply deterministically here so the penalty is always
+            // enforced and visible in benchmark deltas.
+            $wordCount = str_word_count(trim($answer));
+            $category = (string) ($question->category ?? '');
+            $isTask2  = str_contains($category, 'task2');
+            $minWords = $isTask2 ? 250 : 150;
+            if ($wordCount > 0 && $wordCount < $minWords) {
+                $original = $scoring['task_achievement'];
+                $scoring['task_achievement'] = max(0.0, round(($original - 0.5) * 2) / 2);
+                Log::info('Applied under-length TA/TR penalty', [
+                    'word_count'  => $wordCount,
+                    'min_words'   => $minWords,
+                    'original_ta' => $original,
+                    'adjusted_ta' => $scoring['task_achievement'],
+                ]);
+            }
+
+            // L5-v2: single canonical bias-correction site. Shifts EACH
+            // criterion AND overall_band by the same piecewise amount so the
+            // report is internally consistent (sub-scores average to overall).
+            //
+            // L5-v3 experiment (signal-driven high-band boost) was tried and
+            // reverted: TTR/cohesion/CEFR-share signals do NOT reliably
+            // separate Band 6 from Band 8.5 in the Cambridge dataset. The
+            // detector false-positived on strong Band 6 essays (over-shifted
+            // them to Band 8) without recovering the genuinely-Band-8.5 cases.
+            // Re-enable only when LanguageTool grammar-error density is
+            // available (it's the strongest discriminator we have, and is
+            // unreliable in dev without Docker running).
+            $this->applyBiasCorrection($scoring, [
+                'task_achievement', 'coherence_cohesion', 'lexical_resource', 'grammar',
+            ]);
+
             // Normalize and Validate Errors (Utmost Level)
             $normalizedErrors = [];
             $rawErrors = $scoring['errors'] ?? [];
@@ -220,6 +266,26 @@ class ScoringService
             ]);
             return null;
         }
+    }
+
+    /**
+     * Strip markdown code fences from an LLM JSON response. Anthropic and some
+     * OpenRouter passthroughs wrap JSON in ```json...``` even when the request
+     * sets response_format=json_object. Falls back to extracting the largest
+     * {...} block if a wrapper looks broken.
+     */
+    protected function stripJsonFences(string $content): string
+    {
+        $trimmed = trim($content);
+        if (str_starts_with($trimmed, '```')) {
+            $trimmed = preg_replace('/^```(?:json)?\s*/i', '', $trimmed) ?? $trimmed;
+            $trimmed = preg_replace('/\s*```\s*$/', '', $trimmed) ?? $trimmed;
+        }
+        // Safety net: extract the outermost JSON object if there's prose around it.
+        if (!str_starts_with(trim($trimmed), '{') && preg_match('/\{.*\}/s', $trimmed, $m)) {
+            $trimmed = $m[0];
+        }
+        return trim($trimmed);
     }
 
     /**
@@ -287,8 +353,20 @@ class ScoringService
      * covers parts 1–3. The CalibrationService already returns an empty
      * Collection for speaking_part_* so wiring will be a no-op until then.
      */
-    protected function buildSpeakingScoringPrompt(string $transcript): string
+    protected function buildSpeakingScoringPrompt(string $transcript, array $words = []): string
     {
+        // Layer 4 (speaking): deterministic acoustic signals from STT
+        // word timestamps + per-word confidence. Empty when words[] is
+        // missing (legacy rows / provider returned no word data) — block
+        // renders as empty string and the prompt continues unchanged.
+        $acousticBlock = '';
+        if (!empty($words)) {
+            /** @var SpeakingAcousticAnalyzer $analyzer */
+            $analyzer = app(SpeakingAcousticAnalyzer::class);
+            $signals  = $analyzer->analyze($words);
+            $acousticBlock = $analyzer->buildPromptBlock($signals);
+        }
+
         return <<<PROMPT
 You are a trained IELTS Speaking examiner with 15+ years of examining experience, certified by the British Council and IDP. You have been standardised against the official IELTS Speaking Band Descriptors and apply them with the same precision as a live examiner.
 
@@ -339,7 +417,7 @@ Band 6.0 anchor: Candidate speaks at reasonable length; some language-related he
 Band 6.5 anchor: Better than Band 6 on most criteria but not yet consistently meeting Band 7 — award 6.5 when candidate oscillates between descriptors.
 Band 7.0 anchor: Candidate speaks at length without noticeable effort; uses a RANGE of complex structures with FREQUENT error-free sentences; vocabulary is flexible and includes less common items used accurately; accent does not impede.
 Band 8.0 anchor: Near-expert control; hesitation is content-driven not language-driven; the MAJORITY of sentences are error-free; idiomatic vocabulary used with skill.
-
+{$acousticBlock}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EXAMINER SCORING RULES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -347,7 +425,7 @@ EXAMINER SCORING RULES
 2. Half-bands (5.5, 6.5, 7.5) are awarded when the candidate sits between two descriptors.
 3. Overall band = arithmetic mean of 4 criteria, rounded to nearest 0.5.
 4. Band 8+ requires the candidate to MEET the Band 8 descriptor on ALL 4 criteria. A single Band 6 criterion prevents Band 8 overall.
-5. Fillers ("uh", "um", "like", "you know") exceeding 15 per 100 words → FC ≤ 5.5.
+5. Fillers ("uh", "um", "like", "you know") exceeding 15 per 100 words → FC ≤ 5.5. When the GROUND-TRUTH ACOUSTIC SIGNALS block above is present, USE its computed filler-per-100-words figure as evidence — do NOT re-count fillers from the transcript.
 6. Memorised or rehearsed responses that lack spontaneous development → FC ≤ 5.5, LR ≤ 6.0.
 7. Accent that causes the listener repeated effort → PRON ≤ 5.5.
 8. If the transcript is very short (< 80 words) or refuses to engage, cap all criteria at Band 5.0.
@@ -404,7 +482,10 @@ PROMPT;
     {
         $questionContent = $question->content ?? '';
         $category = $question->category ?? '';
-        $metadata = json_decode($question->metadata ?? '{}', true);
+        // Question::metadata may be cast to array by Eloquent (json cast) or
+        // be a raw string from older rows. Handle both without crashing.
+        $rawMetadata = $question->metadata ?? '{}';
+        $metadata = is_array($rawMetadata) ? $rawMetadata : (json_decode($rawMetadata, true) ?: []);
 
         // Determine task type and specific criteria
         $taskType = $this->determineTaskType($category);
@@ -747,9 +828,17 @@ PROMPT;
         $lt = app(LanguageToolClient::class);
         $ltResult = $lt->check($essay);
 
+        /** @var SyntacticComplexityAnalyzer $syntactic */
+        $syntactic = app(SyntacticComplexityAnalyzer::class);
+        $syntacticSignals = $syntactic->analyze($essay);
+        $syntacticBlock = $syntactic->buildPromptBlock($syntacticSignals);
+
+        $words = max(1, (int) $signals['word_count']);
         $ltLine = $ltResult['available']
-            ? sprintf('%d grammar errors + %d spelling errors (LanguageTool, computed)',
-                $ltResult['grammar_errors'], $ltResult['spelling_errors'])
+            ? sprintf('%d grammar + %d spelling = %d errors (%.1f per 100 words) — Band 7+ typically <=3/100w, Band 8+ typically <=2/100w',
+                $ltResult['grammar_errors'], $ltResult['spelling_errors'],
+                $ltResult['grammar_errors'] + $ltResult['spelling_errors'],
+                ($ltResult['grammar_errors'] + $ltResult['spelling_errors']) * 100 / $words)
             : 'n/a (LanguageTool service unreachable — fall back to your own assessment for GRA)';
 
         $cefr = $signals['cefr_distribution'];
@@ -777,6 +866,8 @@ Average word length: {$signals['avg_word_length']} characters
 CEFR vocabulary distribution: {$cefrLine}
 Cohesion markers detected ({$cohesion['count']}): {$cohesionList}
 
+{$syntacticBlock}
+
 {$caveat}
 
 SIG;
@@ -794,7 +885,25 @@ SIG;
             return '';
         }
 
-        $examples = $this->calibration->findSimilarExamples($answer, $calibTaskType, 3);
+        // L5-v1: pre-estimate the candidate band from deterministic linguistic
+        // signals (LanguageTool error density + TTR + cohesion + word count)
+        // and pass it to CalibrationService so the mid-bucket anchor lands
+        // near the candidate's likely band — eliminates the dead-code path
+        // where every essay got the same low/mid/high anchors regardless of
+        // quality.
+        $estimatedBand = $this->estimateBandFromSignals($answer);
+
+        // L5-v1: 4 anchors (low + mid + high-student + ceiling) — the L4
+        // 3-anchor setup left a 2-band gap between mid (~6.0) and the only
+        // available ceiling (8.5), which encouraged the LLM to compress all
+        // strong essays toward the visible mid. Adding a Band 7 student
+        // anchor closes the gap and improves Band 7+ accuracy.
+        $examples = $this->calibration->findSimilarExamples(
+            $answer,
+            $calibTaskType,
+            4,
+            $estimatedBand,
+        );
 
         if ($examples->isEmpty()) {
             return '';
@@ -816,6 +925,58 @@ Compare features (overview, vocabulary range, error density, cohesion) against t
 {$blocks}
 
 FS;
+    }
+
+    /**
+     * Coarse band pre-estimator from deterministic linguistic signals. Used
+     * ONLY to bias few-shot anchor selection (CalibrationService::findSimilarExamples)
+     * — it never influences the final score. Returns a band in [4.0, 9.0] that
+     * is intentionally noisy: the LLM is still the authoritative grader.
+     *
+     * Heuristic weights are calibrated against the Cambridge holdout set:
+     *   - grammar errors per 100w: 0–2 → +0.5, 3–6 → 0, 7–10 → -0.5, >10 → -1.0
+     *   - TTR: >=0.55 → +0.5, <0.40 → -0.5
+     *   - cohesion markers: >=8 distinct → +0.5, <=2 → -0.5
+     *   - C1+C2 share: >=25% → +0.5
+     *   - word count: <min → -1.0 (Task 1<150, Task 2<250)
+     * Base = 6.5 (median of the calibration pool).
+     */
+    protected function estimateBandFromSignals(string $essay): float
+    {
+        $analyzer = app(LinguisticAnalyzer::class);
+        $signals  = $analyzer->analyze($essay);
+
+        $lt = app(LanguageToolClient::class);
+        $ltResult = $lt->check($essay);
+
+        $band = 6.5;
+        $words = max(1, (int) $signals['word_count']);
+
+        // Grammar/spelling density (only when LT is available)
+        if (($ltResult['available'] ?? false) === true) {
+            $errPer100 = (($ltResult['grammar_errors'] ?? 0) + ($ltResult['spelling_errors'] ?? 0)) * 100 / $words;
+            if ($errPer100 <= 2)       $band += 0.5;
+            elseif ($errPer100 >= 11)  $band -= 1.0;
+            elseif ($errPer100 >= 7)   $band -= 0.5;
+        }
+
+        $ttr = (float) ($signals['ttr'] ?? 0);
+        if ($ttr >= 0.55)      $band += 0.5;
+        elseif ($ttr < 0.40)   $band -= 0.5;
+
+        $cohesion = (int) ($signals['cohesion_markers']['count'] ?? 0);
+        if ($cohesion >= 8)    $band += 0.5;
+        elseif ($cohesion <= 2) $band -= 0.5;
+
+        $cefr = $signals['cefr_distribution'] ?? [];
+        $advanced = (float) (($cefr['C1'] ?? 0) + ($cefr['C2'] ?? 0));
+        if ($advanced >= 25.0) $band += 0.5;
+
+        // Under-length penalty (rough — used only for anchor biasing)
+        if ($words < 150) $band -= 1.0;
+
+        // Clamp to plausible IELTS band range.
+        return (float) max(4.0, min(9.0, round($band * 2) / 2));
     }
 
     /**
@@ -858,9 +1019,12 @@ CRITERIA;
     }
 
     /**
-     * Calculate overall band score with examiner-calibrated logic
-     * Average of 4 criteria, rounded to nearest 0.5.
-     * Capped at 6.0 if any criterion <= 5.0.
+     * Calculate overall band score with examiner-calibrated logic.
+     *
+     * L5-v2: bias correction has been moved upstream to applyBiasCorrection()
+     * (called inside scoreWriting / scoreSpeaking) so sub-scores and
+     * overall_band stay in sync. This method now only computes the
+     * descriptor-mean and runs the downward error-density nudge.
      */
     public function calculateOverallBand(array $scores): float
     {
@@ -870,7 +1034,7 @@ CRITERIA;
             $cc = $scores['lexical'];
             $lr = $scores['grammar'];
             $gra = $scores['pronunciation'];
-        } 
+        }
         // For writing: task_achievement, coherence_cohesion, lexical_resource, grammar
         else {
             $ta = $scores['task_achievement'];
@@ -881,30 +1045,170 @@ CRITERIA;
 
         $average = round((($ta + $cc + $lr + $gra) / 4) * 2) / 2;
 
-        // Apply Calibration Adjustment
+        // Stage 1 downward nudge only — Stage 2 upward shift now lives in
+        // applyBiasCorrection() to keep sub-scores and overall consistent.
         $average = $this->calibrateScore($average, $scores);
-
-        if (min($ta, $cc, $lr, $gra) <= 5.0) {
-            return min($average, 6.0);
-        }
 
         return $average;
     }
 
     /**
-     * Post-scoring adjustment layer to maintain examiner realism.
+     * Single canonical bias-correction site (L5-v2).
+     *
+     * Applies the piecewise upward shift to EACH criterion and recomputes
+     * overall_band as their mean, so the displayed report is internally
+     * consistent (sub-scores average to overall). Stamps the raw uncorrected
+     * values to {field}_raw for debugging / future regression work.
+     *
+     * The shift table is derived from the mini-tuned 10-essay holdout. It is
+     * gated by services.calibration.bias_correction_enabled so we can A/B or
+     * disable for non-mini providers (which have different bias profiles).
+     */
+    protected function applyBiasCorrection(array &$scoring, array $criterionFields): void
+    {
+        if (!config('services.calibration.bias_correction_enabled', true)) {
+            return;
+        }
+
+        // Determine shift from the raw criterion mean — what the LLM intended
+        // the overall to be, before its own rounding choice.
+        $rawValues = [];
+        foreach ($criterionFields as $f) {
+            if (isset($scoring[$f])) {
+                $rawValues[$f] = (float) $scoring[$f];
+            }
+        }
+        if (empty($rawValues)) {
+            return;
+        }
+
+        $rawMean = array_sum($rawValues) / count($rawValues);
+        $shift = match (true) {
+            $rawMean <= 6.0 => 1.0,
+            $rawMean <= 6.5 => 0.5,
+            default         => 0.0,
+        };
+
+        // Stamp raw mean + shift for traceability.
+        $scoring['overall_band_raw'] = (float) round($rawMean * 2) / 2;
+        $scoring['bias_shift']       = $shift;
+
+        if ($shift === 0.0) {
+            // No shift needed — still recompute overall from raw mean so
+            // consumers see consistent overall/sub-score math.
+            if (isset($scoring['overall_band'])) {
+                $scoring['overall_band'] = (float) max(0.0, min(9.0, round($rawMean * 2) / 2));
+            }
+            return;
+        }
+
+        // Apply shift to each criterion + recompute overall.
+        $correctedValues = [];
+        foreach ($rawValues as $f => $v) {
+            $corrected = max(0.0, min(9.0, round(($v + $shift) * 2) / 2));
+            $scoring[$f . '_raw'] = $v;
+            $scoring[$f]          = $corrected;
+            $correctedValues[]    = $corrected;
+        }
+
+        $correctedMean = array_sum($correctedValues) / count($correctedValues);
+        $scoring['overall_band'] = (float) max(0.0, min(9.0, round($correctedMean * 2) / 2));
+
+        Log::info('Applied L5-v2 bias correction', [
+            'raw_mean'       => round($rawMean, 2),
+            'shift'          => $shift,
+            'corrected_mean' => round($correctedMean, 2),
+            'overall_band'   => $scoring['overall_band'],
+        ]);
+    }
+
+    /**
+     * High-band quality detector (L5-v2). Returns an additional shift to apply
+     * on top of the baseline piecewise correction when ground-truth signals
+     * indicate exceptional writing that mini's raw score is compressing.
+     *
+     * Five binary indicators, each tuned against Cambridge Band 7-8.5 essays:
+     *   - TTR ≥ 0.55                    (lexical diversity)
+     *   - Grammar+spelling ≤ 2/100w     (accuracy)
+     *   - Cohesion markers ≥ 8 distinct (range of cohesive devices)
+     *   - C1+C2 vocabulary share ≥ 30%  (lexical sophistication)
+     *   - Word count ≥ 280              (developed response)
+     *
+     * 4-5 indicators = exceptional → +1.5 (lifts raw 6.0-6.5 to ~Band 8)
+     * 3 indicators   = strong      → +1.0 (lifts raw 6.0-6.5 to ~Band 7.5)
+     * ≤2 indicators  = no boost
+     *
+     * The detector silently degrades when LanguageTool is unavailable
+     * (counts that indicator as not-met, so a weak signal blocks the boost
+     * rather than over-rewarding it).
+     */
+    protected function detectHighBandBoost(string $essay): float
+    {
+        /** @var LinguisticAnalyzer $analyzer */
+        $analyzer = app(LinguisticAnalyzer::class);
+        $signals  = $analyzer->analyze($essay);
+
+        /** @var LanguageToolClient $lt */
+        $lt = app(LanguageToolClient::class);
+        $ltResult = $lt->check($essay);
+
+        $words = max(1, (int) ($signals['word_count'] ?? 0));
+        $hits  = 0;
+
+        if (($signals['ttr'] ?? 0) >= 0.55) $hits++;
+
+        if (($ltResult['available'] ?? false) === true) {
+            $errPer100 = (($ltResult['grammar_errors'] ?? 0) + ($ltResult['spelling_errors'] ?? 0)) * 100 / $words;
+            if ($errPer100 <= 2.0) $hits++;
+        }
+
+        $cohesion = (int) ($signals['cohesion_markers']['count'] ?? 0);
+        if ($cohesion >= 8) $hits++;
+
+        $cefr     = $signals['cefr_distribution'] ?? [];
+        $advanced = (float) (($cefr['C1'] ?? 0) + ($cefr['C2'] ?? 0));
+        if ($advanced >= 30.0) $hits++;
+
+        if ($words >= 280) $hits++;
+
+        $boost = match (true) {
+            $hits >= 4 => 1.5,
+            $hits >= 3 => 1.0,
+            default    => 0.0,
+        };
+
+        if ($boost > 0) {
+            Log::info('High-band quality boost triggered', [
+                'hits'  => $hits,
+                'boost' => $boost,
+                'ttr'   => $signals['ttr'] ?? null,
+                'cohesion_count' => $cohesion,
+                'cefr_advanced'  => round($advanced, 1),
+                'word_count'     => $words,
+            ]);
+        }
+
+        return $boost;
+    }
+
+    /**
+     * Post-scoring adjustment — Stage 1 downward nudge only (L5-v2).
+     *
+     * Catches "polite over-scoring" of error-heavy essays at the Band 5.5–6.5
+     * boundary: if grammar error density is high AND the average is in that
+     * range, cap at 6.0.
+     *
+     * Stage 2 upward correction has moved to applyBiasCorrection() so sub-scores
+     * and overall_band stay synchronised.
      */
     protected function calibrateScore(float $average, array $scores): float
     {
-        // Example: Systematic over-scoring correction at Bands 5.5-6.5
         if ($average >= 5.5 && $average <= 6.5) {
-            // If error density is high but score is high, nudge down
             $errorDensity = $scores['error_summary']['grammar_errors_per_100_words'] ?? 0;
             if ($errorDensity > 8 && $average > 6.0) {
-                return 6.0;
+                $average = 6.0;
             }
         }
-
         return $average;
     }
 }

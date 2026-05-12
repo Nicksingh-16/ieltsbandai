@@ -53,3 +53,10 @@ desktop.ini
 *.bak
 *.backup
 *.tmp
+
+# Claude Code working dir (per-machine; never share)
+/.claude
+
+# Local-only marketing/scraping artefacts (PII risk — commit selectively)
+/ieltsbandai_recovered.sql
+/PROJECT_DOSSIER.md

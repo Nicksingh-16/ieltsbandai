@@ -3,13 +3,16 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Feedback;
 use App\Models\Institute;
+use App\Models\LlmCallLog;
 use App\Models\Payment;
 use App\Models\Question;
 use App\Models\Test;
 use App\Models\TestTemplate;
 use App\Models\TemplateQuestion;
 use App\Models\User;
+use App\Models\UserEvent;
 use App\Services\CreditService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -99,7 +102,10 @@ class AdminController extends Controller
 
     public function userMakeAdmin(User $user)
     {
-        $user->update(['is_admin' => !$user->is_admin]);
+        // is_admin is intentionally NOT mass-assignable on User — use forceFill
+        // inside this admin-gated path. AdminMiddleware already enforces the
+        // caller is itself an admin.
+        $user->forceFill(['is_admin' => !$user->is_admin])->save();
         $action = $user->is_admin ? 'granted' : 'revoked';
         return back()->with('success', "Admin access {$action} for {$user->name}.");
     }
@@ -310,6 +316,126 @@ class AdminController extends Controller
         $institute->update(['is_active' => !$institute->is_active]);
         $status = $institute->is_active ? 'activated' : 'suspended';
         return back()->with('success', "Institute {$status}.");
+    }
+
+    // ─── Feedback ─────────────────────────────────────────────────────────────
+
+    public function feedbackIndex(Request $request)
+    {
+        $query = Feedback::with('user')->latest();
+
+        if ($status = $request->get('status')) {
+            $query->where('status', $status);
+        }
+        if ($category = $request->get('category')) {
+            $query->where('category', $category);
+        }
+
+        $feedbacks = $query->paginate(25)->withQueryString();
+        $counts = [
+            'new'       => Feedback::where('status', 'new')->count(),
+            'reviewing' => Feedback::where('status', 'reviewing')->count(),
+            'resolved'  => Feedback::where('status', 'resolved')->count(),
+            'total'     => Feedback::count(),
+        ];
+
+        return view('admin.feedback.index', compact('feedbacks', 'counts'));
+    }
+
+    public function feedbackStatus(Request $request, Feedback $feedback)
+    {
+        $request->validate(['status' => 'required|in:new,reviewing,resolved,dismissed']);
+        $feedback->update(['status' => $request->status]);
+        return back()->with('success', 'Feedback updated.');
+    }
+
+    // ─── LLM Usage / Cost ─────────────────────────────────────────────────────
+
+    public function llmUsage(Request $request)
+    {
+        $days = (int) $request->get('days', 14);
+        $days = max(1, min(90, $days));
+        $since = now()->subDays($days);
+
+        $totals = [
+            'calls_total'    => LlmCallLog::where('created_at', '>=', $since)->count(),
+            'calls_ok'       => LlmCallLog::where('created_at', '>=', $since)->where('ok', true)->count(),
+            'tokens_in'      => (int) LlmCallLog::where('created_at', '>=', $since)->sum('input_tokens'),
+            'tokens_out'     => (int) LlmCallLog::where('created_at', '>=', $since)->sum('output_tokens'),
+            'cost_usd'       => (float) LlmCallLog::where('created_at', '>=', $since)->sum('cost_usd'),
+            'avg_latency_ms' => (int) LlmCallLog::where('created_at', '>=', $since)->where('ok', true)->avg('latency_ms'),
+        ];
+
+        $byProvider = LlmCallLog::where('created_at', '>=', $since)
+            ->select('provider', DB::raw('count(*) as calls'), DB::raw('sum(input_tokens) as tin'), DB::raw('sum(output_tokens) as tout'), DB::raw('sum(cost_usd) as cost'))
+            ->groupBy('provider')
+            ->orderByDesc('cost')
+            ->get();
+
+        $byModel = LlmCallLog::where('created_at', '>=', $since)
+            ->select('provider', 'model', DB::raw('count(*) as calls'), DB::raw('sum(cost_usd) as cost'))
+            ->groupBy('provider', 'model')
+            ->orderByDesc('cost')
+            ->get();
+
+        $byDay = LlmCallLog::where('created_at', '>=', $since)
+            ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(*) as calls'), DB::raw('sum(cost_usd) as cost'))
+            ->groupBy('date')
+            ->orderBy('date')
+            ->get();
+
+        $topUsers = LlmCallLog::where('created_at', '>=', $since)
+            ->whereNotNull('user_id')
+            ->select('user_id', DB::raw('count(*) as calls'), DB::raw('sum(cost_usd) as cost'))
+            ->groupBy('user_id')
+            ->orderByDesc('cost')
+            ->limit(10)
+            ->with('user:id,name,email')
+            ->get();
+
+        $recent = LlmCallLog::with('user:id,name,email')
+            ->latest('created_at')
+            ->limit(20)
+            ->get();
+
+        return view('admin.llm-usage.index', compact('days', 'totals', 'byProvider', 'byModel', 'byDay', 'topUsers', 'recent'));
+    }
+
+    // ─── Analytics ────────────────────────────────────────────────────────────
+
+    public function analytics(Request $request)
+    {
+        $days = (int) $request->get('days', 14);
+        $days = max(1, min(90, $days));
+        $since = now()->subDays($days);
+
+        $eventCounts = class_exists(UserEvent::class)
+            ? UserEvent::where('created_at', '>=', $since)
+                ->select('event', DB::raw('count(*) as c'))
+                ->groupBy('event')
+                ->orderByDesc('c')
+                ->pluck('c', 'event')
+            : collect();
+
+        $signupsBySource = User::where('created_at', '>=', $since)
+            ->select(DB::raw("COALESCE(NULLIF(ref_source,''),'direct') as source"), DB::raw('count(*) as c'))
+            ->groupBy('source')
+            ->orderByDesc('c')
+            ->pluck('c', 'source');
+
+        $testsByType = Test::where('created_at', '>=', $since)
+            ->select('type', DB::raw('count(*) as c'))
+            ->groupBy('type')
+            ->pluck('c', 'type');
+
+        $funnel = [
+            'signups'         => User::where('created_at', '>=', $since)->count(),
+            'started_test'    => Test::where('created_at', '>=', $since)->distinct('user_id')->count('user_id'),
+            'completed_test'  => Test::where('created_at', '>=', $since)->where('status', 'completed')->distinct('user_id')->count('user_id'),
+            'submitted_fb'    => Feedback::where('created_at', '>=', $since)->whereNotNull('user_id')->distinct('user_id')->count('user_id'),
+        ];
+
+        return view('admin.analytics.index', compact('days', 'eventCounts', 'signupsBySource', 'testsByType', 'funnel'));
     }
 
     public function instituteUpdatePlan(Request $request, Institute $institute)

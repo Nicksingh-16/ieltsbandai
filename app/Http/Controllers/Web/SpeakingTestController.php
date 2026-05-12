@@ -29,10 +29,12 @@ class SpeakingTestController extends Controller
             // Get or create test (reuses incomplete test if exists)
             $test = $this->speakingService->getOrCreateSpeakingTest(Auth::id(), $questions);
 
-            // Deduct credit only for newly created tests
+            // Atomic, idempotent charge — chargeForTest no-ops if already
+            // charged, so re-entering an existing speaking test never
+            // double-charges and a parallel /speaking/test fetch can't
+            // create two charges either.
             if ($test->wasRecentlyCreated) {
-                $creditService = app(\App\Services\CreditService::class);
-                $creditService->deductCredit(Auth::user());
+                app(\App\Services\CreditService::class)->chargeForTest(Auth::user(), $test);
             }
 
             // If test already exists, rebuild questions array from test questions

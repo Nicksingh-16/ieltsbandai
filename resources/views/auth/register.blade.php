@@ -73,6 +73,7 @@
         </x-primary-button>
     </form>
 
+    @if(!config('beta.disable_google_oauth'))
     {{-- Divider --}}
     <div class="relative my-5">
         <div class="absolute inset-0 flex items-center">
@@ -94,6 +95,7 @@
         </svg>
         Continue with Google
     </a>
+    @endif
 
     {{-- Login link --}}
     <p class="text-center text-sm text-surface-400 mt-5">

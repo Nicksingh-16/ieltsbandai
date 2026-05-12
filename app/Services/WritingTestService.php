@@ -118,7 +118,7 @@ class WritingTestService
                 ]);
             }
 
-            $scoring = $this->scoringService->scoreWriting($answer, $question);
+            $scoring = $this->scoringService->scoreWriting($answer, $question, $test->user_id, $test->id);
             if (!$scoring) {
                 throw new \Exception('Failed to score writing test');
             }
@@ -278,6 +278,7 @@ foreach ($rawErrors as $i => $e) {
         'feedback' => $result['feedback'],
         'examiner_comments' => $result['examiner_comments'] ?? [],
         'band_explanations' => $result['band_explanations'] ?? [],
+        'descriptor_match'  => $result['descriptor_match']  ?? [],
         'band_9_rewrite' => $result['band_9_rewrite'] ?? '',
         'topic_vocabulary' => $result['topic_vocabulary'] ?? [],
         'error_summary' => $result['error_summary'] ?? [],
@@ -287,6 +288,7 @@ foreach ($rawErrors as $i => $e) {
         'unpositioned_errors' => $unpositioned,
         'highlightedEssay' => $highlightedEssay,
         'word_count' => $result['word_count'],
+        'original_answer' => $result['original_answer'] ?? ($test->answer ?? ''),
         'task_info' => $this->getTaskInfo($test->category),
     ];
 }
@@ -616,35 +618,19 @@ The candidate's answer for reference:
 Write a full Band 9 model response. Use sophisticated vocabulary, varied sentence structures, perfect grammar, excellent cohesion, and fully address all parts of the task. Return ONLY the essay text — no explanations, no labels.
 PROMPT;
 
-        // Try Gemini first (free)
-        $gemini = app(GeminiService::class);
-        if ($gemini->isAvailable()) {
-            $result = $gemini->generate($prompt, 0.5, 900);
-            if ($result) {
-                return $result;
-            }
-            Log::warning('GeminiService failed for Band 9 rewrite, falling back to OpenAI');
-        }
+        // Route via LLMRouter so the call is budget-capped + logged.
+        $data = app(\App\Services\LLMRouter::class)
+            ->withContext(\Illuminate\Support\Facades\Auth::id(), null, 'band9_rewrite')
+            ->chatCompletion([
+                'messages' => [
+                    ['role' => 'system', 'content' => 'You are an IELTS Band 9 expert. Return only the essay text.'],
+                    ['role' => 'user',   'content' => $prompt],
+                ],
+                'temperature' => 0.4,
+                'max_tokens'  => 900,
+            ]);
 
-        // Fallback: OpenAI
-        $response = \Illuminate\Support\Facades\Http::timeout(45)->withHeaders([
-            'Authorization' => 'Bearer ' . config('services.openai.api_key'),
-            'Content-Type'  => 'application/json',
-        ])->post(config('services.openai.base_url', 'https://api.openai.com/v1') . '/chat/completions', [
-            'model'       => config('services.openai.model', 'gpt-4o-mini'),
-            'messages'    => [
-                ['role' => 'system', 'content' => 'You are an IELTS Band 9 expert. Return only the essay text.'],
-                ['role' => 'user', 'content' => $prompt],
-            ],
-            'temperature' => 0.4,
-            'max_tokens'  => 900,
-        ]);
-
-        if (!$response->successful()) {
-            throw new \Exception('Band 9 rewrite API call failed');
-        }
-
-        return $response->json('choices.0.message.content') ?? '';
+        return $data['choices'][0]['message']['content'] ?? '';
     }
 
     public function getBandDescription($score)

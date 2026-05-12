@@ -67,6 +67,7 @@ class SpeakingEvaluationJob implements ShouldQueue
 
             // Step 1: Transcribe all audio files
             $transcripts = [];
+            $allWords    = [];
             foreach ($audioFiles as $index => $audioFile) {
                 Log::info('Transcribing audio file', [
                     'test_id' => $this->testId,
@@ -74,9 +75,9 @@ class SpeakingEvaluationJob implements ShouldQueue
                     'part' => $index + 1,
                 ]);
 
-                $transcript = $transcriptionService->transcribe($audioFile->file_url);
+                $result = $transcriptionService->transcribeWithWords($audioFile->file_url);
 
-                if (!$transcript) {
+                if (!$result || empty($result['text'])) {
                     Log::error('Transcription failed for audio file', [
                         'test_id' => $this->testId,
                         'audio_file_id' => $audioFile->id,
@@ -85,9 +86,16 @@ class SpeakingEvaluationJob implements ShouldQueue
                     return;
                 }
 
-                // Save transcript to audio file
-                $audioFile->update(['transcript' => $transcript]);
+                $transcript = $result['text'];
+                $words      = $result['words'] ?? [];
+
+                // Save transcript + word timings to audio file
+                $audioFile->update([
+                    'transcript'       => $transcript,
+                    'transcript_words' => $words,
+                ]);
                 $transcripts[] = $transcript;
+                $allWords      = array_merge($allWords, $words);
             }
 
             // Step 2: Concatenate transcripts with part labels
@@ -96,7 +104,7 @@ class SpeakingEvaluationJob implements ShouldQueue
             // Step 3: Get AI scoring
             Log::info('Requesting AI scoring', ['test_id' => $this->testId]);
 
-            $scoring = $scoringService->scoreSpeaking($combinedTranscript);
+            $scoring = $scoringService->scoreSpeaking($combinedTranscript, $test->user_id, $test->id, $allWords);
 
             if (!$scoring) {
                 Log::error('AI scoring failed', ['test_id' => $this->testId]);

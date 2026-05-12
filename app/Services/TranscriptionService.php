@@ -30,9 +30,30 @@ class TranscriptionService
     }
 
     /**
-     * Transcribe an audio file
+     * Transcribe an audio file (returns plain transcript string for back-compat).
+     * Most callers should prefer transcribeWithWords() to also obtain the
+     * word-level timestamps + per-word confidence values used by
+     * SpeakingAcousticAnalyzer.
      */
     public function transcribe(string $filePath): ?string
+    {
+        $result = $this->transcribeWithWords($filePath);
+        return $result['text'] ?? null;
+    }
+
+    /**
+     * Transcribe and return both the text and a normalised words[] array.
+     * Each word in the result has the shape:
+     *   ['text' => string, 'start' => float seconds, 'end' => float seconds,
+     *    'confidence' => float in 0..1]
+     *
+     * Returns null on transcription failure. Returns ['text' => '...',
+     * 'words' => []] if the provider succeeded but returned no word-level
+     * data (rare — both AssemblyAI and Deepgram include it by default).
+     *
+     * @return array{text:string,words:array}|null
+     */
+    public function transcribeWithWords(string $filePath): ?array
     {
         try {
             // Check if file needs conversion (WebM files often need it)
@@ -59,7 +80,7 @@ class TranscriptionService
             
             if ($this->provider === 'deepgram') {
                 $result = $this->transcribeWithDeepgram($workingFilePath);
-                
+
                 if (!$result && config('services.assemblyai.api_key')) {
                     Log::info('Deepgram failed, trying AssemblyAI as fallback', [
                         'file_path' => $workingFilePath,
@@ -67,16 +88,15 @@ class TranscriptionService
                     $this->apiKey = config('services.assemblyai.api_key');
                     $result = $this->transcribeWithAssemblyAI($workingFilePath);
                 }
-                
-                // Clean up converted file if it exists
+
                 if ($workingFilePath !== $filePath) {
                     $this->cleanupConvertedFile($workingFilePath);
                 }
-                
+
                 return $result;
             } else {
                 $result = $this->transcribeWithAssemblyAI($workingFilePath);
-                
+
                 if (!$result && config('services.deepgram.api_key')) {
                     Log::info('AssemblyAI failed, trying Deepgram as fallback', [
                         'file_path' => $workingFilePath,
@@ -84,12 +104,11 @@ class TranscriptionService
                     $this->apiKey = config('services.deepgram.api_key');
                     $result = $this->transcribeWithDeepgram($workingFilePath);
                 }
-                
-                // Clean up converted file if it exists
+
                 if ($workingFilePath !== $filePath) {
                     $this->cleanupConvertedFile($workingFilePath);
                 }
-                
+
                 return $result;
             }
         } catch (\Exception $e) {
@@ -248,7 +267,7 @@ class TranscriptionService
     /**
      * Transcribe using Deepgram API
      */
-    protected function transcribeWithDeepgram(string $filePath): ?string
+    protected function transcribeWithDeepgram(string $filePath): ?array
     {
         if (!$this->apiKey) {
             Log::error('Deepgram API key not configured');
@@ -312,15 +331,39 @@ class TranscriptionService
             }
 
             $data = $response->json();
-            $transcript = $data['results']['channels'][0]['alternatives'][0]['transcript'] ?? null;
+            $alt = $data['results']['channels'][0]['alternatives'][0] ?? null;
+            $transcript = $alt['transcript'] ?? null;
 
-            if ($transcript) {
-                Log::info('Deepgram transcription successful', [
-                    'transcript_length' => strlen($transcript),
-                ]);
+            if (!$transcript) {
+                return null;
             }
 
-            return $transcript ? trim($transcript) : null;
+            $rawWords = $alt['words'] ?? [];
+            $words = [];
+            foreach ($rawWords as $w) {
+                if (!isset($w['start'], $w['end'])) {
+                    continue;
+                }
+                // Deepgram prefers "punctuated_word" when smart_format is on,
+                // falling back to "word".
+                $text = $w['punctuated_word'] ?? ($w['word'] ?? '');
+                $words[] = [
+                    'text'       => (string) $text,
+                    'start'      => (float) $w['start'],
+                    'end'        => (float) $w['end'],
+                    'confidence' => isset($w['confidence']) ? (float) $w['confidence'] : 0.0,
+                ];
+            }
+
+            Log::info('Deepgram transcription successful', [
+                'transcript_length' => strlen($transcript),
+                'word_count'        => count($words),
+            ]);
+
+            return [
+                'text'  => trim($transcript),
+                'words' => $words,
+            ];
             
         } catch (\Exception $e) {
             Log::error('Deepgram transcription exception: ' . $e->getMessage(), [
@@ -350,7 +393,7 @@ class TranscriptionService
     /**
      * Transcribe using AssemblyAI API
      */
-    protected function transcribeWithAssemblyAI(string $filePath): ?string
+    protected function transcribeWithAssemblyAI(string $filePath): ?array
     {
         if (!$this->apiKey) {
             Log::error('AssemblyAI API key not configured');
@@ -484,13 +527,38 @@ class TranscriptionService
 
                 if ($status === 'completed') {
                     $text = $statusData['text'] ?? '';
-                    
+
+                    if (!$text) {
+                        return null;
+                    }
+
+                    // AssemblyAI returns word timestamps in milliseconds —
+                    // normalise to seconds to match Deepgram + downstream
+                    // SpeakingAcousticAnalyzer expectations.
+                    $rawWords = $statusData['words'] ?? [];
+                    $words = [];
+                    foreach ($rawWords as $w) {
+                        if (!isset($w['start'], $w['end'])) {
+                            continue;
+                        }
+                        $words[] = [
+                            'text'       => (string) ($w['text'] ?? ''),
+                            'start'      => ((float) $w['start']) / 1000.0,
+                            'end'        => ((float) $w['end']) / 1000.0,
+                            'confidence' => isset($w['confidence']) ? (float) $w['confidence'] : 0.0,
+                        ];
+                    }
+
                     Log::info('AssemblyAI transcription completed', [
                         'transcript_id' => $transcriptId,
-                        'text_length' => strlen($text),
+                        'text_length'   => strlen($text),
+                        'word_count'    => count($words),
                     ]);
-                    
-                    return $text ? trim($text) : null;
+
+                    return [
+                        'text'  => trim($text),
+                        'words' => $words,
+                    ];
                 }
 
                 if ($status === 'error') {

@@ -17,6 +17,10 @@ class SocialAuthController extends Controller
      */
     public function redirectToGoogle()
     {
+        if (config('beta.disable_google_oauth')) {
+            return redirect()->route('login')
+                ->with('error', 'Google sign-in is temporarily disabled during beta. Please use email and password.');
+        }
         return Socialite::driver('google')->redirect();
     }
 
@@ -50,7 +54,13 @@ class SocialAuthController extends Controller
             } else {
                 \Log::info('Creating new user from Google OAuth');
                 
-                // Create new user with 3 free credits
+                // Create new user. Credit amount comes from config: beta mode
+                // grants config('beta.signup_credits'); otherwise the free-plan
+                // default. Switch with BETA_MODE in .env, no code changes.
+                $signupCredits = config('beta.enabled')
+                    ? config('beta.signup_credits')
+                    : config('packages.free.credits', 3);
+
                 $user = User::create([
                     'name' => $googleUser->getName(),
                     'email' => $googleUser->getEmail(),
@@ -59,7 +69,8 @@ class SocialAuthController extends Controller
                     'avatar' => $googleUser->getAvatar(),
                     'password' => null, // Explicitly set to null for OAuth users
                     'email_verified_at' => now(), // Auto-verify OAuth emails
-                    'test_credits' => 3, // Free credits
+                    'test_credits' => $signupCredits,
+                    'ref_source' => session()->pull('ref_source'),
                 ]);
                 
                 \Log::info('New user created successfully', ['user_id' => $user->id]);

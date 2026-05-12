@@ -12,11 +12,17 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
+        $middleware->web(append: [
+            \App\Http\Middleware\CaptureRefSource::class,
+        ]);
         $middleware->alias([
             'check.credits' => \App\Http\Middleware\CheckTestCredits::class,
             'admin'         => \App\Http\Middleware\AdminMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // Sentry: registers a reporter that captures every exception passed
+        // through report(). No-op when SENTRY_LARAVEL_DSN is unset, so dev
+        // and CI without a DSN behave identically to before.
+        \Sentry\Laravel\Integration::handles($exceptions);
     })->create();

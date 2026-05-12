@@ -18,6 +18,8 @@
 <body class="h-full font-sans antialiased bg-surface-950 text-surface-200">
 
     <div class="flex h-full min-h-screen flex-col">
+        @include('partials.beta-banner')
+
         <!-- Navigation -->
         <div class="print:hidden">
             @include('layouts.navigation')

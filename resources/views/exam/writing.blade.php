@@ -300,6 +300,17 @@ document.addEventListener('DOMContentLoaded', function () {
         const btn = document.querySelector('.exam-modal-confirm');
         if (btn) { btn.textContent = 'Submitting…'; btn.disabled = true; }
 
+        const resetBtn = () => {
+            if (btn) { btn.textContent = 'Submit Now'; btn.disabled = false; }
+        };
+
+        // Hard-cap the submit POST at 20s. The server now returns within
+        // ~200ms (job runs after response), so anything past that means
+        // the request is genuinely stuck — show a clear error instead of
+        // letting the modal sit at "Submitting…" indefinitely.
+        const ctrl = new AbortController();
+        const timeoutId = setTimeout(() => ctrl.abort(), 20000);
+
         fetch('{{ route('writing.submit', $test->id) }}', {
             method: 'POST',
             headers: {
@@ -308,17 +319,51 @@ document.addEventListener('DOMContentLoaded', function () {
                 'Accept': 'application/json',
             },
             body: JSON.stringify({ answer }),
+            signal: ctrl.signal,
         })
-        .then(r => r.json())
-        .then(data => {
-            if (data.redirect) {
+        .then(async r => {
+            clearTimeout(timeoutId);
+            // Read body as text and parse defensively. If the dev server ever
+            // appends stray output after the JSON (e.g. a PHP notice with
+            // APP_DEBUG=true), we still extract the leading {...} and don't
+            // break the user's submission.
+            const raw = await r.text();
+            let data = null;
+            try {
+                data = JSON.parse(raw);
+            } catch (_) {
+                const m = raw && raw.match(/^\s*(\{[\s\S]*?\})/);
+                if (m) {
+                    try { data = JSON.parse(m[1]); } catch (_) { /* fall through */ }
+                }
+            }
+
+            if (!r.ok) {
+                // 422 validation, 429 rate limit, 5xx — surface a useful message
+                const msg = (data && (data.message || (data.errors && Object.values(data.errors).flat().join(' '))))
+                    || `Submission failed (HTTP ${r.status}). Please try again.`;
+                resetBtn();
+                alert(msg);
+                return;
+            }
+
+            if (data && data.redirect) {
                 try { localStorage.removeItem('exam_writing_{{ $test->id }}'); } catch(e) {}
                 window.location.href = data.redirect;
+                return;
             }
+
+            // Unexpected shape — recover instead of hanging
+            resetBtn();
+            alert('Submission did not complete. Please try again.');
         })
-        .catch(() => {
-            if (btn) { btn.textContent = 'Submit Now'; btn.disabled = false; }
-            alert('Submission failed. Please try again.');
+        .catch(err => {
+            clearTimeout(timeoutId);
+            resetBtn();
+            const wasTimeout = err && err.name === 'AbortError';
+            alert(wasTimeout
+                ? 'The server took too long to respond. Your answer is auto-saved — please try submitting again.'
+                : 'Network error during submission. Please check your connection and try again.');
         });
     };
 

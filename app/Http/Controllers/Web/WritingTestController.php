@@ -59,12 +59,20 @@ class WritingTestController extends Controller
         $question->time_limit = $timeLimit;
         $question->min_words = $minWords;
 
-        // Create a test entry
-        $test = $this->writingService->createWritingTest(Auth::id(), $question, $testType);
-
-        // Deduct credit
+        // Create a test entry + charge credit atomically. If the user is
+        // racing parallel start requests, the row-locked charge inside
+        // chargeForTest() prevents double-test-for-one-credit exploits.
         $creditService = app(\App\Services\CreditService::class);
-        $creditService->deductCredit(Auth::user());
+
+        try {
+            $test = \Illuminate\Support\Facades\DB::transaction(function () use ($question, $testType, $creditService) {
+                $test = $this->writingService->createWritingTest(Auth::id(), $question, $testType);
+                $creditService->chargeForTest(Auth::user(), $test);
+                return $test;
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', 'Could not start test: ' . $e->getMessage());
+        }
 
         // Store exam mode in session so showTest can read it after redirect
         if ($request->boolean('exam_mode')) {
@@ -126,8 +134,13 @@ class WritingTestController extends Controller
         // Save answer and mark as evaluating
         $this->writingService->saveAnswerForEvaluation($testId, $request->input('answer'));
 
-        // Dispatch async job — no more 3-minute blocking
-        WritingEvaluationJob::dispatch($testId);
+        // Run scoring AFTER the HTTP response is flushed back to the user.
+        // This keeps submit instant regardless of QUEUE_CONNECTION (sync runs
+        // jobs inline; database/redis hand off to a worker; afterResponse
+        // runs in the same PHP process post-response on any driver). The
+        // user sees the polling page within ~100ms instead of waiting 60-120s
+        // for LLM scoring on the submit POST.
+        WritingEvaluationJob::dispatchAfterResponse($testId);
 
         return response()->json([
             'success'  => true,
@@ -167,6 +180,7 @@ class WritingTestController extends Controller
             $errors = $data['errors'];
             $unpositioned_errors = $data['unpositioned_errors'];
             $band_explanations = $data['band_explanations'] ?? [];
+            $descriptor_match  = $data['descriptor_match']  ?? [];
             $summary = $data['summary'] ?? null;
             $question = $data['question'] ?? null;
             $highlightedEssay = $data['highlightedEssay'];
@@ -191,6 +205,7 @@ class WritingTestController extends Controller
                 'errors',
                 'unpositioned_errors',
                 'band_explanations',
+                'descriptor_match',
                 'summary',
                 'highlightedEssay',
                 'task_info',
@@ -215,13 +230,16 @@ class WritingTestController extends Controller
             if ($test && in_array($test->status, ['in_progress', 'evaluating'])) {
                 return view('pages.writing.evaluating', compact('test'));
             }
+            // Failed scoring — render the same evaluating view (it has a
+            // built-in failure state) so the user sees a clean error UI with
+            // retry/dashboard buttons instead of a flash on a different page.
             if ($test && $test->status === 'failed') {
-                return redirect()->route('writing.index')
-                    ->with('error', 'Writing evaluation failed. Please try again.');
+                return view('pages.writing.evaluating', compact('test'))
+                    ->with('preFail', true);
             }
 
             return redirect()->route('dashboard')
-                ->with('error', 'Could not load writing results: ' . $e->getMessage());
+                ->with('error', 'Could not load writing results. Please try again.');
         }
     }
 
@@ -373,34 +391,20 @@ class WritingTestController extends Controller
                   "Be concise (max 150 words). Do not use bullet points — write in natural paragraph form.";
 
         try {
-            // Try Gemini first (free tier)
-            $gemini = app(\App\Services\GeminiService::class);
-            $answer = null;
+            // Route through LLMRouter so the call respects daily/total USD
+            // caps and is logged in llm_call_logs (per-user cost visibility).
+            $data = app(\App\Services\LLMRouter::class)
+                ->withContext(Auth::id(), $test->id, 'clarify')
+                ->chatCompletion([
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'You are a friendly, expert IELTS examiner giving personalised feedback.'],
+                        ['role' => 'user',   'content' => $prompt],
+                    ],
+                    'temperature' => 0.7,
+                    'max_tokens'  => 300,
+                ]);
 
-            if ($gemini->isAvailable()) {
-                $answer = $gemini->generate($prompt, 0.7, 300);
-            }
-
-            // Fallback to OpenAI
-            if (!$answer) {
-                $response = \Illuminate\Support\Facades\Http::timeout(20)
-                    ->withHeaders([
-                        'Authorization' => 'Bearer ' . config('services.openai.api_key'),
-                        'Content-Type'  => 'application/json',
-                    ])
-                    ->post(config('services.openai.base_url', 'https://api.openai.com/v1') . '/chat/completions', [
-                        'model'       => config('services.openai.model', 'gpt-4o-mini'),
-                        'messages'    => [
-                            ['role' => 'system', 'content' => 'You are a friendly, expert IELTS examiner giving personalised feedback.'],
-                            ['role' => 'user',   'content' => $prompt],
-                        ],
-                        'temperature' => 0.7,
-                        'max_tokens'  => 300,
-                    ]);
-
-                $answer = $response->json('choices.0.message.content');
-            }
-
+            $answer = $data['choices'][0]['message']['content'] ?? null;
             return response()->json(['answer' => trim($answer ?? 'I could not generate a response. Please try again.')]);
 
         } catch (\Exception $e) {
@@ -434,45 +438,26 @@ class WritingTestController extends Controller
         try {
             $prompt = 'Analyze this IELTS essay text and categorize vocabulary as Basic (common everyday words), Intermediate (academic/professional), or Advanced (sophisticated/rare). Return percentages as JSON: {"basic": X, "intermediate": Y, "advanced": Z}' . "\n\nText: " . substr($text, 0, 500);
 
-            // Try Gemini first (free)
-            $gemini = app(\App\Services\GeminiService::class);
-            $analysis = null;
+            // Route through LLMRouter (cost cap + logging).
+            $data = app(\App\Services\LLMRouter::class)
+                ->withContext(Auth::id(), null, 'vocab_analyze')
+                ->chatCompletion([
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'You are a vocabulary analyzer. Respond ONLY with valid JSON.'],
+                        ['role' => 'user',   'content' => $prompt],
+                    ],
+                    'temperature'     => 0.3,
+                    'max_tokens'      => 100,
+                    'response_format' => ['type' => 'json_object'],
+                ]);
 
-            if ($gemini->isAvailable()) {
-                $analysis = $gemini->generateJson($prompt, 0.3, 100);
-            }
-
-            // Fallback to OpenAI
-            if (!$analysis) {
-                $response = \Illuminate\Support\Facades\Http::timeout(15)
-                    ->withHeaders([
-                        'Authorization' => 'Bearer ' . config('services.openai.api_key'),
-                        'Content-Type' => 'application/json',
-                    ])
-                    ->post(config('services.openai.base_url', 'https://api.openai.com/v1') . '/chat/completions', [
-                        'model' => config('services.openai.model', 'gpt-4o-mini'),
-                        'messages' => [
-                            ['role' => 'system', 'content' => 'You are a vocabulary analyzer. Respond ONLY with valid JSON.'],
-                            ['role' => 'user', 'content' => $prompt],
-                        ],
-                        'temperature' => 0.3,
-                        'max_tokens' => 100,
-                        'response_format' => ['type' => 'json_object'],
-                    ]);
-
-                if (!$response->successful()) {
-                    throw new \Exception('API request failed');
-                }
-
-                $content = $response->json('choices.0.message.content');
-                if (!$content) throw new \Exception('No content in response');
-                $analysis = json_decode($content, true);
-            }
+            $content  = $data['choices'][0]['message']['content'] ?? null;
+            $analysis = $content ? json_decode($content, true) : null;
 
             return response()->json([
-                'basic' => $analysis['basic'] ?? 60,
+                'basic'        => $analysis['basic']        ?? 60,
                 'intermediate' => $analysis['intermediate'] ?? 30,
-                'advanced' => $analysis['advanced'] ?? 10,
+                'advanced'     => $analysis['advanced']     ?? 10,
             ]);
 
         } catch (\Exception $e) {

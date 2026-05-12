@@ -215,7 +215,8 @@ class InstituteController extends Controller
         if (!$student) {
             // Create account with temp password and send invite
             $tempPassword = Str::random(12);
-            $student = User::create([
+            $student = new User();
+            $student->forceFill([
                 'name'               => explode('@', $request->email)[0],
                 'email'              => $request->email,
                 'password'           => Hash::make($tempPassword),
@@ -223,7 +224,7 @@ class InstituteController extends Controller
                 'institute_id'       => $institute->id,
                 'institute_role'     => 'student',
                 'test_credits'       => 3,
-            ]);
+            ])->save();
 
             // Send invite email
             Mail::to($student)->send(new \App\Mail\StudentInviteMail($student, $institute, $batch, $tempPassword));
@@ -231,10 +232,10 @@ class InstituteController extends Controller
             if ($student->institute_id && $student->institute_id !== $institute->id) {
                 return back()->with('error', 'This student belongs to another institute.');
             }
-            $student->update([
+            $student->forceFill([
                 'institute_id'   => $institute->id,
                 'institute_role' => 'student',
-            ]);
+            ])->save();
         }
 
         $batch->students()->syncWithoutDetaching([$student->id]);
@@ -287,7 +288,7 @@ class InstituteController extends Controller
                 continue;
             }
 
-            $student->update(['institute_id' => $institute->id, 'institute_role' => 'student']);
+            $student->forceFill(['institute_id' => $institute->id, 'institute_role' => 'student'])->save();
             $batch->students()->syncWithoutDetaching([$student->id]);
 
             if ($student->wasRecentlyCreated) {

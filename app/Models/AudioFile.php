@@ -15,6 +15,11 @@ class AudioFile extends Model
         'duration_seconds',
         'size_kb',
         'transcript',
+        'transcript_words',
+    ];
+
+    protected $casts = [
+        'transcript_words' => 'array',
     ];
 
     public function test()

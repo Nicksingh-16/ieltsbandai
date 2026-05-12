@@ -58,15 +58,16 @@ class CalibrationService
             // different sequence. That would defeat the seeded shuffle below
             // and produce different picks across runs.
             //
-            // L4-v2: Band 8.5 essays in the Cambridge dataset are
-            // examiner-prepared model answers, not student responses, and the
-            // LLM was treating them as outlier references — discounting them
-            // and anchoring predictions to the average of the lower student
-            // bands. We exclude band > 7.5 from the pool entirely so no Band
-            // 8.5 essay can land in the few-shot block via any path.
+            // L5-v1: Band 8+ examiner-prepared models are back in the pool.
+            // The L4-v2 exclusion (band <= 7.5) capped the visible ceiling at
+            // Band 7.5, which caused the LLM to systematically under-score
+            // genuine Band 8.0–8.5 essays (it had no in-context evidence that
+            // Band 8 was achievable). CalibratedEssay::toFewShotBlock() labels
+            // band >= 8.5 essays as "EXAMINER-PREPARED MODEL — target ceiling
+            // reference" so the LLM treats them as ceiling anchors, not
+            // representative student responses.
             $pool = CalibratedEssay::forFewShot()
                 ->byTaskType($taskType)
-                ->where('band_overall', '<=', 7.5)
                 ->orderBy('id')
                 ->get();
 
@@ -74,13 +75,15 @@ class CalibrationService
                 return collect();
             }
 
-            // Bucket: low (<=5.5) | mid (6.0-6.5) | high (7.0-7.5).
-            // L4-v2: high bucket tightened to [7.0, 7.5] (was >=7.5) so the
-            // ceiling anchor is a credible student response, not an examiner
-            // ceiling reference.
-            $low  = $pool->where('band_overall', '<=', 5.5)->values();
-            $mid  = $pool->whereBetween('band_overall', [6.0, 6.5])->values();
-            $high = $pool->whereBetween('band_overall', [7.0, 7.5])->values();
+            // Bucket: low (<=5.5) | mid (6.0-6.5) | high (7.0-7.5 student) | ceiling (8.0+).
+            // L5-v1: a 4th "ceiling" bucket isolates Band 8+ examiner models
+            // so they're guaranteed to appear as the top reference rather
+            // than competing for slots inside a larger high bucket where the
+            // deterministic hash routinely skipped them.
+            $low     = $pool->where('band_overall', '<=', 5.5)->values();
+            $mid     = $pool->whereBetween('band_overall', [6.0, 6.5])->values();
+            $high    = $pool->whereBetween('band_overall', [7.0, 7.5])->values();
+            $ceiling = $pool->where('band_overall', '>=', 8.0)->values();
 
             // Bias the mid-bucket toward $estimatedBand if provided, falling back
             // to the full mid bucket when nothing falls within the tight window.
@@ -101,17 +104,20 @@ class CalibrationService
             $seedBase = $taskType . '|' . $count . '|' . ($estimatedBand ?? '');
 
             $picks = collect();
-            $this->drawOne($picks, $low,  $seedBase . '|low');
-            $this->drawOne($picks, $mid,  $seedBase . '|mid');
-            $this->drawOne($picks, $high, $seedBase . '|high');
+            // Order matters: low → mid → ceiling → high so when count=3 and a
+            // Band 8+ ceiling exists we keep [low, mid, ceiling] and the
+            // student Band 7 anchor is only used as a fallback ceiling.
+            $this->drawOne($picks, $low,     $seedBase . '|low');
+            $this->drawOne($picks, $mid,     $seedBase . '|mid');
+            $this->drawOne($picks, $ceiling, $seedBase . '|ceiling');
+            if ($picks->count() < $count) {
+                $this->drawOne($picks, $high, $seedBase . '|high');
+            }
 
-            // L4-v2: if the high bucket [7.0, 7.5] is empty for this task type,
-            // fall back to a second mid-bucket pick rather than reaching for
-            // the highest essay in the pool. The pool no longer contains
-            // Band 8.5 essays, so "highest available" would be Band 7.0/7.5
-            // anyway — but we use the mid pool to avoid double-picking edge
-            // cases and to keep the anchor distribution centered.
-            if ($high->isEmpty() && $picks->count() < 3) {
+            // L5-v1: if BOTH high and ceiling buckets were empty for this task
+            // type, fall back to a second mid-bucket pick. Niche task types
+            // (general task 1) historically had no Band 7+ data.
+            if ($high->isEmpty() && $ceiling->isEmpty() && $picks->count() < 3) {
                 $candidate = $mid
                     ->reject(fn ($e) => $picks->contains('id', $e->id))
                     ->first();

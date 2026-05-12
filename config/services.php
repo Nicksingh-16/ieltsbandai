@@ -47,15 +47,26 @@ return [
         'provider' => env('TRANSCRIPTION_PROVIDER', 'assemblyai'), // 'deepgram' or 'assemblyai' (assemblyai handles WebM better)
     ],
 
-    // The 'openai' key is a misnomer in this codebase: the active LLM provider
-    // is Gemini via its OpenAI-compatible endpoint. Defaults below point at
-    // Gemini so a fresh checkout boots with the free provider. To migrate to
-    // the real OpenAI later, set OPENAI_BASE_URL and OPENAI_MODEL in .env —
-    // no code changes required.
+    // OpenAI is the optional primary tier in LLMRouter. The router gates this
+    // tier on the key starting with 'sk-' — so a placeholder or a misused
+    // Gemini key won't accidentally route real traffic here. Defaults point
+    // at the real OpenAI endpoint; set OPENAI_API_KEY=sk-... in .env to enable.
     'openai' => [
         'api_key'  => env('OPENAI_API_KEY'),
-        'base_url' => env('OPENAI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/openai/'),
-        'model'    => env('OPENAI_MODEL', 'gemini-2.5-pro'),
+        'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com/v1/'),
+        'model'    => env('OPENAI_MODEL', 'gpt-4o-mini'),
+    ],
+
+    // OpenRouter — paid passthrough to OpenAI/Anthropic/etc., paid via UPI.
+    // Sits in front of the openai tier in LLMRouter; gated on key starting
+    // with 'sk-or-' to avoid accidental activation. Daily/total USD caps
+    // give a second line of defence on top of OpenRouter's own per-key cap.
+    'openrouter' => [
+        'api_key'  => env('OPENROUTER_API_KEY'),
+        'base_url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1/'),
+        'model'    => env('OPENROUTER_MODEL', 'openai/gpt-4o-mini'),
+        'daily_usd_cap' => env('LLM_OPENROUTER_DAILY_USD_CAP'),
+        'total_usd_cap' => env('LLM_OPENROUTER_TOTAL_USD_CAP'),
     ],
 
     'gemini' => [
@@ -92,6 +103,9 @@ return [
         // Toggle the Layer 3 few-shot block in writing prompts. Set to false
         // to capture a no-calibration baseline benchmark for A/B comparison.
         'few_shot_enabled' => env('FEW_SHOT_ENABLED', true),
+        // Toggle post-LLM piecewise upward bias correction (see
+        // ScoringService::calibrateScore Stage 2). Disable to A/B without it.
+        'bias_correction_enabled' => env('BIAS_CORRECTION_ENABLED', true),
     ],
 
     'languagetool' => [

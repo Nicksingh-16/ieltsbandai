@@ -256,7 +256,20 @@
             </div>
             <p class="text-brand-300 text-lg font-semibold mb-1">{{ $bandLabel }} User</p>
             @if(!empty($scores['band_confidence_range']))
-            <p class="text-surface-500 text-xs">Confidence range: {{ $scores['band_confidence_range'] }}</p>
+            <div class="inline-flex items-center gap-1.5 mt-1 px-3 py-1 rounded-full bg-surface-800/60 border border-surface-700">
+                <svg class="w-3 h-3 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span class="text-xs text-surface-300">Likely range <span class="font-semibold text-surface-100">{{ $scores['band_confidence_range'] }}</span></span>
+            </div>
+            @endif
+            @if($overall >= 7.5)
+            <div class="mt-4 mx-auto max-w-xl text-left bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-2.5">
+                <p class="text-[11px] text-amber-200 leading-relaxed">
+                    <span class="font-semibold">Note on high-band scoring:</span>
+                    AI calibration is strongest in the Band 5&ndash;7.5 range. Above Band 7.5 the
+                    estimate is conservative &mdash; your true level may be 0.5&ndash;1.0 bands higher
+                    on an official test. Use this report for development feedback, not as a ceiling.
+                </p>
+            </div>
             @endif
             {{-- Word count & time --}}
             <div class="flex items-center justify-center gap-6 mt-6">
@@ -480,12 +493,26 @@
                 $tip  = $expl['tip'] ?? null;
                 $col  = $s >= 7 ? 'emerald' : ($s >= 6 ? 'brand' : ($s >= 5 ? 'amber' : 'red'));
             @endphp
-            @if($why || $tip)
+            @php
+                // Map view keys to descriptor_match keys. The LLM uses both
+                // task_achievement (Task 1) and task_response (Task 2); accept either.
+                $descKey = $key === 'task_achievement' ? 'task_achievement' : $key;
+                $descAlt = $key === 'task_achievement' ? 'task_response' : null;
+                $descriptor = $descriptor_match[$descKey]
+                    ?? ($descAlt ? ($descriptor_match[$descAlt] ?? null) : null);
+            @endphp
+            @if($why || $tip || $descriptor)
             <div class="card p-5">
                 <div class="flex items-center justify-between mb-3">
                     <p class="text-xs font-semibold text-surface-400 uppercase tracking-wider">{{ $info['short'] }} — {{ $info['label'] }}</p>
                     <span class="text-lg font-bold text-{{ $col }}-400">{{ number_format($s,1) }}</span>
                 </div>
+                @if($descriptor)
+                <div class="border-l-2 border-{{ $col }}-500/50 bg-{{ $col }}-500/5 pl-3 py-2 mb-3">
+                    <p class="text-[10px] font-semibold text-surface-500 uppercase tracking-wider mb-0.5">Official descriptor (Band {{ number_format($s,1) }})</p>
+                    <p class="text-xs text-surface-200 italic leading-relaxed">&ldquo;{{ $descriptor }}&rdquo;</p>
+                </div>
+                @endif
                 @if($why)
                 <p class="text-xs text-surface-300 leading-relaxed mb-2">{{ $why }}</p>
                 @endif

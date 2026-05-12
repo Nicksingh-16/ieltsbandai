@@ -57,7 +57,29 @@
                     <div class="card p-5">
                         <p class="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-3">Audio</p>
 
-                        @if(!empty($sections['audio_url']))
+                        @php $sectionAudios = $sections['section_audios'] ?? null; @endphp
+
+                        @if(is_array($sectionAudios) && count($sectionAudios) === 4)
+                        {{-- Per-section audio (VOA-sourced tests: 4 separate mp3s) --}}
+                        <div x-data="{ active: 1 }" class="space-y-2">
+                            <div class="flex gap-1 mb-2">
+                                @foreach($sectionAudios as $idx => $url)
+                                    @php $n = $idx + 1; @endphp
+                                    <button type="button" @click="active = {{ $n }}"
+                                            :class="active === {{ $n }} ? 'bg-brand-500 text-white' : 'bg-surface-700 text-surface-300 hover:bg-surface-600'"
+                                            class="flex-1 text-xs font-semibold py-1.5 rounded transition">
+                                        S{{ $n }}
+                                    </button>
+                                @endforeach
+                            </div>
+                            @foreach($sectionAudios as $idx => $url)
+                                @php $n = $idx + 1; @endphp
+                                <audio x-show="active === {{ $n }}" id="sectionAudio{{ $n }}" controls class="w-full rounded-lg" style="filter:invert(0.85) hue-rotate(180deg);">
+                                    <source src="{{ $url }}" type="audio/mpeg">
+                                </audio>
+                            @endforeach
+                        </div>
+                        @elseif(!empty($sections['audio_url']))
                         <audio id="mainAudio" controls class="w-full rounded-lg mb-3" style="filter:invert(0.85) hue-rotate(180deg);">
                             <source src="{{ $sections['audio_url'] }}" type="audio/mpeg">
                         </audio>
@@ -71,7 +93,11 @@
                         </div>
                         @endif
 
-                        <p class="text-xs text-surface-500">Listen and answer as you go. You have 10 minutes after the audio to review and transfer your answers.</p>
+                        <p class="text-xs text-surface-500 mt-3">Listen and answer as you go. You have 10 minutes after the audio to review and transfer your answers.</p>
+
+                        @if(!empty($sections['attribution']))
+                            <p class="text-[10px] text-surface-600 mt-3 leading-relaxed">{{ $sections['attribution'] }}</p>
+                        @endif
                     </div>
 
                     <div class="card p-5">

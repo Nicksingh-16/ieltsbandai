@@ -47,11 +47,12 @@ class RegisteredUserController extends Controller
 
         $user = new User();
         $user->forceFill([
-            'name'         => $request->name,
-            'email'        => $request->email,
-            'password'     => Hash::make($request->password),
-            'test_credits' => $signupCredits,
-            'ref_source'   => $request->session()->pull('ref_source'),
+            'name'              => $request->name,
+            'email'             => $request->email,
+            'password'          => Hash::make($request->password),
+            'test_credits'      => $signupCredits,
+            'self_eval_credits' => 5,        // separate pool for the /evaluate page
+            'ref_source'        => $request->session()->pull('ref_source'),
         ])->save();
 
         event(new Registered($user));

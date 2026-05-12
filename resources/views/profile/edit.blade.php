@@ -34,7 +34,7 @@
                         </span>
                     @else
                         <span class="text-xs text-surface-500 font-medium">Free Plan</span>
-                        <a href="{{ route('pricing') }}" class="btn-primary text-sm px-4 py-2">Upgrade to Pro</a>
+                        <a href="{{ route('paywall.index') }}" class="btn-primary text-sm px-4 py-2">Upgrade to Pro</a>
                     @endif
                 </div>
             </div>

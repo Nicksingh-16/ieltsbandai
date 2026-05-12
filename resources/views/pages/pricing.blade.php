@@ -7,7 +7,8 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800&display=swap" rel="stylesheet" />
     @vite(['resources/css/app.css', 'resources/js/app.js'])
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    {{-- Razorpay JS removed: paywall is manual UPI for beta. Restore once
+         the domain is verified and Razorpay is reactivated. --}}
 </head>
 <body class="bg-surface-950 text-surface-200 font-sans antialiased">
 
@@ -66,7 +67,7 @@
         <div class="flex items-center justify-center gap-4 text-xs text-surface-400">
             <div class="flex items-center gap-1.5">
                 <svg class="w-4 h-4 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                Secure via Razorpay
+                Secure UPI · 7-day refund
             </div>
             <div class="flex items-center gap-1.5">
                 <svg class="w-4 h-4 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
@@ -102,41 +103,16 @@
         </div>
     </div>
 
-    {{-- CTA Button --}}
+    {{-- CTA Button — single entry point to the live UPI paywall. Razorpay
+         remains gated until a verified domain is attached. --}}
     <div>
-        @if(config('beta.hide_pay_cta'))
-            {{-- Beta mode: Razorpay flow not yet activated. Funnel users to
-                 the feedback form so we capture interest signal before
-                 paid launch. Reverts automatically when BETA_HIDE_PAY_CTA
-                 (or BETA_MODE) is false. --}}
-            <a href="{{ config('beta.feedback_url') ?: '#' }}"
-               @if(config('beta.feedback_url')) target="_blank" rel="noopener" @endif
-               class="btn-primary w-full py-4 text-base font-bold shadow-glow-lg text-lg flex items-center justify-center gap-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
-                </svg>
-                {{ config('beta.pay_replacement_text') }}
-            </a>
-            <div class="flex items-center justify-center gap-6 mt-4 text-xs text-surface-500">
-                <span>Pro plans coming soon · No card required during beta</span>
-            </div>
-        @else
-            <form action="{{ route('payment.initiate') }}" method="POST" id="payment-form">
-                @csrf
-                <input type="hidden" name="plan" value="monthly">
-                <input type="hidden" name="amount" value="9900">
-                <button type="submit" id="pay-btn" class="btn-primary w-full py-4 text-base font-bold shadow-glow-lg text-lg">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-                    </svg>
-                    Pay ₹99 with Razorpay
-                </button>
-            </form>
-
-            <div class="flex items-center justify-center gap-6 mt-4 text-xs text-surface-500">
-                <span>UPI · Cards · Net Banking · Wallets</span>
-            </div>
-        @endif
+        <a href="{{ route('paywall.index') }}" class="btn-primary w-full py-4 text-base font-bold shadow-glow-lg text-lg flex items-center justify-center gap-2">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+            See all plans &amp; pay via UPI
+        </a>
+        <div class="flex items-center justify-center gap-6 mt-4 text-xs text-surface-500">
+            <span>Pay via any UPI app &middot; PhonePe, GPay, Paytm, BHIM &middot; ₹9&ndash;₹199 plans</span>
+        </div>
     </div>
 
     {{-- FAQ --}}

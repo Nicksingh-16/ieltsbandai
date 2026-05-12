@@ -71,6 +71,26 @@ return [
             ],
             'badge'        => 'Save 44%',
         ],
+
+        // Self-evaluation pack — for users who want to evaluate their own
+        // Task 2 essays without taking a fresh test. Grants 1 self_eval credit
+        // (separate pool from test_credits). Cheap because the only AI cost
+        // is one writing evaluation pass.
+        'self_eval_single' => [
+            'label'        => 'Essay Evaluation',
+            'subtitle'     => 'Evaluate one Task 2 essay you wrote elsewhere',
+            'price'        => 10,
+            'credits'      => 1,
+            'credits_pool' => 'self_eval',
+            'duration_days'=> null,
+            'tier'         => 'standard',
+            'features'     => [
+                'Full IELTS-style band-score breakdown',
+                'Error highlighting + corrections',
+                'Band-9 model rewrite of your prompt',
+            ],
+            'badge'        => null,
+        ],
     ],
 
     /*

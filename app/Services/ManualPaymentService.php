@@ -165,9 +165,15 @@ class ManualPaymentService
 
             $payment->credits_granted = null;
         } elseif (!empty($plan['credits'])) {
-            // One-time pack — generic credits.
-            $this->credits->addCredits($user, (int) $plan['credits']);
-            $payment->credits_granted = (int) $plan['credits'];
+            // One-time pack — route to the right credit pool.
+            $pool = $plan['credits_pool'] ?? 'test';   // 'test' or 'self_eval'
+            $amount = (int) $plan['credits'];
+            if ($pool === 'self_eval') {
+                $user->increment('self_eval_credits', $amount);
+            } else {
+                $this->credits->addCredits($user, $amount);
+            }
+            $payment->credits_granted = $amount;
         }
 
         $payment->granted_at = Carbon::now();
@@ -217,10 +223,12 @@ class ManualPaymentService
                     'model_tier'     => 'standard',
                 ])->save();
             } elseif ($payment->credits_granted) {
-                // Credits — claw back, clamping at 0.
-                $clawback = min($payment->credits_granted, $user->test_credits);
+                // Credits — claw back from the same pool we granted to.
+                $pool = $plan['credits_pool'] ?? 'test';
+                $field = $pool === 'self_eval' ? 'self_eval_credits' : 'test_credits';
+                $clawback = min($payment->credits_granted, $user->{$field});
                 if ($clawback > 0) {
-                    $user->decrement('test_credits', $clawback);
+                    $user->decrement($field, $clawback);
                 }
             }
 

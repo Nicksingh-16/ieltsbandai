@@ -1286,7 +1286,7 @@
                     </li>
                     @endforeach
                 </ul>
-                <a href="{{ route('pricing') }}" class="btn-primary w-full justify-center shadow-glow">Upgrade to Pro</a>
+                <a href="{{ auth()->check() ? route('paywall.index') : route('register') }}" class="btn-primary w-full justify-center shadow-glow">Upgrade to Pro</a>
                 <p class="text-[10px] text-surface-500 text-center mt-3">7-day refund · Cancel anytime</p>
             </div>
 

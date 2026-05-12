@@ -20,7 +20,13 @@
     $strengths          = $strengths          ?? [];
     $improvements       = $improvements       ?? [];
     $error_summary      = $error_summary      ?? [];
-    $question_title     = $question->title ?? ($question->content ?? '');
+    // Self-eval rows have no attached Question — fall back to the user-typed
+    // prompt stored in test.metadata. Cast handles legacy JSON-string rows.
+    $rawMeta = $test->metadata ?? null;
+    $meta = is_array($rawMeta) ? $rawMeta : (is_string($rawMeta) ? (json_decode($rawMeta, true) ?: []) : []);
+    $question_title     = $question->title
+        ?? ($question->content ?? '')
+        ?: ($meta['user_question'] ?? '');
 @endphp
 
 <style>

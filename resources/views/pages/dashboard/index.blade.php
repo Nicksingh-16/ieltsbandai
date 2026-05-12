@@ -11,7 +11,7 @@
                 <p class="text-surface-400 mt-1 text-sm">Here's where you stand. Let's get better today.</p>
             </div>
             @if(!auth()->user()->hasActiveSubscription())
-            <a href="{{ route('pricing') }}"
+            <a href="{{ route('paywall.index') }}"
                class="inline-flex items-center gap-2 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-glow transition-all shrink-0">
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
                 Upgrade to Pro
@@ -206,6 +206,34 @@
 
             </div>
         </div>
+
+        {{-- ── Self-evaluate: paste your own essay ── --}}
+        <a href="{{ route('self-eval.index') }}"
+           class="card card-hover p-5 mb-8 flex items-center gap-4 border-brand-500/20 hover:border-brand-500/40 group">
+            <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-brand-500/20 to-purple-500/20 flex items-center justify-center shrink-0">
+                <svg class="w-5 h-5 text-brand-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <p class="font-semibold text-surface-100 group-hover:text-white">Evaluate your own essay</p>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-semibold uppercase tracking-wider">New</span>
+                </div>
+                <p class="text-xs text-surface-400 mt-0.5">
+                    Paste any Task 2 question + your written answer → full AI evaluation in ~15s.
+                    @php $left = auth()->user()->self_eval_credits ?? 0; @endphp
+                    @if(auth()->user()->hasActiveSubscription())
+                        <span class="text-purple-300 font-semibold">Unlimited with Pro.</span>
+                    @elseif($left > 0)
+                        <span class="text-brand-300 font-semibold">{{ $left }} free {{ $left === 1 ? 'evaluation' : 'evaluations' }} left.</span>
+                    @else
+                        <span class="text-amber-300 font-semibold">₹10 per essay.</span>
+                    @endif
+                </p>
+            </div>
+            <svg class="w-5 h-5 text-surface-500 group-hover:text-brand-400 transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </a>
 
         {{-- ── Combined Band Score ── --}}
         @if(count($latestBands) > 0)

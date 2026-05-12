@@ -282,6 +282,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/get-credits/receipt/{ref}', [\App\Http\Controllers\Web\PaywallController::class, 'receipt'])->name('paywall.receipt');
 });
 
+// ── Self-evaluation (paste-your-own-essay) ────────────────────────────────────
+Route::middleware('auth')->group(function () {
+    Route::get('/evaluate',  [\App\Http\Controllers\Web\SelfEvaluationController::class, 'index'])->name('self-eval.index');
+    Route::post('/evaluate', [\App\Http\Controllers\Web\SelfEvaluationController::class, 'evaluate'])
+        ->middleware('throttle:6,1')   // 6 submissions per minute — bounds abuse without hurting normal use
+        ->name('self-eval.evaluate');
+});
+
 // Payment routes
 Route::post('/payment/initiate', [PaymentController::class, 'initiate'])
     ->name('payment.initiate')

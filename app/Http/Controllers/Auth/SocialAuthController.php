@@ -73,6 +73,7 @@ class SocialAuthController extends Controller
                     'password'          => null,                       // OAuth users have no local password
                     'email_verified_at' => now(),                      // Google guarantees email ownership
                     'test_credits'      => $signupCredits,
+                    'self_eval_credits' => 5,                          // separate pool for /evaluate
                     'ref_source'        => session()->pull('ref_source'),
                 ])->save();
                 

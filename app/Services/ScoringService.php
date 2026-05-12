@@ -30,7 +30,7 @@ class ScoringService
      * Bump on any material change to the prompt body or retrieval strategy
      * (e.g. L3-v2 = topic-keyword-ranked few-shot, L4-v1 = LanguageTool block).
      */
-    public const PROMPT_VERSION = 'L5-v4';
+    public const PROMPT_VERSION = 'L5-v5';
 
     protected CalibrationService $calibration;
     protected LLMRouter $router;
@@ -655,6 +655,39 @@ VOCABULARY ERRORS - Flag only when word choice is clearly wrong or causes confus
 - NOTE: "number" vs "percentage" is acceptable if context is clear - only flag if it causes confusion
 - NOTE: Simple verbs like "shows", "increased" are acceptable - only flag if variety is severely lacking
 - NOTE: Word repetition is only an error if excessive (5+ times in short essay) AND better alternatives exist
+
+CRITICAL — WORD-CONFUSION (HOMOPHONE/HOMONYM) ERRORS ARE LEXICAL, NOT GRAMMATICAL:
+The following error patterns are LEXICAL RESOURCE issues (categorize as Vocabulary).
+They MUST NOT be categorized as Grammar — they're word-choice mistakes, not
+structural grammar errors, and the IELTS GRA descriptor explicitly covers
+"structures + accuracy" not lexical confusion:
+  • effect / affect          (verb confusion)
+  • then / than              (comparison vs sequence)
+  • their / there / they're   (pronoun/contraction confusion)
+  • its / it's               (possessive vs contraction)
+  • accept / except          (verb vs preposition)
+  • loose / lose             (adjective vs verb)
+  • principle / principal    (noun confusion)
+  • complement / compliment  (verb confusion)
+  • whose / who's            (possessive vs contraction)
+  • your / you're            (possessive vs contraction)
+  • lay / lie                (transitive vs intransitive — borderline; lean Vocabulary)
+  • fewer / less             (countable vs uncountable — lean Vocabulary)
+  • amount / number          (quantifier confusion)
+
+These pull LR down (precision of word choice), NOT GRA. A candidate who
+writes structurally varied complex sentences with one or two of these
+confusions still meets the Band 7 GRA descriptor ("frequent error-free
+sentences, may make a few errors"). Penalising them under Grammar
+double-counts the same error and unfairly drops GRA.
+
+Comparative/superlative WORD FORMATION (e.g. "more kind" → "kinder",
+"more easy" → "easier", "most happiest" → "happiest"):
+  • If isolated and rare → Vocabulary (word form, low severity)
+  • If frequent across the essay → Grammar (systematic structural issue)
+
+Apostrophe omissions in possessives ("students confidence" missing the
+apostrophe) → Punctuation, NOT Grammar.
 
 IMPORTANT - VOCABULARY vs TASK RESPONSE:
 - "number" instead of "percentage" = VOCABULARY error (medium severity)

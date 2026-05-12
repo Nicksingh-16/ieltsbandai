@@ -43,13 +43,15 @@ class SocialAuthController extends Controller
             if ($user) {
                 \Log::info('Existing user found, updating OAuth info');
                 
-                // Update OAuth info if not already set
+                // Update OAuth info if not already set. provider/provider_id/
+                // avatar/email_verified_at are intentionally NOT in User::$fillable
+                // — use forceFill inside this trusted OAuth callback.
                 if (!$user->provider) {
-                    $user->update([
-                        'provider' => 'google',
+                    $user->forceFill([
+                        'provider'    => 'google',
                         'provider_id' => $googleUser->getId(),
-                        'avatar' => $googleUser->getAvatar(),
-                    ]);
+                        'avatar'      => $googleUser->getAvatar(),
+                    ])->save();
                 }
             } else {
                 \Log::info('Creating new user from Google OAuth');
@@ -61,17 +63,18 @@ class SocialAuthController extends Controller
                     ? config('beta.signup_credits')
                     : config('packages.free.credits', 3);
 
-                $user = User::create([
-                    'name' => $googleUser->getName(),
-                    'email' => $googleUser->getEmail(),
-                    'provider' => 'google',
-                    'provider_id' => $googleUser->getId(),
-                    'avatar' => $googleUser->getAvatar(),
-                    'password' => null, // Explicitly set to null for OAuth users
-                    'email_verified_at' => now(), // Auto-verify OAuth emails
-                    'test_credits' => $signupCredits,
-                    'ref_source' => session()->pull('ref_source'),
-                ]);
+                $user = new User();
+                $user->forceFill([
+                    'name'              => $googleUser->getName(),
+                    'email'             => $googleUser->getEmail(),
+                    'provider'          => 'google',
+                    'provider_id'       => $googleUser->getId(),
+                    'avatar'            => $googleUser->getAvatar(),
+                    'password'          => null,                       // OAuth users have no local password
+                    'email_verified_at' => now(),                      // Google guarantees email ownership
+                    'test_credits'      => $signupCredits,
+                    'ref_source'        => session()->pull('ref_source'),
+                ])->save();
                 
                 \Log::info('New user created successfully', ['user_id' => $user->id]);
             }

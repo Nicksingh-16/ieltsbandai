@@ -291,7 +291,42 @@ class AdminController extends Controller
         $payments      = $query->paginate(25)->withQueryString();
         $totalRevenue  = Payment::where('status', 'completed')->sum('amount');
 
-        return view('admin.payments.index', compact('payments', 'totalRevenue'));
+        // Manual UPI activity at a glance — the most common admin task during
+        // beta is verifying these UTRs against the bank statement.
+        $pendingVerification = Payment::where('method', 'manual')
+            ->where('status', 'pending_verification')->count();
+        $grantedToday = Payment::where('method', 'manual')
+            ->whereDate('granted_at', today())->count();
+
+        return view('admin.payments.index', compact('payments', 'totalRevenue', 'pendingVerification', 'grantedToday'));
+    }
+
+    /**
+     * Admin marks a manual UPI payment verified against the bank statement.
+     * Idempotent — re-verifying a verified payment is a no-op.
+     */
+    public function verifyPayment(Request $request, Payment $payment)
+    {
+        if ($payment->method !== 'manual') {
+            return back()->with('error', 'Only manual UPI payments can be verified here.');
+        }
+        $note = (string) $request->input('note', '');
+        app(\App\Services\ManualPaymentService::class)->verify($payment, $request->user(), $note ?: null);
+        return back()->with('success', "Payment {$payment->order_id} verified.");
+    }
+
+    /**
+     * Admin reverses a manual UPI payment (fake UTR / chargeback / fraud).
+     * Claws back credits or cancels subscription accordingly.
+     */
+    public function revokePayment(Request $request, Payment $payment)
+    {
+        $request->validate(['reason' => 'required|string|min:3|max:500']);
+        if ($payment->method !== 'manual') {
+            return back()->with('error', 'Only manual UPI payments can be revoked here.');
+        }
+        app(\App\Services\ManualPaymentService::class)->revoke($payment, $request->user(), $request->input('reason'));
+        return back()->with('success', "Payment {$payment->order_id} revoked.");
     }
 
     // ─── Institutes ───────────────────────────────────────────────────────────

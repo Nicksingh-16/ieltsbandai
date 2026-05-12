@@ -207,8 +207,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::delete('/question-sets/{set}/questions/{question}', [AdminController::class, 'questionSetRemoveQuestion'])->name('question-sets.remove-question');
     Route::delete('/question-sets/{set}', [AdminController::class, 'questionSetDestroy'])->name('question-sets.destroy');
 
-    // Payments
+    // Payments — list + manual UPI verify/revoke actions.
     Route::get('/payments', [AdminController::class, 'payments'])->name('payments');
+    Route::post('/payments/{payment}/verify', [AdminController::class, 'verifyPayment'])->name('payments.verify');
+    Route::post('/payments/{payment}/revoke', [AdminController::class, 'revokePayment'])->name('payments.revoke');
 
     // Feedback inbox + analytics
     Route::get('/feedback', [AdminController::class, 'feedbackIndex'])->name('feedback');
@@ -270,6 +272,15 @@ require __DIR__.'/auth.php';
 
 // Pricing page
 // Route::get('/pricing', [PricingController::class, 'index'])->name('pricing');
+
+// ── Manual UPI paywall (beta — active while Razorpay is gated on domain) ─────
+Route::middleware('auth')->group(function () {
+    Route::get('/get-credits',          [\App\Http\Controllers\Web\PaywallController::class, 'index'])->name('paywall.index');
+    Route::post('/get-credits/start',   [\App\Http\Controllers\Web\PaywallController::class, 'start'])->name('paywall.start');
+    Route::get('/get-credits/pay/{ref}',[\App\Http\Controllers\Web\PaywallController::class, 'pay'])->name('paywall.pay');
+    Route::post('/get-credits/pay/{ref}/utr', [\App\Http\Controllers\Web\PaywallController::class, 'submitUtr'])->name('paywall.utr');
+    Route::get('/get-credits/receipt/{ref}', [\App\Http\Controllers\Web\PaywallController::class, 'receipt'])->name('paywall.receipt');
+});
 
 // Payment routes
 Route::post('/payment/initiate', [PaymentController::class, 'initiate'])

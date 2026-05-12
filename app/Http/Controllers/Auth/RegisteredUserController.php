@@ -38,15 +38,21 @@ class RegisteredUserController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'test_credits' => config('beta.enabled')
-                ? config('beta.signup_credits')
-                : config('packages.free.credits', 3),
-            'ref_source' => $request->session()->pull('ref_source'),
-        ]);
+        // test_credits is intentionally NOT mass-assignable on User (a user
+        // could otherwise submit `test_credits=999` in the signup form). Set
+        // via forceFill inside this trusted controller.
+        $signupCredits = config('beta.enabled')
+            ? config('beta.signup_credits')
+            : config('packages.free.credits', 3);
+
+        $user = new User();
+        $user->forceFill([
+            'name'         => $request->name,
+            'email'        => $request->email,
+            'password'     => Hash::make($request->password),
+            'test_credits' => $signupCredits,
+            'ref_source'   => $request->session()->pull('ref_source'),
+        ])->save();
 
         event(new Registered($user));
 

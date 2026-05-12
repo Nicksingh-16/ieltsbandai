@@ -35,6 +35,7 @@ class LLMRouter
     private ?int $ctxTestId = null;
     private ?string $ctxPurpose = null;
     private ?string $ctxPromptVersion = null;
+    private ?string $ctxModelTier = null;
 
     public function withContext(?int $userId = null, ?int $testId = null, ?string $purpose = null, ?string $promptVersion = null): self
     {
@@ -44,7 +45,32 @@ class LLMRouter
         // Default to the active ScoringService prompt version so callers that
         // don't pass one still produce diff-able log rows.
         $this->ctxPromptVersion = $promptVersion ?? ScoringService::PROMPT_VERSION;
+
+        // Resolve the user's model tier for premium routing (Pro Plus → gpt-4o).
+        // Cached on users.model_tier so this is one fast lookup per scoring
+        // call, no DB JOIN against subscriptions.
+        $this->ctxModelTier = null;
+        if ($userId) {
+            try {
+                $this->ctxModelTier = \App\Models\User::whereKey($userId)->value('model_tier') ?: 'standard';
+            } catch (\Throwable $e) {
+                $this->ctxModelTier = 'standard';
+            }
+        }
         return $this;
+    }
+
+    /**
+     * Resolve the OpenRouter model name based on the active user's tier.
+     * Premium subscribers get the full gpt-4o (better Band 7+ accuracy, ~17x
+     * cost). Everyone else gets the default model from config.
+     */
+    private function resolveOpenRouterModel(string $defaultModel): string
+    {
+        if ($this->ctxModelTier === 'premium') {
+            return (string) config('services.openrouter.premium_model', 'openai/gpt-4o');
+        }
+        return $defaultModel;
     }
 
     /**
@@ -70,6 +96,9 @@ class LLMRouter
             if ($this->openRouterBudgetExceeded()) {
                 Log::warning('OpenRouter budget cap reached — skipping to Groq/Gemini');
             } else {
+                // Premium subscribers route to gpt-4o; everyone else uses the
+                // configured default (gpt-4o-mini).
+                $orModel = $this->resolveOpenRouterModel($orModel);
                 $payload['model'] = $orModel;
                 $resp = $this->httpCall($orBase, $orKey, $payload, 'openrouter', $orModel);
                 if ($this->isHardSuccess($resp)) {

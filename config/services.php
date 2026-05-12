@@ -65,6 +65,9 @@ return [
         'api_key'  => env('OPENROUTER_API_KEY'),
         'base_url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1/'),
         'model'    => env('OPENROUTER_MODEL', 'openai/gpt-4o-mini'),
+        // Premium subscribers (Pro Plus / model_tier=premium) route here.
+        // ~17x cost of mini, materially better Band 7+ accuracy.
+        'premium_model' => env('OPENROUTER_PREMIUM_MODEL', 'openai/gpt-4o'),
         'daily_usd_cap' => env('LLM_OPENROUTER_DAILY_USD_CAP'),
         'total_usd_cap' => env('LLM_OPENROUTER_TOTAL_USD_CAP'),
     ],
@@ -124,6 +127,17 @@ return [
         'key'            => env('RAZORPAY_KEY'),
         'secret'         => env('RAZORPAY_SECRET'),
         'webhook_secret' => env('RAZORPAY_WEBHOOK_SECRET'),
+    ],
+
+    // Manual UPI payment config — used while Razorpay isn't activated (no
+    // domain yet). The paywall renders a UPI deep-link QR pointing at this
+    // VPA; users pay, submit their UTR, we grant credits/sub immediately and
+    // verify the UTR against the bank statement out-of-band.
+    'upi' => [
+        'vpa'      => env('UPI_VPA', 'ronnie@ybl'),
+        'name'     => env('UPI_NAME', 'IELTS Band AI'),
+        // Optional: notification email when a new manual payment lands.
+        'notify_email' => env('UPI_NOTIFY_EMAIL'),
     ],
 
 ];

@@ -14,8 +14,8 @@ use App\Http\Controllers\Web\ContactController;
 use App\Http\Controllers\Web\DemoController;
 use App\Http\Controllers\Web\FeedbackController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\web\PricingController;
-use App\Http\Controllers\web\PaymentController;
+use App\Http\Controllers\Web\PricingController;
+use App\Http\Controllers\Web\PaymentController;
 
 Route::get('/', function () {
     return view('pages.home');

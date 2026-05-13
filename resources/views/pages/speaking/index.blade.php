@@ -133,6 +133,45 @@
     </div>
 
     <input type="hidden" id="questionsData" value='@json($questions)'>
+
+    {{-- Part 2 preparation modal — full-screen overlay during the 60s prep
+         window. Dismisses automatically when the countdown hits zero, after
+         which recording auto-starts so the user goes straight into their
+         monologue without an extra tap. --}}
+    <div id="prep-modal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-surface-950/85 backdrop-blur-md p-4">
+        <div class="card max-w-xl w-full p-8 border border-amber-500/40 bg-gradient-to-br from-amber-950/60 to-surface-900">
+            <div class="flex items-center gap-3 mb-5">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0">
+                    <svg class="w-5 h-5 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-amber-400 text-xs font-semibold uppercase tracking-wider">Part 2 — Preparation</p>
+                    <p class="text-surface-50 text-lg font-bold leading-tight">Plan your 2-minute response</p>
+                </div>
+            </div>
+
+            <div class="bg-surface-900/60 border border-surface-700 rounded-xl p-4 mb-5">
+                <p class="text-xs text-surface-500 uppercase tracking-wider mb-1.5">Cue card</p>
+                <p id="prep-modal-topic" class="text-amber-200 font-semibold mb-2"></p>
+                <p id="prep-modal-content" class="text-surface-200 text-sm leading-relaxed whitespace-pre-line"></p>
+            </div>
+
+            <div class="flex flex-col items-center gap-2">
+                <div class="text-5xl font-bold font-mono tabular-nums text-amber-300">
+                    <span id="prep-modal-timer">01:00</span>
+                </div>
+                <p class="text-xs text-surface-500">Recording will start automatically when the timer ends</p>
+            </div>
+
+            <div class="mt-5 pt-4 border-t border-surface-700 text-center">
+                <p class="text-xs text-surface-400 leading-relaxed">
+                    Use this minute to make brief mental notes. You won't be able to write anything down — IELTS Speaking is fully oral.
+                </p>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -272,64 +311,69 @@ try {
         progressBar.style.width = (index / 3 * 100) + '%';
     }
 
+    // Extracted from the click handler so showPrepTime() can auto-start
+    // recording after the Part 2 prep countdown ends without simulating a click.
+    async function startRecording() {
+        try {
+            recordBtn.disabled = true;
+            recordStatus.textContent = "Requesting microphone...";
+            mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+            const opts = { mimeType: 'audio/webm;codecs=opus' };
+            mediaRecorder = MediaRecorder.isTypeSupported(opts.mimeType)
+                ? new MediaRecorder(mediaStream, opts)
+                : new MediaRecorder(mediaStream);
+
+            audioChunks = [];
+            mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+            mediaRecorder.onstop = uploadAudio;
+            mediaRecorder.start();
+            startTime = Date.now();
+            isRecording = true;
+
+            recordBtn.disabled = false;
+            setRecordBtn('recording');
+            recordStatus.textContent = "Tap to stop recording";
+            recordingPulse.classList.remove("hidden");
+            waveform.classList.remove("hidden");
+            waveform.classList.add("flex");
+
+            interval = setInterval(() => {
+                timeLeft--;
+                timerEl.textContent = format(timeLeft);
+                updateTimerCircle();
+
+                // Cycling parts: derive the visible prompt from elapsed
+                // time so a slow tick can't skip a boundary. One audio
+                // file per part — only the UI advances.
+                const part = PARTS[index];
+                if (part.cycling) {
+                    const elapsed = initialTime - timeLeft;
+                    const nextIdx = Math.min(
+                        Math.floor(elapsed / part.perPrompt),
+                        part.prompts.length - 1
+                    );
+                    if (nextIdx !== promptIndex) {
+                        promptIndex = nextIdx;
+                        renderPrompt();
+                    }
+                }
+
+                if (timeLeft <= 0) stopRecording();
+            }, 1000);
+        } catch(err) {
+            recordBtn.disabled = false;
+            setRecordBtn('idle');
+            recordStatus.textContent = "Tap to start recording";
+            alert('Could not access microphone. Please check permissions.');
+        }
+    }
+
     recordBtn.addEventListener("click", async (e) => {
         e.preventDefault();
         if (recordBtn.disabled) return;
-
         if (!isRecording) {
-            try {
-                recordBtn.disabled = true;
-                recordStatus.textContent = "Requesting microphone...";
-                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-                const opts = { mimeType: 'audio/webm;codecs=opus' };
-                mediaRecorder = MediaRecorder.isTypeSupported(opts.mimeType)
-                    ? new MediaRecorder(mediaStream, opts)
-                    : new MediaRecorder(mediaStream);
-
-                audioChunks = [];
-                mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
-                mediaRecorder.onstop = uploadAudio;
-                mediaRecorder.start();
-                startTime = Date.now();
-                isRecording = true;
-
-                recordBtn.disabled = false;
-                setRecordBtn('recording');
-                recordStatus.textContent = "Tap to stop recording";
-                recordingPulse.classList.remove("hidden");
-                waveform.classList.remove("hidden");
-                waveform.classList.add("flex");
-
-                interval = setInterval(() => {
-                    timeLeft--;
-                    timerEl.textContent = format(timeLeft);
-                    updateTimerCircle();
-
-                    // Cycling parts: derive the visible prompt from elapsed
-                    // time so a slow tick can't skip a boundary. One audio
-                    // file per part — only the UI advances.
-                    const part = PARTS[index];
-                    if (part.cycling) {
-                        const elapsed = initialTime - timeLeft;
-                        const nextIdx = Math.min(
-                            Math.floor(elapsed / part.perPrompt),
-                            part.prompts.length - 1
-                        );
-                        if (nextIdx !== promptIndex) {
-                            promptIndex = nextIdx;
-                            renderPrompt();
-                        }
-                    }
-
-                    if (timeLeft <= 0) stopRecording();
-                }, 1000);
-            } catch(err) {
-                recordBtn.disabled = false;
-                setRecordBtn('idle');
-                recordStatus.textContent = "Tap to start recording";
-                alert('Could not access microphone. Please check permissions.');
-            }
+            await startRecording();
         } else {
             stopRecording();
         }
@@ -400,9 +444,14 @@ try {
     nextBtn.addEventListener("click", () => {
         index++;
         if (index >= 3) { window.location.href = "{{ route('test.result', $test->id) }}"; return; }
-        // Part 2 (index === 1) gets 60 seconds preparation time
+        // Part 2 (index === 1) gets 60s prep in a modal, then auto-starts
+        // recording when the modal dismisses — the user already mentally
+        // prepared during the countdown, so we skip the "tap to record" step.
         if (index === 1) {
-            showPrepTime(loadQuestion);
+            showPrepTime(() => {
+                loadQuestion();
+                startRecording();
+            });
         } else {
             loadQuestion();
         }
@@ -410,33 +459,35 @@ try {
 
     function showPrepTime(onDone) {
         let prepLeft = 60;
+        const modal       = document.getElementById('prep-modal');
+        const modalTopic  = document.getElementById('prep-modal-topic');
+        const modalBody   = document.getElementById('prep-modal-content');
+        const modalTimer  = document.getElementById('prep-modal-timer');
+
+        // Set up background Part 2 question state so the page is ready behind
+        // the modal — when the modal dismisses, the user sees the cue card
+        // and the recording timer is already loaded.
         recordBtn.disabled = true;
         nextBtn.classList.add("hidden");
         qTopic.textContent = PARTS[1]?.title ?? '';
         qBox.textContent = PARTS[1]?.prompts?.[0] ?? '';
         qLabel.textContent = 'Question';
-        timerEl.textContent = format(prepLeft);
-        setRingColor('prep');
-        timerCircle.style.strokeDashoffset = '0';
-        recordStatus.textContent = "Prepare your answer — recording starts automatically";
-
-        // Show prep banner
-        const banner = document.createElement('div');
-        banner.id = 'prep-banner';
-        banner.className = 'w-full text-center py-2 px-4 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold mt-2';
-        banner.textContent = 'Part 2 — 1 minute preparation. Make notes. Recording begins when timer ends.';
         currentPartEl.textContent = '2 (Prep)';
-        recordBtn.parentElement.parentElement.appendChild(banner);
 
-        initialTime = prepLeft;
+        // Populate and reveal the modal
+        modalTopic.textContent = PARTS[1]?.title ?? '';
+        modalBody.textContent  = PARTS[1]?.prompts?.[0] ?? '';
+        modalTimer.textContent = format(prepLeft);
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+
         prepInterval = setInterval(() => {
             prepLeft--;
-            timerEl.textContent = format(prepLeft);
-            const offset = CIRCUMFERENCE * (1 - prepLeft / 60);
-            timerCircle.style.strokeDashoffset = offset;
+            modalTimer.textContent = format(prepLeft);
             if (prepLeft <= 0) {
                 clearInterval(prepInterval);
-                banner.remove();
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
                 onDone();
             }
         }, 1000);

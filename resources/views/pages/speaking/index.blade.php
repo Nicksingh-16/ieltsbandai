@@ -35,7 +35,7 @@
                         </svg>
                     </div>
                     <div class="flex-1 min-w-0">
-                        <p class="text-brand-300 text-xs font-semibold uppercase tracking-wider mb-2">Question</p>
+                        <p id="question-label" class="text-brand-300 text-xs font-semibold uppercase tracking-wider mb-2">Question</p>
                         <p id="question-topic" class="text-brand-200 text-base sm:text-lg font-semibold mb-2"></p>
                         <p id="question-box" class="text-surface-50 text-base sm:text-lg font-normal leading-relaxed whitespace-pre-line"></p>
                     </div>
@@ -46,15 +46,15 @@
             <div class="p-6 sm:p-8 flex flex-col items-center gap-8">
 
                 {{-- Timer circle --}}
-                <div class="relative">
-                    <svg class="w-36 h-36" viewBox="0 0 120 120">
+                <div class="relative py-4">
+                    <svg class="w-36 h-36 overflow-visible" viewBox="0 0 120 120">
                         <circle cx="60" cy="60" r="52" fill="none" stroke="#1e293b" stroke-width="8"/>
                         <circle id="timer-circle" cx="60" cy="60" r="52" fill="none"
                             stroke="#06b6d4" stroke-width="8"
                             stroke-dasharray="326.7" stroke-dashoffset="0"
                             stroke-linecap="round"
                             class="progress-ring transition-all duration-1000 ease-linear"
-                            style="filter:drop-shadow(0 0 6px rgba(6,182,212,0.6))"/>
+                            style="filter: drop-shadow(0 0 3px rgba(6,182,212,0.55)) drop-shadow(0 0 14px rgba(6,182,212,0.28)) drop-shadow(0 0 36px rgba(6,182,212,0.12))"/>
                     </svg>
                     <div class="absolute inset-0 flex items-center justify-center">
                         <div class="text-center">
@@ -118,13 +118,34 @@
 
 <script>
 try {
-    const data      = JSON.parse(document.getElementById("questionsData").value);
-    const questions = [data.part1, data.part2, data.part3];
-    const durations = [60, 120, 90];
+    const data = JSON.parse(document.getElementById("questionsData").value);
+
+    // Parse "1. Q1?\n2. Q2?\n..." into ["Q1?", "Q2?", ...]. Falls back to one
+    // item if the content has no numbered structure (Part 2 cue cards).
+    function parsePrompts(content) {
+        if (!content) return [''];
+        const lines = content.split('\n')
+            .map(l => l.replace(/^\d+\.\s*/, '').trim())
+            .filter(Boolean);
+        return lines.length ? lines : [content];
+    }
+
+    // Per-part config. Cycling parts auto-advance through prompts every
+    // `perPrompt` seconds during a single continuous recording — backend
+    // still receives one audio file per part, so no transcription/scoring
+    // changes are needed downstream.
+    const PARTS = [
+        { title: data.part1?.title ?? '', prompts: parsePrompts(data.part1?.content), perPrompt: 30,  cycling: true  },
+        { title: data.part2?.title ?? '', prompts: [data.part2?.content ?? ''],        perPrompt: 120, cycling: false },
+        { title: data.part3?.title ?? '', prompts: parsePrompts(data.part3?.content), perPrompt: 30,  cycling: true  },
+    ];
+
     let index = 0, uploadCount = 0;
+    let promptIndex = 0;
 
     const qBox              = document.getElementById("question-box");
     const qTopic            = document.getElementById("question-topic");
+    const qLabel            = document.getElementById("question-label");
     const timerEl           = document.getElementById("timer");
     const timerCircle       = document.getElementById("timer-circle");
     const nextBtn           = document.getElementById("nextBtn");
@@ -143,6 +164,25 @@ try {
 
     const CIRCUMFERENCE = 326.7;
 
+    // Ring color states — stroke + matching halo. Keep stroke and filter in
+    // lockstep so the glow never lags behind a color transition.
+    const RING_COLORS = {
+        active:  { stroke: '#06b6d4', glow: '6,182,212'   }, // cyan
+        warning: { stroke: '#ef4444', glow: '239,68,68'   }, // red — last 20%
+        prep:    { stroke: '#f59e0b', glow: '245,158,11'  }, // amber — Part 2 prep
+    };
+    function setRingColor(state) {
+        const c = RING_COLORS[state];
+        timerCircle.style.stroke = c.stroke;
+        // Three-layer halo: tight reinforcement at the stroke, mid fade for the
+        // visible bloom, and a wide soft wash that dissolves into the surface.
+        // Exponential opacity falloff avoids any visible "ring" edge.
+        timerCircle.style.filter =
+            `drop-shadow(0 0 3px rgba(${c.glow},0.55)) ` +
+            `drop-shadow(0 0 14px rgba(${c.glow},0.28)) ` +
+            `drop-shadow(0 0 36px rgba(${c.glow},0.12))`;
+    }
+
     function format(sec) {
         return String(Math.floor(sec / 60)).padStart(2,'0') + ':' + String(sec % 60).padStart(2,'0');
     }
@@ -150,8 +190,7 @@ try {
     function updateTimerCircle() {
         const offset = CIRCUMFERENCE * (1 - timeLeft / initialTime);
         timerCircle.style.strokeDashoffset = offset;
-        // Turn red when < 20%
-        timerCircle.style.stroke = (timeLeft / initialTime < 0.2) ? '#ef4444' : '#06b6d4';
+        setRingColor(timeLeft / initialTime < 0.2 ? 'warning' : 'active');
     }
 
     function setRecordBtn(state) {
@@ -174,19 +213,31 @@ try {
         micIcon.innerHTML = s.icon;
     }
 
+    function renderPrompt() {
+        const part = PARTS[index];
+        qBox.textContent = part.prompts[promptIndex] ?? '';
+        qLabel.textContent = part.cycling
+            ? `Question ${promptIndex + 1} of ${part.prompts.length}`
+            : 'Question';
+    }
+
     function loadQuestion() {
-        if (!questions[index]?.title) { alert('Question data missing. Please refresh.'); return; }
-        qTopic.textContent = questions[index].title;
-        qBox.textContent = questions[index].content ?? '';
-        timeLeft = durations[index];
+        const part = PARTS[index];
+        if (!part?.title) { alert('Question data missing. Please refresh.'); return; }
+        qTopic.textContent = part.title;
+        promptIndex = 0;
+        renderPrompt();
+        timeLeft = part.perPrompt * part.prompts.length;
         initialTime = timeLeft;
         timerEl.textContent = format(timeLeft);
         timerCircle.style.strokeDashoffset = '0';
-        timerCircle.style.stroke = '#06b6d4';
+        setRingColor('active');
         nextBtn.classList.add("hidden");
         recordBtn.disabled = false;
         setRecordBtn('idle');
-        recordStatus.textContent = "Tap to start recording";
+        recordStatus.textContent = part.cycling
+            ? `Tap to start — ${part.prompts.length} questions, ${part.perPrompt}s each`
+            : "Tap to start recording";
         recordingPulse.classList.add("hidden");
         waveform.classList.add("hidden");
         waveform.classList.remove("flex");
@@ -229,6 +280,23 @@ try {
                     timeLeft--;
                     timerEl.textContent = format(timeLeft);
                     updateTimerCircle();
+
+                    // Cycling parts: derive the visible prompt from elapsed
+                    // time so a slow tick can't skip a boundary. One audio
+                    // file per part — only the UI advances.
+                    const part = PARTS[index];
+                    if (part.cycling) {
+                        const elapsed = initialTime - timeLeft;
+                        const nextIdx = Math.min(
+                            Math.floor(elapsed / part.perPrompt),
+                            part.prompts.length - 1
+                        );
+                        if (nextIdx !== promptIndex) {
+                            promptIndex = nextIdx;
+                            renderPrompt();
+                        }
+                    }
+
                     if (timeLeft <= 0) stopRecording();
                 }, 1000);
             } catch(err) {
@@ -319,10 +387,11 @@ try {
         let prepLeft = 60;
         recordBtn.disabled = true;
         nextBtn.classList.add("hidden");
-        qTopic.textContent = questions[1]?.title ?? '';
-        qBox.textContent = questions[1]?.content ?? '';
+        qTopic.textContent = PARTS[1]?.title ?? '';
+        qBox.textContent = PARTS[1]?.prompts?.[0] ?? '';
+        qLabel.textContent = 'Question';
         timerEl.textContent = format(prepLeft);
-        timerCircle.style.stroke = '#f59e0b'; // amber during prep
+        setRingColor('prep');
         timerCircle.style.strokeDashoffset = '0';
         recordStatus.textContent = "Prepare your answer — recording starts automatically";
 

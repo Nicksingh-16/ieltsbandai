@@ -131,6 +131,33 @@ class WritingTestController extends Controller
             ->where('user_id', Auth::id())
             ->firstOrFail();
 
+        // Enforce real IELTS word minimums (Task 1 = 150, Task 2 = 250).
+        // accept_penalty=1 lets a user submit under-length knowing the AI will
+        // score it accordingly — Task Achievement is capped around Band 5 for
+        // under-length responses, per the public band descriptors.
+        $task1    = str_contains($test->category ?? '', 'task1');
+        $minWords = $task1 ? 150 : 250;
+        $words    = str_word_count(trim((string) $request->input('answer')));
+
+        if ($words < $minWords && !$request->boolean('accept_penalty')) {
+            $taskNum = $task1 ? 1 : 2;
+            $message = "Your answer is only {$words} words. IELTS Task {$taskNum} "
+                . "requires at least {$minWords} words — under-length responses "
+                . "cap Task Achievement at around Band 5.";
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success'   => false,
+                    'error'     => 'under_min_words',
+                    'message'   => $message,
+                    'words'     => $words,
+                    'min_words' => $minWords,
+                ], 422);
+            }
+
+            return back()->withInput()->with('error', $message);
+        }
+
         // Save answer and mark as evaluating
         $this->writingService->saveAnswerForEvaluation($testId, $request->input('answer'));
 

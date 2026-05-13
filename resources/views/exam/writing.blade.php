@@ -184,8 +184,13 @@
             Are you ready to submit your answer? <strong>This cannot be undone.</strong><br><br>
             Word count: <strong id="modalWordCount">0</strong>
             &nbsp;|&nbsp; Minimum required: <strong>{{ $minWords }}</strong>
-            <div id="wordWarning" style="display:none;margin-top:10px;padding:8px 12px;background:#FFF3CD;border:1px solid #FFDDA0;border-radius:2px;font-size:13px;color:#7B4F00;">
-                ⚠ Your word count is below the minimum. You may still submit, but this may affect your Task Achievement score.
+            <div id="wordWarning" style="display:none;margin-top:12px;padding:10px 12px;background:#FDECEC;border:1px solid #F5B7B1;border-radius:2px;font-size:13px;color:#922B21;">
+                <strong>⚠ Below the IELTS minimum.</strong><br>
+                Real-exam responses under {{ $minWords }} words cap Task Achievement around Band 5. Edit your essay or tick the box to submit anyway.
+                <label style="display:flex;align-items:flex-start;gap:8px;margin-top:10px;cursor:pointer;font-weight:normal;">
+                    <input type="checkbox" id="acceptPenaltyExam" style="margin-top:3px;" onchange="document.querySelector('.exam-modal-confirm').disabled = !this.checked;">
+                    <span style="font-size:12px;color:#7B2424;">I understand my band will be capped because my response is under {{ $minWords }} words.</span>
+                </label>
             </div>
         </div>
         <div class="exam-modal-actions">
@@ -290,13 +295,21 @@ document.addEventListener('DOMContentLoaded', function () {
     // ── Submit ──
     window.confirmSubmit = function() {
         const count = countWords(textarea.value);
+        const underMin = count < minWords;
         document.getElementById('modalWordCount').textContent = count;
-        document.getElementById('wordWarning').style.display = count < minWords ? 'block' : 'none';
+        document.getElementById('wordWarning').style.display = underMin ? 'block' : 'none';
+        // Under-length submissions require explicit acknowledgement of the
+        // band penalty — disable the confirm button until the checkbox ticks.
+        const checkbox = document.getElementById('acceptPenaltyExam');
+        const confirmBtn = document.querySelector('.exam-modal-confirm');
+        if (checkbox) checkbox.checked = false;
+        if (confirmBtn) confirmBtn.disabled = underMin;
         document.getElementById('submitModal').style.display = 'flex';
     };
 
     window.doSubmit = function() {
         const answer = textarea.value;
+        const acceptPenalty = document.getElementById('acceptPenaltyExam')?.checked ? 1 : 0;
         const btn = document.querySelector('.exam-modal-confirm');
         if (btn) { btn.textContent = 'Submitting…'; btn.disabled = true; }
 
@@ -318,7 +331,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                 'Accept': 'application/json',
             },
-            body: JSON.stringify({ answer }),
+            body: JSON.stringify({ answer, accept_penalty: acceptPenalty }),
             signal: ctrl.signal,
         })
         .then(async r => {

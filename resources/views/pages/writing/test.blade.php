@@ -189,6 +189,11 @@
                 {{-- Writing area --}}
                 <form method="POST" action="{{ route('writing.submit', $test->id) }}" id="writingForm" class="flex flex-col gap-3">
                     @csrf
+                    {{-- Toggled to "1" by the validation modal when the user
+                         knowingly submits below the IELTS word minimum. The
+                         backend rejects under-length submissions unless this
+                         is set. --}}
+                    <input type="hidden" name="accept_penalty" id="acceptPenalty" value="0">
 
                     {{-- Word count bar --}}
                     <div class="flex items-center justify-between text-xs px-1">
@@ -354,6 +359,12 @@ function showValidationModal() {
     const checks = performTaskChecks(text, minWords, task);
     const allPassed = checks.every(c => c.passed);
 
+    // Under-length is a HARD gate, not just a warning. The backend rejects
+    // submissions below the IELTS minimum unless accept_penalty=1.
+    const wordCheck = checks.find(c => c.label === 'Word Count');
+    const underMin  = wordCheck && !wordCheck.passed;
+    const wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0;
+
     const checksHTML = checks.map(c => `
         <div class="flex items-start gap-3 p-3.5 rounded-xl ${c.passed
             ? 'bg-emerald-500/10 border border-emerald-500/30'
@@ -367,6 +378,36 @@ function showValidationModal() {
             </div>
         </div>
     `).join('');
+
+    const statusBanner = underMin ? `
+        <div class="p-3 rounded-xl mb-4 bg-red-500/10 border border-red-500/30">
+            <p class="text-sm font-semibold text-red-200 mb-1">Under the IELTS minimum (${wordCount}/${minWords} words)</p>
+            <p class="text-xs text-red-300/90">In real IELTS, under-length responses cap Task Achievement at around Band 5. The AI score will reflect this. Edit your essay or tick the box below to submit anyway.</p>
+        </div>
+        <label class="flex items-start gap-3 p-3 rounded-xl bg-surface-700/60 border border-surface-600 mb-5 cursor-pointer hover:bg-surface-700/80 transition">
+            <input type="checkbox" id="acceptPenaltyCheck" class="mt-0.5 w-4 h-4 rounded border-surface-500 bg-surface-800 text-red-500 focus:ring-red-500 focus:ring-offset-0 cursor-pointer" onchange="document.getElementById('submitAnywayBtn').disabled = !this.checked;">
+            <span class="text-xs text-surface-200 leading-relaxed">I understand my Task Achievement band will be capped around 5 because my response is under ${minWords} words. Submit anyway.</span>
+        </label>
+    ` : `
+        <div class="p-3 rounded-xl mb-5 ${allPassed
+            ? 'bg-emerald-500/10 border border-emerald-500/30'
+            : 'bg-amber-500/10 border border-amber-500/30'}">
+            <p class="text-sm font-medium text-center ${allPassed ? 'text-emerald-300' : 'text-amber-300'}">
+                ${allPassed
+                    ? 'All checks passed — your essay is ready to submit.'
+                    : 'Some issues detected. You can still submit or go back and fix them.'}
+            </p>
+        </div>
+    `;
+
+    const submitButton = underMin
+        ? `<button id="submitAnywayBtn" onclick="proceedWithSubmission(true)" disabled
+              class="flex-1 px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold text-sm transition disabled:opacity-40 disabled:cursor-not-allowed">
+              Submit anyway
+           </button>`
+        : `<button onclick="proceedWithSubmission(false)" class="btn-primary flex-1">
+              Submit Now
+           </button>`;
 
     document.body.insertAdjacentHTML('beforeend', `
         <div id="validationModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
@@ -385,25 +426,14 @@ function showValidationModal() {
 
                 <div class="space-y-2 mb-5">${checksHTML}</div>
 
-                <div class="p-3 rounded-xl mb-5 ${allPassed
-                    ? 'bg-emerald-500/10 border border-emerald-500/30'
-                    : 'bg-amber-500/10 border border-amber-500/30'}">
-                    <p class="text-sm font-medium text-center ${allPassed ? 'text-emerald-300' : 'text-amber-300'}">
-                        ${allPassed
-                            ? 'All checks passed — your essay is ready to submit.'
-                            : 'Some issues detected. You can still submit or go back and fix them.'}
-                    </p>
-                </div>
+                ${statusBanner}
 
                 <div class="flex gap-3">
                     <button onclick="closeValidationModal()"
                         class="btn-secondary flex-1">
                         Edit More
                     </button>
-                    <button onclick="proceedWithSubmission()"
-                        class="btn-primary flex-1">
-                        Submit Now
-                    </button>
+                    ${submitButton}
                 </div>
             </div>
         </div>
@@ -451,8 +481,11 @@ function closeValidationModal() {
     if (m) m.remove();
 }
 
-function proceedWithSubmission() {
+function proceedWithSubmission(acceptPenalty) {
     validationPassed = true;
+    // Flag the form so the backend knows the user explicitly accepted the
+    // under-length band penalty — otherwise the submit endpoint 422s.
+    document.getElementById('acceptPenalty').value = acceptPenalty ? '1' : '0';
     closeValidationModal();
     document.getElementById('writingForm').dispatchEvent(new Event('submit'));
 }

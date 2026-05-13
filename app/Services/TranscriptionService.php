@@ -306,6 +306,23 @@ class TranscriptionService
             'content_type' => $contentType,
         ]);
         
+        // Deepgram takes parameters via URL query string, not body. The previous
+        // call passed them as the second arg to ->post(), but withBody() had
+        // already claimed the body slot — so Laravel's HTTP client silently
+        // discarded the array. That meant Deepgram defaulted to its weak base
+        // model and produced low-accuracy transcripts (hallucinated text on
+        // accented / browser-mic recordings). Building the URL explicitly so
+        // these params actually reach Deepgram.
+        $deepgramUrl = 'https://api.deepgram.com/v1/listen?' . http_build_query([
+            'model'        => 'nova-2',
+            'language'     => 'en',
+            'punctuate'    => 'true',
+            'diarize'      => 'false',
+            'smart_format' => 'true',
+            'utterances'   => 'false',
+            'numerals'     => 'true',
+        ]);
+
         try {
             $response = Http::timeout($this->uploadTimeout)
                 ->withHeaders([
@@ -313,13 +330,7 @@ class TranscriptionService
                     'Content-Type' => $contentType,
                 ])
                 ->withBody($fileContents, $contentType)
-                ->post('https://api.deepgram.com/v1/listen', [
-                    'model' => 'nova-2',
-                    'language' => 'en',
-                    'punctuate' => true,
-                    'diarize' => false,
-                    'smart_format' => true,
-                ]);
+                ->post($deepgramUrl);
 
             if (!$response->successful()) {
                 Log::error('Deepgram API error', [

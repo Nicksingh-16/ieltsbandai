@@ -260,7 +260,41 @@
                     </audio>
                     @endif
 
-                    @if($transcript)
+                    @php $segments = $audioFile?->getRichTranscriptSegments() ?? []; @endphp
+                    @if(count($segments) > 0)
+                    <div class="bg-surface-700/40 rounded-xl p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <p class="text-xs font-semibold text-surface-400 uppercase tracking-wider">Transcript</p>
+                            <p class="text-[10px] text-surface-600">Hover highlights for details</p>
+                        </div>
+                        <p class="text-sm text-surface-300 leading-loose">
+                            @foreach($segments as $seg)
+                                @if($seg['type'] === 'word')
+                                    {{ $seg['text'] }}
+                                @elseif($seg['type'] === 'filler' && $seg['category'] === 'hesitation')
+                                    <span class="bg-red-500/20 text-red-200 px-1 rounded cursor-help border-b border-red-500/40" title="Hesitation filler — replace with a brief silent pause to lift Fluency & Coherence">{{ $seg['text'] }}</span>
+                                @elseif($seg['type'] === 'filler')
+                                    <span class="bg-amber-500/20 text-amber-200 px-1 rounded cursor-help border-b border-amber-500/40" title="Filler / softener — IELTS examiners notice these. Use sparingly.">{{ $seg['text'] }}</span>
+                                @elseif($seg['type'] === 'pause')
+                                    <span class="inline-block px-1.5 py-0.5 rounded bg-surface-700 text-surface-500 text-[11px] cursor-help align-middle" title="Long pause ({{ $seg['duration'] }}s) — long silences reduce Fluency & Coherence in IELTS">⋯ {{ $seg['duration'] }}s</span>
+                                @endif
+                            @endforeach
+                        </p>
+                        {{-- Legend --}}
+                        <div class="mt-3 pt-3 border-t border-surface-700 flex flex-wrap gap-x-4 gap-y-1.5 text-[10px] text-surface-500">
+                            <span class="inline-flex items-center gap-1.5">
+                                <span class="inline-block w-3 h-3 bg-red-500/30 rounded border border-red-500/50"></span> hesitation filler (um, uh, er)
+                            </span>
+                            <span class="inline-flex items-center gap-1.5">
+                                <span class="inline-block w-3 h-3 bg-amber-500/30 rounded border border-amber-500/50"></span> softener (like, actually, basically)
+                            </span>
+                            <span class="inline-flex items-center gap-1.5">
+                                <span class="inline-block px-1 bg-surface-700 text-surface-500 rounded text-[9px]">⋯ 2s</span> pause &gt; 1.5 sec
+                            </span>
+                        </div>
+                    </div>
+                    @elseif($transcript)
+                    {{-- Legacy rows (pre transcript_words column) fall back to plain text --}}
                     <div class="bg-surface-700/40 rounded-xl p-4">
                         <p class="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">Transcript</p>
                         <p class="text-sm text-surface-300 leading-relaxed">{{ $transcript }}</p>

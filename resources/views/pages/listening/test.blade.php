@@ -12,6 +12,21 @@
     $matchTypes = ['matching_item','heading_match','sentence_ending','feature_match'];
 @endphp
 
+@include('partials.test-instructions', [
+    'module'     => 'listening',
+    'title'      => 'IELTS Listening Test',
+    'timeLabel'  => '40 minutes (30 listen + 10 to review answers)',
+    'startLabel' => "I'm ready — Begin Listening test",
+    'rules' => [
+        '<strong>4 sections, '.$allQuestions->count().' questions.</strong> Each section gets progressively harder.',
+        '<strong>Audio plays ONCE per section.</strong> Once started it cannot be paused, seeked or replayed.',
+        '<strong>Write your answers as you listen</strong> — you will have the last 10 minutes to review and check spelling.',
+        '<strong>Spelling counts.</strong> Answers must match exactly, including capitalisation where required.',
+        '<strong>The 40-minute timer starts the moment you tap Begin</strong> and cannot be paused.',
+        'You can navigate between sections using the S1–S4 tabs to play the audio in any order.',
+    ],
+])
+
 <div class="min-h-screen bg-surface-950 flex flex-col">
 
     {{-- Sticky Header --}}
@@ -60,9 +75,12 @@
                         @php $sectionAudios = $sections['section_audios'] ?? null; @endphp
 
                         @if(is_array($sectionAudios) && count($sectionAudios) === 4)
-                        {{-- Per-section audio (VOA-sourced tests: 4 separate mp3s) --}}
-                        <div x-data="{ active: 1 }" class="space-y-2">
-                            <div class="flex gap-1 mb-2">
+                        {{-- Per-section audio (VOA-sourced tests: 4 separate mp3s).
+                             Real IELTS plays each section once with no replay/seek —
+                             we hide native controls and gate playback through
+                             listeningPlayOnce() in JS. --}}
+                        <div x-data="{ active: 1 }" class="space-y-3">
+                            <div class="flex gap-1 mb-1">
                                 @foreach($sectionAudios as $idx => $url)
                                     @php $n = $idx + 1; @endphp
                                     <button type="button" @click="active = {{ $n }}"
@@ -74,15 +92,51 @@
                             </div>
                             @foreach($sectionAudios as $idx => $url)
                                 @php $n = $idx + 1; @endphp
-                                <audio x-show="active === {{ $n }}" id="sectionAudio{{ $n }}" controls class="w-full rounded-lg" style="filter:invert(0.85) hue-rotate(180deg);">
-                                    <source src="{{ $url }}" type="audio/mpeg">
-                                </audio>
+                                <div x-show="active === {{ $n }}" class="space-y-2">
+                                    <audio id="sectionAudio{{ $n }}" preload="metadata">
+                                        <source src="{{ $url }}" type="audio/mpeg">
+                                    </audio>
+                                    <button type="button"
+                                        data-audio-btn="sectionAudio{{ $n }}"
+                                        data-playing-label="Playing Section {{ $n }}…"
+                                        data-played-label="✓ Section {{ $n }} — Played"
+                                        onclick="listeningPlayOnce('sectionAudio{{ $n }}')"
+                                        class="w-full px-4 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-semibold text-sm transition flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/></svg>
+                                        <span>Play Section {{ $n }}</span>
+                                    </button>
+                                    <div class="bg-surface-700 rounded-full h-1.5 overflow-hidden">
+                                        <div data-audio-fill="sectionAudio{{ $n }}" class="bg-brand-500 h-full transition-all duration-200" style="width:0%"></div>
+                                    </div>
+                                    <p class="flex justify-between text-[10px] text-surface-500">
+                                        <span data-audio-time="sectionAudio{{ $n }}">0:00 / 0:00</span>
+                                        <span class="text-amber-400/80">Plays once — no replay</span>
+                                    </p>
+                                </div>
                             @endforeach
                         </div>
                         @elseif(!empty($sections['audio_url']))
-                        <audio id="mainAudio" controls class="w-full rounded-lg mb-3" style="filter:invert(0.85) hue-rotate(180deg);">
-                            <source src="{{ $sections['audio_url'] }}" type="audio/mpeg">
-                        </audio>
+                        <div class="space-y-2">
+                            <audio id="mainAudio" preload="metadata">
+                                <source src="{{ $sections['audio_url'] }}" type="audio/mpeg">
+                            </audio>
+                            <button type="button"
+                                data-audio-btn="mainAudio"
+                                data-playing-label="Playing audio…"
+                                data-played-label="✓ Audio played"
+                                onclick="listeningPlayOnce('mainAudio')"
+                                class="w-full px-4 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-semibold text-sm transition flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/></svg>
+                                <span>Play Listening Audio</span>
+                            </button>
+                            <div class="bg-surface-700 rounded-full h-1.5 overflow-hidden">
+                                <div data-audio-fill="mainAudio" class="bg-brand-500 h-full transition-all duration-200" style="width:0%"></div>
+                            </div>
+                            <p class="flex justify-between text-[10px] text-surface-500">
+                                <span data-audio-time="mainAudio">0:00 / 0:00</span>
+                                <span class="text-amber-400/80">Plays once — no replay</span>
+                            </p>
+                        </div>
                         @else
                         <div class="bg-surface-700 rounded-xl p-6 text-center mb-3">
                             <svg class="w-10 h-10 text-surface-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -298,23 +352,88 @@
 </div>
 
 <script>
+// One-play listening player. Real IELTS: audio plays once per section, no
+// pause/seek/replay. Hides the native <audio controls> and exposes only a
+// "Play" button that disables after playback completes. State is per-audio
+// via data-played, so the four section audios are independent.
+window.listeningPlayOnce = function(audioId) {
+    const audio = document.getElementById(audioId);
+    if (!audio) return;
+    if (audio.dataset.played === '1' || audio.dataset.playing === '1') return;
+    audio.dataset.playing = '1';
+
+    const btn  = document.querySelector('[data-audio-btn="' + audioId + '"]');
+    const fill = document.querySelector('[data-audio-fill="' + audioId + '"]');
+    const time = document.querySelector('[data-audio-time="' + audioId + '"]');
+
+    const fmt = function(s) {
+        if (!isFinite(s) || s < 0) return '0:00';
+        return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+    };
+
+    if (btn) {
+        btn.disabled = true;
+        const playingLabel = btn.dataset.playingLabel || 'Playing…';
+        const span = btn.querySelector('span');
+        if (span) span.textContent = playingLabel; else btn.textContent = playingLabel;
+    }
+
+    audio.addEventListener('timeupdate', function() {
+        if (audio.duration && fill) fill.style.width = ((audio.currentTime / audio.duration) * 100) + '%';
+        if (time) time.textContent = fmt(audio.currentTime) + ' / ' + fmt(audio.duration);
+    });
+
+    audio.addEventListener('ended', function() {
+        audio.dataset.played = '1';
+        audio.dataset.playing = '';
+        if (btn) {
+            const playedLabel = btn.dataset.playedLabel || '✓ Played';
+            const span = btn.querySelector('span');
+            if (span) span.textContent = playedLabel; else btn.textContent = playedLabel;
+            btn.classList.remove('bg-brand-600', 'hover:bg-brand-500');
+            btn.classList.add('bg-emerald-700');
+        }
+        if (fill) fill.style.width = '100%';
+    });
+
+    audio.play().catch(function(err) {
+        // Permission denied or load failure — reset so the user can retry.
+        audio.dataset.playing = '';
+        if (btn) {
+            btn.disabled = false;
+            const span = btn.querySelector('span');
+            const original = 'Play';
+            if (span) span.textContent = original; else btn.textContent = original;
+        }
+        console.error('Listening audio play failed:', err);
+    });
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     let time = {{ $totalTime }};
     const timerEl = document.getElementById('timer');
 
-    const timerInterval = setInterval(function() {
-        time--;
-        const m = String(Math.floor(time / 60)).padStart(2, '0');
-        const s = String(time % 60).padStart(2, '0');
-        timerEl.textContent = m + ':' + s;
+    // Timer starts only after the user dismisses the instructions overlay.
+    // Real IELTS doesn't time the candidate while they're reading the rules.
+    let timerInterval = null;
+    function startTimer() {
+        if (timerInterval) return;
+        timerInterval = setInterval(function() {
+            time--;
+            const m = String(Math.floor(time / 60)).padStart(2, '0');
+            const s = String(time % 60).padStart(2, '0');
+            timerEl.textContent = m + ':' + s;
 
-        if (time <= 600) timerEl.className = 'font-mono font-bold text-amber-400 text-base tabular-nums';
-        if (time <= 300) timerEl.className = 'font-mono font-bold text-red-400 text-base tabular-nums animate-pulse';
-        if (time <= 0) {
-            clearInterval(timerInterval);
-            document.getElementById('listeningForm').submit();
-        }
-    }, 1000);
+            if (time <= 600) timerEl.className = 'font-mono font-bold text-amber-400 text-base tabular-nums';
+            if (time <= 300) timerEl.className = 'font-mono font-bold text-red-400 text-base tabular-nums animate-pulse';
+            if (time <= 0) {
+                clearInterval(timerInterval);
+                document.getElementById('listeningForm').submit();
+            }
+        }, 1000);
+    }
+    if (window.__testBegun) startTimer();
+    else window.addEventListener('test:begin', startTimer, { once: true });
 
     // Progress tracker
     const form = document.getElementById('listeningForm');

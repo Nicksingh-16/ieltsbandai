@@ -2,7 +2,28 @@
 @php
     $minWords  = $question->min_words ?? ($task === 'task1' ? 150 : 250);
     $totalTime = $question->time_limit ?? ($task === 'task1' ? 1200 : 2400);
+    $taskNum   = str_contains($task, '1') ? 1 : 2;
+    $timeMin   = (int) round($totalTime / 60);
 @endphp
+
+@include('partials.test-instructions', [
+    'module'     => 'writing',
+    'title'      => 'IELTS Writing — Task '.$taskNum,
+    'timeLabel'  => $timeMin.' minutes',
+    'startLabel' => "I'm ready — Begin Writing test",
+    'rules' => array_filter([
+        '<strong>Minimum '.$minWords.' words.</strong> '.($taskNum === 1
+            ? 'Real IELTS caps Task Achievement around Band 5 for responses under 150 words.'
+            : 'Real IELTS caps Task Response around Band 5 for responses under 250 words.'),
+        '<strong>'.$timeMin.'-minute timer</strong> — starts the moment you tap Begin and cannot be paused.',
+        $taskNum === 1
+            ? '<strong>Task 1:</strong> describe the chart/graph/diagram. Stay factual — no personal opinion.'
+            : '<strong>Task 2:</strong> state and maintain a clear position. Support with examples.',
+        '<strong>Structure your answer:</strong> introduction, body paragraphs, conclusion. Avoid one big block of text.',
+        'Use <strong>formal academic English</strong>. Avoid contractions ("don\'t", "it\'s") and slang.',
+        '<strong>Plan before writing</strong> — 2-3 minutes spent planning saves you from rewriting later.',
+    ]),
+])
 
 <div class="min-h-screen bg-surface-950 flex flex-col">
 
@@ -724,9 +745,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Timer
+    // Timer — deferred until the instructions overlay is dismissed.
     let time = {{ $totalTime }};
     const timerEl = document.getElementById('timer');
+    let timerInterval = null;
     function updateTimer() {
         const m = String(Math.floor(time / 60)).padStart(2, '0');
         const s = String(time % 60).padStart(2, '0');
@@ -734,11 +756,28 @@ document.addEventListener('DOMContentLoaded', function() {
         if (time <= 300) timerEl.className = 'font-mono font-bold text-red-400 text-base tabular-nums animate-pulse';
         if (time === 600) { if (Notification.permission === 'granted') new Notification('IELTS Writing — 10 min remaining'); }
         if (time === 300) { if (Notification.permission === 'granted') new Notification('IELTS Writing — 5 min remaining'); }
-        if (time <= 0) { clearInterval(timerInterval); submitBtn.click(); return; }
+        if (time <= 0) {
+            clearInterval(timerInterval);
+            // Time-out submit mirrors real IELTS: the response is collected as-is,
+            // even if under-length. Bypass the pre-submit modal and auto-accept
+            // the band penalty so the backend doesn't 422 on a timed-out essay.
+            document.getElementById('acceptPenalty').value = '1';
+            validationPassed = true;
+            submitForm();
+            return;
+        }
         time--;
     }
-    const timerInterval = setInterval(updateTimer, 1000);
-    updateTimer();
+    function startWritingTimer() {
+        if (timerInterval) return;
+        timerInterval = setInterval(updateTimer, 1000);
+        updateTimer();
+    }
+    if (window.__testBegun) startWritingTimer();
+    else window.addEventListener('test:begin', startWritingTimer, { once: true });
+    // Render the initial time immediately so the timer chip isn't blank while
+    // the overlay is open.
+    timerEl.textContent = String(Math.floor(time / 60)).padStart(2, '0') + ':' + String(time % 60).padStart(2, '0');
 });
 </script>
 

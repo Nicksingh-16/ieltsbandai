@@ -7,6 +7,21 @@
     $matchTypes   = ['matching_item','heading_match','sentence_ending','feature_match'];
 @endphp
 
+@include('partials.test-instructions', [
+    'module'     => 'reading',
+    'title'      => 'IELTS Reading Test',
+    'timeLabel'  => '60 minutes — no extra transfer time',
+    'startLabel' => "I'm ready — Begin Reading test",
+    'rules' => [
+        '<strong>'.$allQuestions->count().' questions on one academic passage.</strong> Real IELTS gives 3 passages with 40 questions in 60 min — this is single-passage practice.',
+        '<strong>All answers come from the passage itself</strong> — do not use outside knowledge.',
+        '<strong>Spelling counts.</strong> Copy words exactly as they appear in the text.',
+        'Question types include True/False/Not Given, Yes/No/Not Given, multiple choice, matching headings, and short answers.',
+        '<strong>The 60-minute timer starts the moment you tap Begin</strong> and cannot be paused. There is no extra time to transfer answers.',
+        'Work through every question — there is no negative marking for wrong answers.',
+    ],
+])
+
 <div class="h-[calc(100vh-4rem)] bg-surface-950 flex flex-col overflow-hidden">
 
     {{-- Sticky Header --}}
@@ -295,18 +310,24 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Timer
+    // Timer — deferred until instructions overlay is dismissed.
     let time = {{ $totalTime }};
     const timerEl = document.getElementById('timer');
-    setInterval(function() {
-        time--;
-        const m = String(Math.floor(time / 60)).padStart(2,'0');
-        const s = String(time % 60).padStart(2,'0');
-        timerEl.textContent = m + ':' + s;
-        if (time <= 600) timerEl.className = 'font-mono font-bold text-amber-400 text-base tabular-nums';
-        if (time <= 300) timerEl.className = 'font-mono font-bold text-red-400 text-base tabular-nums animate-pulse';
-        if (time <= 0) document.getElementById('readingForm').submit();
-    }, 1000);
+    let readingTimerInterval = null;
+    function startReadingTimer() {
+        if (readingTimerInterval) return;
+        readingTimerInterval = setInterval(function() {
+            time--;
+            const m = String(Math.floor(time / 60)).padStart(2,'0');
+            const s = String(time % 60).padStart(2,'0');
+            timerEl.textContent = m + ':' + s;
+            if (time <= 600) timerEl.className = 'font-mono font-bold text-amber-400 text-base tabular-nums';
+            if (time <= 300) timerEl.className = 'font-mono font-bold text-red-400 text-base tabular-nums animate-pulse';
+            if (time <= 0) document.getElementById('readingForm').submit();
+        }, 1000);
+    }
+    if (window.__testBegun) startReadingTimer();
+    else window.addEventListener('test:begin', startReadingTimer, { once: true });
 
     // Question progress tracker
     const form = document.getElementById('readingForm');

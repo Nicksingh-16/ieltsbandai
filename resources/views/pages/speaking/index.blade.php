@@ -1,4 +1,23 @@
 <x-app-layout>
+
+@include('partials.test-instructions', [
+    'module'     => 'speaking',
+    'title'      => 'IELTS Speaking Test',
+    'timeLabel'  => '~7 minutes (3 parts, recorded)',
+    'startLabel' => "I'm ready — Begin Speaking test",
+    'rules' => [
+        '<strong>3 parts</strong> simulating the real IELTS oral interview.',
+        '<strong>Part 1:</strong> 5 short questions on familiar topics, 30 seconds each. Answer naturally.',
+        '<strong>Part 2:</strong> a cue card with 1 minute to prepare, then speak for up to 2 minutes.',
+        '<strong>Part 3:</strong> 5 abstract discussion questions, 30 seconds each.',
+        '<strong>Microphone access required.</strong> Allow when your browser asks.',
+        '<strong>One continuous recording per part.</strong> Speak through the prompts as they auto-advance — don\'t stop to think between them.',
+        'Speak <strong>clearly and at a natural pace</strong>. Hesitation, fillers and pronunciation all affect Fluency & Pronunciation scores.',
+    ],
+])
+
+@include('partials.mock-session-bar')
+
 <div class="min-h-screen bg-surface-950">
 
     {{-- Progress bar --}}

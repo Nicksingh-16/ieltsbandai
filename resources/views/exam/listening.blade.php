@@ -12,6 +12,8 @@
     $matchTypes = ['matching_item','heading_match','sentence_ending','feature_match'];
 @endphp
 
+@include('partials.mock-session-bar')
+
 {{-- ── Exam Header ── --}}
 <div class="exam-header">
     <div class="exam-header-brand">IELTS Band AI</div>
@@ -35,12 +37,27 @@
     </span>
 </div>
 
-{{-- ── Audio Bar (fixed below toolbar) ── --}}
+{{-- ── Audio Bar (fixed below toolbar). Real IELTS: audio plays once with no
+     replay/seek. We hide the native controls and gate playback through
+     listeningPlayOnce(). --}}
 <div style="background:#EEF0F8;border-bottom:1px solid #D0D3DC;padding:10px 24px;display:flex;align-items:center;gap:16px;">
     @if(!empty($sections['audio_url']))
-    <audio id="mainAudio" controls style="flex:1;max-width:640px;height:36px;" controlsList="nodownload noplaybackrate">
-        <source src="{{ $sections['audio_url'] }}" type="audio/mpeg">
-    </audio>
+    <div style="flex:1;max-width:640px;display:flex;align-items:center;gap:12px;">
+        <audio id="mainAudio" preload="metadata"><source src="{{ $sections['audio_url'] }}" type="audio/mpeg"></audio>
+        <button type="button"
+            data-audio-btn="mainAudio"
+            data-playing-label="⏵ Playing…"
+            data-played-label="✓ Played"
+            onclick="listeningPlayOnce('mainAudio')"
+            style="padding:7px 18px;font-size:13px;font-weight:bold;background:#003087;color:#fff;border:none;border-radius:2px;cursor:pointer;white-space:nowrap;">
+            ▶ Play Audio
+        </button>
+        <div style="flex:1;height:6px;background:#D0D3DC;border-radius:3px;overflow:hidden;min-width:120px;">
+            <div data-audio-fill="mainAudio" style="height:100%;background:#003087;width:0%;transition:width 0.2s;"></div>
+        </div>
+        <span data-audio-time="mainAudio" style="font-size:11px;color:#666;min-width:90px;text-align:right;font-family:monospace;">0:00 / 0:00</span>
+    </div>
+    <span style="font-size:11px;color:#922B21;font-weight:bold;white-space:nowrap;">⚠ Plays once</span>
     @else
     <div style="flex:1;max-width:640px;height:36px;background:#fff;border:1px solid #D0D3DC;border-radius:2px;display:flex;align-items:center;padding:0 14px;color:#999;font-size:12px;">
         🔇 Audio will load here when available
@@ -54,6 +71,53 @@
         @endforeach
     </div>
 </div>
+
+<script>
+// Custom one-play player — shared shape with pages/listening/test.blade.php
+// but inlined here because exam-layout doesn't share scripts. State tracked
+// via data-played so a second click after playback is a no-op.
+window.listeningPlayOnce = function(audioId) {
+    const audio = document.getElementById(audioId);
+    if (!audio || audio.dataset.played === '1' || audio.dataset.playing === '1') return;
+    audio.dataset.playing = '1';
+    const btn  = document.querySelector('[data-audio-btn="' + audioId + '"]');
+    const fill = document.querySelector('[data-audio-fill="' + audioId + '"]');
+    const time = document.querySelector('[data-audio-time="' + audioId + '"]');
+    const fmt = function(s) {
+        if (!isFinite(s) || s < 0) return '0:00';
+        return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+    };
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = btn.dataset.playingLabel || 'Playing…';
+        btn.style.background = '#5A6A8C';
+        btn.style.cursor = 'not-allowed';
+    }
+    audio.addEventListener('timeupdate', function() {
+        if (audio.duration && fill) fill.style.width = ((audio.currentTime / audio.duration) * 100) + '%';
+        if (time) time.textContent = fmt(audio.currentTime) + ' / ' + fmt(audio.duration);
+    });
+    audio.addEventListener('ended', function() {
+        audio.dataset.played = '1';
+        audio.dataset.playing = '';
+        if (btn) {
+            btn.textContent = btn.dataset.playedLabel || '✓ Played';
+            btn.style.background = '#1E7E34';
+        }
+        if (fill) fill.style.width = '100%';
+    });
+    audio.play().catch(function(err) {
+        audio.dataset.playing = '';
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '▶ Play Audio';
+            btn.style.background = '#003087';
+            btn.style.cursor = 'pointer';
+        }
+        console.error('Listening audio play failed:', err);
+    });
+};
+</script>
 
 {{-- ── Questions ── --}}
 <div style="height:calc(100vh - 50px - 36px - 58px - 52px);overflow-y:auto;background:#FAFBFE;" class="no-scrollbar">

@@ -7,6 +7,8 @@
     $matchTypes   = ['matching_item','heading_match','sentence_ending','feature_match'];
 @endphp
 
+@include('partials.mock-session-bar')
+
 {{-- ── Exam Header ── --}}
 <div class="exam-header">
     <div class="exam-header-brand">IELTS Band AI</div>

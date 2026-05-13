@@ -8,6 +8,8 @@
     $typeLabel = ucfirst($testType);
 @endphp
 
+@include('partials.mock-session-bar')
+
 {{-- ── Exam Header ── --}}
 <div class="exam-header">
     <div class="exam-header-brand">IELTS Band AI</div>
@@ -241,6 +243,11 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         if (totalSeconds <= 0) {
             clearInterval(timerInterval);
+            // Real IELTS: time-out collects the response as-is. Force the
+            // accept-penalty flag so the backend accepts an under-length
+            // submission instead of bouncing it with a 422.
+            const cb = document.getElementById('acceptPenaltyExam');
+            if (cb) cb.checked = true;
             doSubmit();
         }
     }, 1000);

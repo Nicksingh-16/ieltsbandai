@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Services\LLMRouter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use OpenAI\Laravel\Facades\OpenAI;
 
 class WritingCheckerController extends Controller
 {
@@ -21,32 +21,48 @@ class WritingCheckerController extends Controller
         $wordCount = str_word_count($essay);
 
         try {
-            $response = OpenAI::chat()->create([
-                'model'           => config('services.openai.model', 'gpt-4o'),
-                'max_tokens'      => 400,
-                'response_format' => ['type' => 'json_object'],
-                'messages'        => [
-                    [
-                        'role'    => 'system',
-                        'content' => 'You are an IELTS examiner. Evaluate the provided essay snippet and return JSON only.',
-                    ],
-                    [
-                        'role'    => 'user',
-                        'content' => "Evaluate this IELTS Writing {$taskType} excerpt (partial — first check only) and return JSON with keys:
-- task_response_band: number 1-9 (half bands ok, e.g. 6.5)
-- lexical_resource_band: number 1-9
-- task_response_comment: one short sentence on task achievement
-- lexical_comment: one short sentence on vocabulary
-- top_improvement: single most important improvement to make
-- word_count_ok: boolean (task1 needs 150+, task2 needs 250+)
+            // Tight schema with concrete example — Groq (llama-3.3-70b)
+            // adheres better when the EXACT shape is shown rather than
+            // described in prose.
+            $minWords = $taskType === 'task1' ? 150 : 250;
+            $systemPrompt = 'You are an IELTS examiner. Return a SINGLE JSON object with EXACTLY these keys and no others. No prose, no markdown, no code fences.';
+            $userPrompt = "Evaluate this IELTS Writing {$taskType} excerpt and respond with JSON in this exact shape:
 
-Essay ({$wordCount} words):
-{$essay}",
-                    ],
-                ],
-            ]);
+{
+  \"task_response_band\": 6.5,
+  \"lexical_resource_band\": 6.5,
+  \"task_response_comment\": \"one short sentence\",
+  \"lexical_comment\": \"one short sentence\",
+  \"top_improvement\": \"single most important improvement\",
+  \"word_count_ok\": true
+}
 
-            $data = json_decode($response->choices[0]->message->content, true);
+Rules:
+- Bands are numbers 1–9, half-bands allowed (5.5, 6.0, 6.5…)
+- word_count_ok is true if the essay has at least {$minWords} words (it has {$wordCount}).
+- All keys are mandatory.
+
+Essay:
+{$essay}";
+
+            $body = app(LLMRouter::class)
+                ->withContext(auth()->id(), null, 'writing_checker_seo')
+                ->chatCompletion([
+                    'max_tokens'  => 400,
+                    'temperature' => 0.1,
+                    'messages'    => [
+                        ['role' => 'system', 'content' => $systemPrompt],
+                        ['role' => 'user',   'content' => $userPrompt],
+                    ],
+                ]);
+            $content = $body['choices'][0]['message']['content'] ?? '';
+            // Strip code fences if present; also extract the first {...} block
+            // in case the model added a stray sentence.
+            $content = preg_replace('/^```(?:json)?\s*|\s*```$/m', '', trim($content));
+            if (preg_match('/\{[\s\S]*\}/', $content, $m)) {
+                $content = $m[0];
+            }
+            $data = json_decode($content, true) ?: [];
 
             return response()->json([
                 'success'              => true,
@@ -60,7 +76,7 @@ Essay ({$wordCount} words):
                 'requires_signup'      => !auth()->check(), // full feedback requires account
             ]);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('WritingChecker failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'Analysis failed. Please try again.'], 500);
         }

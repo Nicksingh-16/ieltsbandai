@@ -54,10 +54,12 @@ class InstituteController extends Controller
             'seats_used'    => 1,
         ]);
 
-        $user->update([
+        // institute_id and institute_role are deliberately not in User::$fillable
+        // (privileged fields). This is trusted server-side code so we forceFill.
+        $user->forceFill([
             'institute_id'   => $institute->id,
             'institute_role' => 'owner',
-        ]);
+        ])->save();
 
         return redirect()->route('institute.dashboard')
             ->with('success', 'Institute registered successfully!');

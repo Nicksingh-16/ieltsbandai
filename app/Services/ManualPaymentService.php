@@ -97,10 +97,40 @@ class ManualPaymentService
             throw new \RuntimeException("Payment already has status {$payment->status} — cannot re-submit.");
         }
 
+        // Dup-UTR fraud guard. A UTR can identify exactly one bank transaction
+        // so it must be unique across all payments. We block both completed
+        // and pending_verification because credits get granted at UTR submit
+        // (trust-then-verify), so a dup would double-grant before admin sees
+        // it. Refunded payments are exempt — the UTR may legitimately have
+        // been re-typed on a re-attempt after admin revoked the first one.
+        $dup = Payment::where('proof_id', $utr)
+            ->whereIn('status', ['pending_verification', 'completed'])
+            ->where('id', '!=', $payment->id)
+            ->exists();
+        if ($dup) {
+            Log::warning('Duplicate UTR submission blocked', [
+                'utr'        => $utr,
+                'payment_id' => $payment->id,
+                'user_id'    => $payment->user_id,
+            ]);
+            throw new \RuntimeException('This UTR is already linked to another payment. Each bank transaction has a unique UTR — double-check your UPI app receipt or contact support.');
+        }
+
         return DB::transaction(function () use ($payment, $utr) {
             $locked = Payment::whereKey($payment->id)->lockForUpdate()->first();
             if (!$locked || $locked->status !== 'pending') {
                 throw new \RuntimeException('Payment was already processed.');
+            }
+
+            // Re-check inside the transaction so two concurrent submitUtr
+            // calls with the same UTR can't both pass the pre-flight check.
+            $dupLocked = Payment::where('proof_id', $utr)
+                ->whereIn('status', ['pending_verification', 'completed'])
+                ->where('id', '!=', $locked->id)
+                ->lockForUpdate()
+                ->exists();
+            if ($dupLocked) {
+                throw new \RuntimeException('This UTR is already linked to another payment.');
             }
 
             $locked->proof_id = $utr;

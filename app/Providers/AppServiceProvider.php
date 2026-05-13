@@ -79,6 +79,33 @@ $this->app->bind(
                     'or GROQ_API_KEY or GEMINI_API_KEY_1..5 via your production secrets store.'
                 );
             }
+
+            // Additional production guards. Each is an explicit assertion so
+            // a misconfigured deploy fails loud at first HTTP hit rather than
+            // silently misbehaving.
+            if (config('app.debug') === true) {
+                throw new \RuntimeException(
+                    'APP_DEBUG must be false in production — leaks stack traces and config.'
+                );
+            }
+
+            if (config('queue.default') === 'sync') {
+                throw new \RuntimeException(
+                    'QUEUE_CONNECTION=sync in production would make every mail / LLM job ' .
+                    'block the request. Set QUEUE_CONNECTION=database (or redis) and run ' .
+                    'a queue worker (php artisan queue:work).'
+                );
+            }
+
+            $mailFrom = (string) config('mail.from.address', '');
+            if (in_array(config('mail.default'), ['log', 'array'], true)
+                || str_ends_with($mailFrom, '@resend.dev')) {
+                throw new \RuntimeException(
+                    'Mail not configured for production. MAIL_MAILER must be a real ' .
+                    'transport (resend/smtp/ses) and MAIL_FROM_ADDRESS must use a ' .
+                    'verified domain (not @resend.dev).'
+                );
+            }
         }
     }
 }

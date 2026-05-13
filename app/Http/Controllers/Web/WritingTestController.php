@@ -142,6 +142,15 @@ class WritingTestController extends Controller
         // for LLM scoring on the submit POST.
         WritingEvaluationJob::dispatchAfterResponse($testId);
 
+        // XHR / fetch: return JSON so the Alpine submit handler can show
+        // its in-page transition. Plain form-submit (JS disabled or guard
+        // bypassed): redirect so the user lands on the result page instead
+        // of staring at raw JSON.
+        if (!$request->wantsJson() && !$request->ajax()) {
+            return redirect()->route('writing.result', $testId)
+                ->with('success', 'Your writing has been submitted. Evaluating…');
+        }
+
         return response()->json([
             'success'  => true,
             'message'  => 'Your writing has been submitted. Evaluating…',
@@ -273,7 +282,9 @@ class WritingTestController extends Controller
             abort(403);
         }
 
-        $result = json_decode($test->result, true);
+        $result = is_string($test->result)
+            ? (json_decode($test->result, true) ?: [])
+            : (is_array($test->result) ? $test->result : []);
 
         // Return cached version if already generated
         if (!empty($result['band_9_rewrite'])) {
@@ -335,12 +346,14 @@ class WritingTestController extends Controller
             abort(403);
         }
 
-        $metadata = json_decode($test->metadata, true) ?? [];
+        $metadata = is_string($test->metadata)
+            ? (json_decode($test->metadata, true) ?: [])
+            : (is_array($test->metadata) ? $test->metadata : []);
         $metadata['draft'] = $request->input('answer');
         $metadata['last_saved'] = now()->toISOString();
 
         $test->update([
-            'metadata' => json_encode($metadata),
+            'metadata' => $metadata,
         ]);
 
         return response()->json([
@@ -365,7 +378,9 @@ class WritingTestController extends Controller
             ->where('status', 'completed')
             ->firstOrFail();
 
-        $result = json_decode($test->result, true) ?? [];
+        $result = is_string($test->result)
+            ? (json_decode($test->result, true) ?: [])
+            : (is_array($test->result) ? $test->result : []);
 
         $context = sprintf(
             "IELTS Writing Result Context:\n" .

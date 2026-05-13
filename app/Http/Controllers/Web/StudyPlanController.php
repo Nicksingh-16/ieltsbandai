@@ -8,7 +8,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use OpenAI\Laravel\Facades\OpenAI;
+
+
 
 class StudyPlanController extends Controller
 {
@@ -102,19 +103,22 @@ Create a 4-week improvement plan. Return JSON:
 PROMPT;
 
         try {
-            $response = OpenAI::chat()->create([
-                'model'           => config('services.openai.model', 'gpt-4o'),
-                'max_tokens'      => 2000,
-                'response_format' => ['type' => 'json_object'],
-                'messages'        => [
-                    ['role' => 'system', 'content' => 'You are an expert IELTS coach. Return valid JSON only.'],
-                    ['role' => 'user',   'content' => $prompt],
-                ],
-            ]);
-
-            $data = json_decode($response->choices[0]->message->content, true);
-            return $data ?? $this->fallbackPlan($overall);
-        } catch (\Exception $e) {
+            $body = app(\App\Services\LLMRouter::class)
+                ->withContext(\Illuminate\Support\Facades\Auth::id(), $test->id, 'study_plan')
+                ->chatCompletion([
+                    'max_tokens'  => 2000,
+                    'temperature' => 0.3,
+                    'messages'    => [
+                        ['role' => 'system', 'content' => 'You are an expert IELTS coach. Return valid JSON only. No markdown, no code fences.'],
+                        ['role' => 'user',   'content' => $prompt],
+                    ],
+                ]);
+            $content = $body['choices'][0]['message']['content'] ?? '';
+            // Strip optional code fences some providers add.
+            $content = preg_replace('/^```(?:json)?\s*|\s*```$/m', '', trim($content));
+            $data = json_decode($content, true);
+            return is_array($data) ? $data : $this->fallbackPlan($overall);
+        } catch (\Throwable $e) {
             Log::error('StudyPlan generation failed', ['error' => $e->getMessage()]);
             return $this->fallbackPlan($overall);
         }

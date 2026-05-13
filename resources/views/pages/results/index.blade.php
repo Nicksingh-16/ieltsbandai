@@ -221,14 +221,16 @@
 <div class="max-w-6xl mx-auto px-4 py-8">
 
     {{-- ── Header ── --}}
-    <div class="flex items-center justify-between mb-8">
+    {{-- Wraps to multi-line on mobile so the action cluster (Test#, Share,
+         PDF, Print) doesn't overflow the 375px viewport. --}}
+    <div class="flex flex-wrap items-center justify-between gap-y-3 mb-8">
         <a href="{{ route('dashboard') }}" class="btn-ghost">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
             </svg>
             Dashboard
         </a>
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
             <span class="tag-cyan">{{ $task_info['title'] ?? 'Writing Test' }}</span>
             <span class="text-surface-500 text-xs">· Test #{{ $test->id }}</span>
             <button @click="openShareModal = true" class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5">

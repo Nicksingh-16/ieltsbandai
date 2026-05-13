@@ -274,11 +274,17 @@ require __DIR__.'/auth.php';
 // Route::get('/pricing', [PricingController::class, 'index'])->name('pricing');
 
 // ── Manual UPI paywall (beta — active while Razorpay is gated on domain) ─────
+// Throttles cap fraud blast radius: trust-then-grant means a malicious user
+// could spam fake UTRs to amass free credits otherwise.
 Route::middleware('auth')->group(function () {
     Route::get('/get-credits',          [\App\Http\Controllers\Web\PaywallController::class, 'index'])->name('paywall.index');
-    Route::post('/get-credits/start',   [\App\Http\Controllers\Web\PaywallController::class, 'start'])->name('paywall.start');
+    Route::post('/get-credits/start',   [\App\Http\Controllers\Web\PaywallController::class, 'start'])
+        ->middleware('throttle:6,1440') // 6 new payment orders / user / day
+        ->name('paywall.start');
     Route::get('/get-credits/pay/{ref}',[\App\Http\Controllers\Web\PaywallController::class, 'pay'])->name('paywall.pay');
-    Route::post('/get-credits/pay/{ref}/utr', [\App\Http\Controllers\Web\PaywallController::class, 'submitUtr'])->name('paywall.utr');
+    Route::post('/get-credits/pay/{ref}/utr', [\App\Http\Controllers\Web\PaywallController::class, 'submitUtr'])
+        ->middleware('throttle:3,1440') // 3 UTR submissions / user / day (covers retries, blocks abuse)
+        ->name('paywall.utr');
     Route::get('/get-credits/receipt/{ref}', [\App\Http\Controllers\Web\PaywallController::class, 'receipt'])->name('paywall.receipt');
 });
 

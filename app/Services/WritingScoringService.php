@@ -28,30 +28,26 @@ class WritingScoringService
     try {
         $prompt = $this->buildWritingScoringPrompt($answer, $question);
 
-        $response = Http::timeout(45)->withHeaders([
-            'Authorization' => 'Bearer ' . $this->apiKey,
-            'Content-Type'  => 'application/json',
-        ])->post($this->baseUrl . '/chat/completions', [
-            'model' => config('services.openai.model', 'gpt-4o-mini'),
-            'messages' => [
-                ['role' => 'system', 'content' => 'You are an IELTS examiner. Return JSON only. No markdown. No code blocks.'],
-                ['role' => 'user', 'content' => $prompt],
-            ],
-            'temperature' => 0.2,
-            'max_tokens' => 3000,
-            'response_format' => ['type' => 'json_object'],
-        ]);
+        // Route through LLMRouter (Groq → Gemini fallback chain) so the demo
+        // flow keeps working when OPENAI_API_KEY is a Gemini-shaped key.
+        $body = app(\App\Services\LLMRouter::class)
+            ->withContext(\Illuminate\Support\Facades\Auth::id(), null, 'demo_scoring')
+            ->chatCompletion([
+                'temperature' => 0.2,
+                'max_tokens'  => 3000,
+                'messages'    => [
+                    ['role' => 'system', 'content' => 'You are an IELTS examiner. Return JSON only. No markdown. No code blocks.'],
+                    ['role' => 'user',   'content' => $prompt],
+                ],
+            ]);
 
-        if (!$response->successful()) {
-            Log::error('OpenAI error', ['body' => $response->body()]);
-            return null;
-        }
-
-        $content = $response->json('choices.0.message.content');
+        $content = $body['choices'][0]['message']['content'] ?? null;
         if (!$content) {
-            Log::error('OpenAI empty response');
+            Log::error('Demo scoring empty response');
             return null;
         }
+        // Strip optional code fences some providers add.
+        $content = preg_replace('/^```(?:json)?\s*|\s*```$/m', '', trim($content));
 
         if (env('IELTS_DEBUG')) {
             Log::debug('🧠 GPT raw response', ['content' => $content]);

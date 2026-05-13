@@ -33,10 +33,10 @@ export default {
                     900: '#131c2e', // slightly lighter bg
                     800: '#1e293b', // card bg
                     700: '#263348', // card hover / elevated
-                    600: '#334155', // borders
-                    500: '#475569', // muted borders
-                    400: '#64748b', // placeholder text
-                    300: '#94a3b8', // secondary text
+                    600: '#8492a8', // borders + meta-text (≥4.5:1 on surface-800 for AA text contrast; many views use as text rather than border)
+                    500: '#94a3b8', // text-as-muted — WCAG AA (≥4.5:1) for fine print on surface-950
+                    400: '#a5b4cb', // placeholder + small meta text (≥4.5:1 on dark bgs)
+                    300: '#bcc8de', // secondary text
                     200: '#cbd5e1', // body text
                     100: '#e2e8f0', // headings
                     50:  '#f1f5f9', // bright headings

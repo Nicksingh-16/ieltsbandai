@@ -42,13 +42,16 @@
     }
 
     /* ── Buttons ── */
+    /* brand-500 (#06b6d4) on white text is 2.4:1 — fails WCAG AA. Using
+       brand-700 (#0e7490) as the base brings white text to 4.6:1. The
+       hover state keeps the cyan glow by jumping to brand-600 on hover. */
     .btn-primary {
         @apply inline-flex items-center justify-center gap-2
-               bg-brand-500 hover:bg-brand-600 active:bg-brand-700
+               bg-brand-700 hover:bg-brand-600 active:bg-brand-800
                text-white font-semibold
                px-5 py-2.5 rounded-xl
                transition-all duration-150
-               focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-surface-950
+               focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2 focus:ring-offset-surface-950
                disabled:opacity-50 disabled:cursor-not-allowed;
     }
     .btn-secondary {

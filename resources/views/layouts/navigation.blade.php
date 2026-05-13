@@ -18,6 +18,9 @@
                 </a>
 
                 {{-- ── Desktop Nav Links ── --}}
+                {{-- Auth-gated block: this layout is reachable by guests (e.g. /feedback),
+                     so all auth()->user()->... access must be inside @auth. --}}
+                @auth
                 <div class="hidden md:flex items-center gap-1">
                     <a href="{{ route('dashboard') }}"
                        class="nav-link {{ request()->routeIs('dashboard') ? 'nav-link-active' : '' }}">
@@ -131,6 +134,14 @@
             </div>
 
             {{-- ── Right Side ── --}}
+            @endauth
+            @guest
+            <div class="hidden md:flex items-center gap-3">
+                <a href="{{ route('login') }}" class="nav-link">Log in</a>
+                <a href="{{ route('register') }}" class="btn-primary text-sm px-4 py-2">Sign up free</a>
+            </div>
+            @endguest
+            @auth
             <div class="hidden md:flex items-center gap-3">
                 {{-- Upgrade button (with credit count badge for free users) --}}
                 @if(!auth()->user()->hasActiveSubscription())
@@ -222,6 +233,7 @@
                     </div>
                 </div>
             </div>
+            @endauth
 
             {{-- ── Mobile Hamburger ── --}}
             <button @click="open = !open"
@@ -236,6 +248,13 @@
 
     {{-- ── Mobile Menu ── --}}
     <div :class="{ 'block': open, 'hidden': !open }" class="hidden md:hidden border-t border-surface-600 bg-surface-900">
+        @guest
+        <div class="px-4 py-3 space-y-1">
+            <a href="{{ route('login') }}" class="block px-3 py-2.5 rounded-xl text-sm font-medium text-surface-300 hover:bg-surface-800">Log in</a>
+            <a href="{{ route('register') }}" class="block px-3 py-2.5 rounded-xl text-sm font-medium text-brand-300 hover:bg-surface-800">Sign up free</a>
+        </div>
+        @endguest
+        @auth
         {{-- Nav links --}}
         <div class="px-4 py-3 space-y-1">
             <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium {{ request()->routeIs('dashboard') ? 'bg-surface-700 text-brand-400' : 'text-surface-300 hover:bg-surface-800 hover:text-surface-100' }}">
@@ -294,5 +313,6 @@
                 </form>
             </div>
         </div>
+        @endauth
     </div>
 </nav>

@@ -73,7 +73,9 @@ class ReadingTestController extends Controller
             return back()->with('error', 'Could not start test: ' . $e->getMessage());
         }
 
-        $meta = json_decode($question->metadata ?? '{}', true);
+        $meta = is_string($question->metadata)
+            ? (json_decode($question->metadata, true) ?: [])
+            : (is_array($question->metadata) ? $question->metadata : []);
 
         $viewName = $request->boolean('exam_mode') ? 'exam.reading' : 'pages.reading.test';
 
@@ -93,7 +95,9 @@ class ReadingTestController extends Controller
 
         $submitted  = $request->input('answers', []);
         $question   = $test->questions()->first();
-        $meta       = json_decode($question->metadata ?? '{}', true);
+        $meta       = is_string($question->metadata)
+            ? (json_decode($question->metadata, true) ?: [])
+            : (is_array($question->metadata) ? $question->metadata : []);
         $allQs      = $meta['questions'] ?? [];
 
         $correct = 0;
@@ -160,8 +164,12 @@ class ReadingTestController extends Controller
             ->firstOrFail();
 
         $question = $test->questions()->first();
-        $meta     = json_decode($question->metadata ?? '{}', true);
-        $result   = json_decode($test->result ?? '{}', true);
+        $meta     = is_string($question->metadata)
+            ? (json_decode($question->metadata, true) ?: [])
+            : (is_array($question->metadata) ? $question->metadata : []);
+        $result   = is_string($test->result)
+            ? (json_decode($test->result, true) ?: [])
+            : (is_array($test->result) ? $test->result : []);
         $answers  = $result['answers'] ?? [];
 
         return view('pages.reading.result', compact('test', 'question', 'meta', 'result', 'answers'));

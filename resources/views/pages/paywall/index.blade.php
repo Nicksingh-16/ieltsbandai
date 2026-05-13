@@ -103,7 +103,7 @@
             @php $basic = $subscription['monthly_basic']; @endphp
             <div class="card relative p-6 border-brand-500/40 bg-gradient-to-b from-brand-500/5 to-surface-900 ring-1 ring-brand-500/30">
                 @if(!empty($basic['badge']))
-                <div class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-brand-500 text-white text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-brand-500/30">
+                <div class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-brand-700 text-white text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-brand-500/30">
                     {{ $basic['badge'] }}
                 </div>
                 @endif

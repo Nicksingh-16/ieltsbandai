@@ -69,8 +69,17 @@ class RegisteredUserController extends Controller
             'beta'        => (bool) config('beta.enabled'),
         ], $user);
 
-        // Send welcome email (queued — non-blocking)
-        Mail::to($user)->queue(new WelcomeMail($user));
+        // Send welcome email (best-effort — never let mail failure break signup).
+        // Resend in test mode rejects mail to unverified domains; queue is sync
+        // by default so the exception would propagate to a 500.
+        try {
+            Mail::to($user)->queue(new WelcomeMail($user));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Welcome mail failed (non-fatal)', [
+                'user_id' => $user->id,
+                'error'   => $e->getMessage(),
+            ]);
+        }
 
         return redirect(route('dashboard', absolute: false));
     }

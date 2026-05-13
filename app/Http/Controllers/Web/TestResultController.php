@@ -32,7 +32,9 @@ class TestResultController extends Controller
         // Prepare scores array for the view
         if ($test->type === 'writing') {
             // For writing tests, extract from result JSON
-            $result = json_decode($test->result, true) ?? [];
+            $result = is_string($test->result)
+                ? (json_decode($test->result, true) ?: [])
+                : (is_array($test->result) ? $test->result : []);
             
             $scores = [
                 'task_achievement' => $result['task_achievement'] ?? 0,
@@ -63,7 +65,9 @@ class TestResultController extends Controller
                 $scores[$testScore->criteria] = $testScore->band_score;
             }
 
-            $metadata       = json_decode($test->metadata ?? '{}', true);
+            $metadata       = is_string($test->metadata)
+                ? (json_decode($test->metadata, true) ?: [])
+                : (is_array($test->metadata) ? $test->metadata : []);
             $fillerAnalysis = $metadata['filler_analysis']    ?? [];
             $repetitionData = $metadata['repetition_analysis'] ?? [];
             $examinerComments = $metadata['examiner_comments'] ?? [];

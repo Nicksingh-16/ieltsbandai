@@ -261,8 +261,25 @@ foreach ($rawErrors as $i => $e) {
     [$highlightedEssay, $positioned, $unpositioned] =
         $this->processErrorsForHighlighting($original, $errors);
 
+    // For self-evaluation tests, there's no test_questions row — the prompt
+    // the user pasted is stored on metadata.user_question. Synthesise a
+    // Question-shaped stdClass so the view doesn't break on $question->content.
     $testQuestion = $test->testQuestions->first();
     $question = $testQuestion?->question ?? null;
+
+    if (!$question) {
+        $metadata = is_string($test->metadata)
+            ? (json_decode($test->metadata, true) ?: [])
+            : ($test->metadata ?? []);
+        if (!empty($metadata['user_question'])) {
+            $question = (object) [
+                'content'  => $metadata['user_question'],
+                'title'    => 'Self-evaluation prompt',
+                'category' => $test->category,
+                'metadata' => [],
+            ];
+        }
+    }
 
     return [
         'test'     => $test,
@@ -275,7 +292,7 @@ foreach ($rawErrors as $i => $e) {
             'overall_band'       => $result['overall_band']       ?? 0,
             'band_confidence_range' => $result['band_confidence_range'] ?? null,
         ],
-        'feedback' => $result['feedback'],
+        'feedback' => $result['feedback'] ?? null,
         'examiner_comments' => $result['examiner_comments'] ?? [],
         'band_explanations' => $result['band_explanations'] ?? [],
         'descriptor_match'  => $result['descriptor_match']  ?? [],
@@ -287,7 +304,7 @@ foreach ($rawErrors as $i => $e) {
         'errors' => $positioned,
         'unpositioned_errors' => $unpositioned,
         'highlightedEssay' => $highlightedEssay,
-        'word_count' => $result['word_count'],
+        'word_count' => $result['word_count'] ?? str_word_count(trim((string) ($test->answer ?? ''))),
         'original_answer' => $result['original_answer'] ?? ($test->answer ?? ''),
         'task_info' => $this->getTaskInfo($test->category),
     ];

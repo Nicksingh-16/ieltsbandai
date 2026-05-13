@@ -51,7 +51,7 @@ class RegisteredUserController extends Controller
             'email'             => $request->email,
             'password'          => Hash::make($request->password),
             'test_credits'      => $signupCredits,
-            'self_eval_credits' => 5,        // separate pool for the /evaluate page
+            'self_eval_credits' => 1,        // separate pool for the /evaluate page
             'ref_source'        => $request->session()->pull('ref_source'),
         ])->save();
 

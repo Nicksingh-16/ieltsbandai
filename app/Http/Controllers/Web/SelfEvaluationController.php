@@ -58,7 +58,7 @@ class SelfEvaluationController extends Controller
         // Out of credits → paywall.
         if (!$isPro && $remaining <= 0) {
             return redirect()->route('paywall.index', ['from' => 'self_eval'])
-                ->with('error', "You've used your 5 free essay evaluations. Pick a plan below to keep going.");
+                ->with('error', "You've used your free essay evaluation. Pick a plan below to keep going.");
         }
 
         // Hard word-count floor — under 100 words can't produce useful scoring

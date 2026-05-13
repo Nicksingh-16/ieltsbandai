@@ -352,7 +352,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             @foreach([
                 ['Rahul S.','Mumbai · Targeting Canada PR','🇮🇳','I was stuck at 6.5 in writing for 2 months. Coaching nahi help kar raha tha. This site told me my Task Achievement was the real problem — not grammar. Got 7.0 on real test.',7.0,6.5,'brand'],
-                ['Aisha K.','Dubai · Master\'s in UK','🇦🇪','Honestly didn\'t expect much. But it caught that I was speaking too fast in Part 2 — same thing my tutor said later. Speaking went 6.5 → 7. Worth the ₹299.',7.0,6.5,'emerald'],
+                ['Aisha K.','Dubai · Master\'s in UK','🇦🇪','Honestly didn\'t expect much. But it caught that I was speaking too fast in Part 2 — same thing my tutor said later. Speaking went 6.5 → 7. Worth the ₹99.',7.0,6.5,'emerald'],
                 ['Priya M.','Ahmedabad · Australia PR','🇮🇳','Spent ₹15,000 on a coaching centre. Still didn\'t know my real band. One week of practice here, I knew exactly which areas were dragging me down. Cleared 7.5 in writing.',7.5,6.0,'purple'],
             ] as [$name,$loc,$flag,$quote,$after,$before,$color])
             <div class="card p-5">
@@ -1137,7 +1137,7 @@
             </div>
             <div class="card p-6 text-center border-brand-500/40" style="background: linear-gradient(135deg, rgba(6,182,212,0.06) 0%, rgba(30,41,59,1) 60%);">
                 <p class="text-[10px] text-brand-400 uppercase tracking-widest mb-2 font-semibold">IELTS Band AI</p>
-                <p class="text-3xl font-black text-surface-50 mb-1">₹299/month</p>
+                <p class="text-3xl font-black text-surface-50 mb-1">₹99/month</p>
                 <p class="text-sm text-emerald-300">Instant · score in 60 seconds</p>
             </div>
         </div>
@@ -1294,7 +1294,7 @@
 
         <p class="text-center text-sm text-surface-500 mt-8">
             Coaching: ₹15,000+ → slow. Tutor: ₹500/essay → delayed.<br>
-            <span class="text-surface-300 font-medium">IELTS Band AI: ₹299/month → instant score, unlimited tests.</span>
+            <span class="text-surface-300 font-medium">IELTS Band AI: ₹99/month → instant score, unlimited tests.</span>
         </p>
 
     </div>

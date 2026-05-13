@@ -45,7 +45,7 @@ return [
         'single_speaking' => [
             'label'        => 'Speaking Practice',
             'subtitle'     => '1 Speaking test (Parts 1–3) with transcript',
-            'price'        => 12,
+            'price'        => 14,
             'credits'      => 1,
             'duration_days'=> null,
             'tier'         => 'standard',
@@ -67,9 +67,9 @@ return [
             'features'     => [
                 'All four IELTS modules in one session',
                 'Combined band-score report',
-                'Saves ₹16 vs buying individually',
+                'Saves ₹21 vs buying individually (₹41 → ₹20)',
             ],
-            'badge'        => 'Save 44%',
+            'badge'        => 'Save 51%',
         ],
 
         // Self-evaluation pack — for users who want to evaluate their own

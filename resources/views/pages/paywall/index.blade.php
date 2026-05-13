@@ -215,10 +215,12 @@
         {{-- The crux of the anchoring: make the math obvious --}}
         <p class="text-center text-xs text-surface-500 mt-4 leading-relaxed">
             <span class="text-amber-300">Heads up:</span>
-            5 single Writing tests already cost
-            <span class="text-surface-200 font-semibold">{{ $symbol }}45</span> &mdash;
-            for half that, Pro Monthly gets you
-            <span class="text-brand-300 font-semibold">unlimited</span> tests across all 4 modules.
+            Buying each module individually adds up to
+            <span class="text-surface-200 font-semibold">{{ $symbol }}41</span>
+            (Writing {{ $symbol }}9 + Speaking {{ $symbol }}14 + Reading {{ $symbol }}9 + Listening {{ $symbol }}9).
+            The Full Mock gives you all four for
+            <span class="text-emerald-300 font-semibold">{{ $symbol }}20</span> &mdash;
+            or go <span class="text-brand-300 font-semibold">unlimited</span> with Pro Monthly for {{ $symbol }}99.
         </p>
     </div>
 

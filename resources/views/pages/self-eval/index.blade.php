@@ -60,7 +60,7 @@
         </p>
         @unless($isPro)
         <p class="text-xs text-surface-500 mt-3">
-            First <span class="font-semibold text-emerald-400">5 evaluations are free</span>.
+            Your first <span class="font-semibold text-emerald-400">evaluation is free</span>.
             After that, each one is ₹10 via UPI.
         </p>
         @endunless
@@ -155,7 +155,7 @@
         <div class="flex-1">
             <p class="text-sm font-semibold text-amber-100">
                 @if($remaining === 0)
-                    You've used all 5 free evaluations
+                    You've used your free evaluation
                 @else
                     Only {{ $remaining }} {{ $remaining === 1 ? 'evaluation' : 'evaluations' }} left
                 @endif

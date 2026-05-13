@@ -17,7 +17,7 @@ return [
 
     // Credits granted to a brand-new signup during the beta. Outside beta
     // mode, falls through to config('packages.free.credits').
-    'signup_credits' => (int) env('BETA_SIGNUP_CREDITS', 8),
+    'signup_credits' => (int) env('BETA_SIGNUP_CREDITS', 3),
 
     // Where the "give feedback" link in the banner points. Use a Tally /
     // Google Form / Notion form. Leave empty to disable the link (banner

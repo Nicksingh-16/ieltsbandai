@@ -16,10 +16,12 @@ class AudioFile extends Model
         'size_kb',
         'transcript',
         'transcript_words',
+        'grammar_matches',
     ];
 
     protected $casts = [
         'transcript_words' => 'array',
+        'grammar_matches'  => 'array',
     ];
 
     public function test()

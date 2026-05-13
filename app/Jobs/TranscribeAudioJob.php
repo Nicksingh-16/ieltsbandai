@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\AudioFile;
 use App\Models\Test;
 use App\Services\TranscriptionService;
+use App\Services\LanguageToolClient;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -76,6 +77,41 @@ class TranscribeAudioJob implements ShouldQueue
             'transcript_length' => strlen($transcript),
             'word_count'        => count($words),
         ]);
+
+        // Best-effort grammar check via self-hosted LanguageTool. If the
+        // service isn't reachable (Docker container not running etc.) the
+        // client returns 'available' => false and we leave grammar_matches
+        // null. The result page hides the grammar panel in that case.
+        try {
+            $lt = app(LanguageToolClient::class)->check($transcript);
+            if ($lt['available'] && !empty($lt['raw'])) {
+                $matches = [];
+                foreach ($lt['raw'] as $m) {
+                    $matches[] = [
+                        'offset'       => (int)($m['offset'] ?? 0),
+                        'length'       => (int)($m['length'] ?? 0),
+                        'message'      => (string)($m['message'] ?? ''),
+                        'short_message'=> (string)($m['shortMessage'] ?? ''),
+                        'category'     => (string)($m['rule']['category']['id'] ?? 'GRAMMAR'),
+                        'rule_id'      => (string)($m['rule']['id'] ?? ''),
+                        'replacements' => array_slice(
+                            array_map(fn($r) => (string)($r['value'] ?? ''), $m['replacements'] ?? []),
+                            0, 3
+                        ),
+                    ];
+                }
+                $audioFile->update(['grammar_matches' => $matches]);
+                Log::info("TranscribeAudioJob: grammar matches saved", [
+                    'audio_file_id' => $this->audioFileId,
+                    'match_count'   => count($matches),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            // Never let LT failure block the scoring pipeline
+            Log::info("TranscribeAudioJob: grammar check skipped: " . $e->getMessage(), [
+                'audio_file_id' => $this->audioFileId,
+            ]);
+        }
 
         $this->checkAndDispatchScoring();
     }

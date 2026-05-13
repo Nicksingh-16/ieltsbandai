@@ -186,6 +186,37 @@
           "duration_estimate": "10.0 min"
         }
       ]
+    },
+    {
+      "test_id": "voa_test_08",
+      "title": "VOA — Kitchen-Table Politics, Yosemite, ADHD Awareness, Pearl S. Buck",
+      "subtitle": "Section 1: types-of-politics idioms · Section 2: Yosemite National Park · Section 3: rise in adult ADHD diagnoses · Section 4: Pearl S. Buck, first American woman to win the Nobel in Literature",
+      "episodes": [
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/01/29/5d3c6fb3-313a-4782-ba3b-0a3ae9d3248e_hq.mp3",
+          "title": "'Kitchen-Table' Is a Type of Politics",
+          "topic": "language / political vocabulary",
+          "duration_estimate": "9.0 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/03/07/5738252d-63f8-4668-088d-08dd5c8d307c_hq.mp3",
+          "title": "Yosemite: One of America's Most Famous National Parks",
+          "topic": "travel / national park — Yosemite, California",
+          "duration_estimate": "3.6 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/02/11/1062ebed-7224-4328-b6f0-08dd481ae9e5.mp3",
+          "title": "Rise in ADHD Cases Raises Questions",
+          "topic": "health / mental health — ADHD",
+          "duration_estimate": "7.7 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/02/19/0c5b946d-117b-4862-fc34-08dd4a817620_hq.mp3",
+          "title": "Pearl S. Buck: The First American Woman to Win a Nobel Prize in Literature",
+          "topic": "biography / literature — Pearl S. Buck",
+          "duration_estimate": "7.8 min"
+        }
+      ]
     }
   ]
 }

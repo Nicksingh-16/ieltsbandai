@@ -36,7 +36,8 @@
                     </div>
                     <div class="flex-1 min-w-0">
                         <p class="text-brand-300 text-xs font-semibold uppercase tracking-wider mb-2">Question</p>
-                        <p id="question-box" class="text-surface-50 text-lg sm:text-xl font-medium leading-relaxed"></p>
+                        <p id="question-topic" class="text-brand-200 text-base sm:text-lg font-semibold mb-2"></p>
+                        <p id="question-box" class="text-surface-50 text-base sm:text-lg font-normal leading-relaxed whitespace-pre-line"></p>
                     </div>
                 </div>
             </div>
@@ -123,6 +124,7 @@ try {
     let index = 0, uploadCount = 0;
 
     const qBox              = document.getElementById("question-box");
+    const qTopic            = document.getElementById("question-topic");
     const timerEl           = document.getElementById("timer");
     const timerCircle       = document.getElementById("timer-circle");
     const nextBtn           = document.getElementById("nextBtn");
@@ -174,7 +176,8 @@ try {
 
     function loadQuestion() {
         if (!questions[index]?.title) { alert('Question data missing. Please refresh.'); return; }
-        qBox.textContent = questions[index].title;
+        qTopic.textContent = questions[index].title;
+        qBox.textContent = questions[index].content ?? '';
         timeLeft = durations[index];
         initialTime = timeLeft;
         timerEl.textContent = format(timeLeft);
@@ -316,7 +319,8 @@ try {
         let prepLeft = 60;
         recordBtn.disabled = true;
         nextBtn.classList.add("hidden");
-        qBox.textContent = questions[1]?.title ?? '';
+        qTopic.textContent = questions[1]?.title ?? '';
+        qBox.textContent = questions[1]?.content ?? '';
         timerEl.textContent = format(prepLeft);
         timerCircle.style.stroke = '#f59e0b'; // amber during prep
         timerCircle.style.strokeDashoffset = '0';

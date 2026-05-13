@@ -27,6 +27,7 @@ class VoaListeningSeeder extends Seeder
             'database/seeders/data/voa_test_05.json',        // Eagle Eyes, Monkeys, Assistive AI, Toyota
             'database/seeders/data/voa_test_06.json',        // Power Couple, Monarchs, DST, Stonehenge
             'database/seeders/data/voa_test_07.json',        // Dialed In, Pacific Rower, Vision, Fusion
+            'database/seeders/data/voa_test_08.json',        // Kitchen-Table Politics, Yosemite, ADHD, Pearl S. Buck
         ];
 
         $seeded = 0;

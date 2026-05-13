@@ -28,6 +28,7 @@ Route::post('/contact', [ContactController::class, 'send'])->name('contact.send'
 Route::view('/faq', 'pages.faq')->name('faq');
 Route::view('/privacy', 'pages.privacy')->name('privacy');
 Route::view('/terms', 'pages.terms')->name('terms');
+Route::view('/refund-policy', 'pages.refund')->name('refund');
 
 // Internal feedback — replaces external Tally/Form. Anonymous submissions
 // allowed (with optional email) so beta tour visitors can also send.

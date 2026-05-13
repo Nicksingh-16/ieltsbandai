@@ -1413,7 +1413,7 @@
             <div>
                 <h4 class="font-semibold text-surface-300 text-xs uppercase tracking-wider mb-4">Legal</h4>
                 <ul class="space-y-2.5">
-                    @foreach([['Privacy Policy', route('privacy')],['Terms of Use','#'],['Refund Policy','#']] as [$l,$u])
+                    @foreach([['Privacy Policy', route('privacy')],['Terms of Use', route('terms')],['Refund Policy', route('refund')]] as [$l,$u])
                     <li><a href="{{ $u }}" class="text-surface-500 hover:text-surface-200 text-sm transition-colors">{{ $l }}</a></li>
                     @endforeach
                 </ul>

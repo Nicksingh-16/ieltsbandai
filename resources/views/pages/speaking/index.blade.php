@@ -3,13 +3,13 @@
 @include('partials.test-instructions', [
     'module'     => 'speaking',
     'title'      => 'IELTS Speaking Test',
-    'timeLabel'  => '~7 minutes (3 parts, recorded)',
+    'timeLabel'  => '~11–12 minutes (3 parts, recorded)',
     'startLabel' => "I'm ready — Begin Speaking test",
     'rules' => [
         '<strong>3 parts</strong> simulating the real IELTS oral interview.',
-        '<strong>Part 1:</strong> 5 short questions on familiar topics, 30 seconds each. Answer naturally.',
+        '<strong>Part 1:</strong> 5 short questions on familiar topics, 45 seconds each. Answer naturally and fully.',
         '<strong>Part 2:</strong> a cue card with 1 minute to prepare, then speak for up to 2 minutes.',
-        '<strong>Part 3:</strong> 5 abstract discussion questions, 30 seconds each.',
+        '<strong>Part 3:</strong> 5 abstract discussion questions, 60 seconds each. Develop and justify your ideas.',
         '<strong>Microphone access required.</strong> Allow when your browser asks.',
         '<strong>One continuous recording per part.</strong> Speak through the prompts as they auto-advance — don\'t stop to think between them.',
         'Speak <strong>clearly and at a natural pace</strong>. Hesitation, fillers and pronunciation all affect Fluency & Pronunciation scores.',
@@ -153,10 +153,16 @@ try {
     // `perPrompt` seconds during a single continuous recording — backend
     // still receives one audio file per part, so no transcription/scoring
     // changes are needed downstream.
+    //
+    // Durations target real IELTS Speaking pacing (~11–14 min total):
+    //   Part 1: 45s × 5 prompts = ~3:45  (real: 4–5 min)
+    //   Part 2: 60s prep + 120s monologue = 3:00  (real: 3–4 min)
+    //   Part 3: 60s × 5 prompts = 5:00  (real: 4–5 min)
+    //   ~ 11:45 total recording time across 3 parts
     const PARTS = [
-        { title: data.part1?.title ?? '', prompts: parsePrompts(data.part1?.content), perPrompt: 30,  cycling: true  },
+        { title: data.part1?.title ?? '', prompts: parsePrompts(data.part1?.content), perPrompt: 45,  cycling: true  },
         { title: data.part2?.title ?? '', prompts: [data.part2?.content ?? ''],        perPrompt: 120, cycling: false },
-        { title: data.part3?.title ?? '', prompts: parsePrompts(data.part3?.content), perPrompt: 30,  cycling: true  },
+        { title: data.part3?.title ?? '', prompts: parsePrompts(data.part3?.content), perPrompt: 60,  cycling: true  },
     ];
 
     let index = 0, uploadCount = 0;

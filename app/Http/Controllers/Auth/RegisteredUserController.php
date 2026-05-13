@@ -34,7 +34,10 @@ class RegisteredUserController extends Controller
     {
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
+            // `indisposable` rule (propaganistas/laravel-disposable-email) blocks
+            // mailinator, tempmail, 10minutemail, etc. — primary defence against
+            // signup farming for free test_credits + self_eval_credits.
+            'email' => ['required', 'string', 'lowercase', 'email', 'indisposable', 'max:255', 'unique:'.User::class],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 

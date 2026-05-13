@@ -1248,6 +1248,24 @@ CRITERIA;
      * gated by services.calibration.bias_correction_enabled so we can A/B or
      * disable for non-mini providers (which have different bias profiles).
      */
+    /**
+     * Parse the upper bound from a "X.X – Y.Y" confidence range string the LLM
+     * emits. Accepts en-dash, em-dash, or hyphen. Returns null on any oddness
+     * so callers fall back to the un-clamped behaviour.
+     */
+    protected function parseConfidenceMax(mixed $range): ?float
+    {
+        if (!is_string($range) || trim($range) === '') {
+            return null;
+        }
+        $normalised = str_replace(['–', '—'], '-', $range);
+        if (!preg_match('/(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)/', $normalised, $m)) {
+            return null;
+        }
+        $max = (float) $m[2];
+        return ($max > 0 && $max <= 9.0) ? $max : null;
+    }
+
     protected function applyBiasCorrection(array &$scoring, array $criterionFields): void
     {
         if (!config('services.calibration.bias_correction_enabled', true)) {
@@ -1272,6 +1290,23 @@ CRITERIA;
             $rawMean <= 6.5 => 0.5,
             default         => 0.0,
         };
+
+        // Respect the LLM's own confidence range. If the model said "this is
+        // probably 5.0–6.0", we should not bias-shift the headline up to 6.5
+        // just because the raw mean fell into a piecewise-shift bucket — that
+        // creates an internal contradiction between the headline and the range
+        // shown right under it, and over-scores borderline (Band 5–6) essays.
+        $confMax = $this->parseConfidenceMax($scoring['band_confidence_range'] ?? null);
+        if ($confMax !== null) {
+            // Cap the post-shift overall at confidence max (rounded up to the
+            // nearest 0.5 band). The shift is reduced (not removed) to keep
+            // sub-score / overall arithmetic consistent.
+            $confCap = (float) (round($confMax * 2) / 2);
+            $postShiftMean = $rawMean + $shift;
+            if ($postShiftMean > $confCap) {
+                $shift = max(0.0, $confCap - $rawMean);
+            }
+        }
 
         // Stamp raw mean + shift for traceability.
         $scoring['overall_band_raw'] = (float) round($rawMean * 2) / 2;

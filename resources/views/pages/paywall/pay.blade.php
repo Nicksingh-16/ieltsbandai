@@ -8,8 +8,6 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800&display=swap" rel="stylesheet" />
     @vite(['resources/css/app.css', 'resources/js/app.js'])
-    {{-- Tiny QR library — generates the UPI QR client-side from the deep-link URI. ~16KB minified. --}}
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 </head>
 <body class="bg-surface-950 text-surface-200 font-sans antialiased">
 
@@ -59,10 +57,17 @@
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 items-start">
-                {{-- QR --}}
+                {{-- QR — static image of the merchant UPI QR. We don't use a
+                     dynamic deep-link QR here because that requires the qrcode.js
+                     CDN and was rendering blank when the CDN was slow / blocked.
+                     The static QR pairs with the order_id note shown below, which
+                     the user copies into their UPI app's note field manually. --}}
                 <div class="flex flex-col items-center">
                     <div class="bg-white p-3 rounded-xl shadow-lg" id="qrFrame">
-                        <canvas id="upiQr" width="220" height="220" class="block"></canvas>
+                        <img src="{{ asset('images/upi-qr.png') }}"
+                             alt="UPI QR code — scan to pay"
+                             width="220" height="220"
+                             class="block w-[220px] h-[220px] object-contain">
                     </div>
                     <p class="text-[11px] text-surface-500 mt-3 text-center">Scan with PhonePe / GPay / Paytm / BHIM</p>
                 </div>
@@ -171,14 +176,7 @@
 
 <script>
 (function() {
-    // 1. Generate the QR client-side from the upiUri.
-    const upiUri = @json($upiUri);
-    const canvas = document.getElementById('upiQr');
-    if (canvas && window.QRCode) {
-        QRCode.toCanvas(canvas, upiUri, { width: 220, margin: 1, errorCorrectionLevel: 'M' });
-    }
-
-    // 2. Copy-to-clipboard for VPA / amount / note.
+    // Copy-to-clipboard for VPA / amount / note.
     document.querySelectorAll('[data-copy]').forEach((btn) => {
         btn.addEventListener('click', async () => {
             const targetId = btn.getAttribute('data-copy');
@@ -198,7 +196,7 @@
         });
     });
 
-    // 3. Soft 10-minute countdown — informational, doesn't actually expire.
+    // Soft 10-minute countdown — informational, doesn't actually expire.
     const label = document.getElementById('countdownLabel');
     if (label) {
         let secs = 600;

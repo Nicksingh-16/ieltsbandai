@@ -27,6 +27,11 @@ class DatabaseSeeder extends Seeder
             IELTSQuestionSeeder::class,
             ListeningReadingSeeder::class,
             ListeningReadingExpandedSeeder::class,
+            // VOA POC must run AFTER the placeholder listening seeders.
+            // The placeholders have audio_url=null which the no-audio guard
+            // in ListeningTestController blocks; the VOA POC is currently
+            // the only listening row with real audio in prod.
+            VoaListeningSeeder::class,
             WritingQuestionSeeder::class,
             SpeakingQuestionSeeder::class,
         ]);

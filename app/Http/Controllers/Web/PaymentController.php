@@ -8,11 +8,13 @@ use App\Models\Institute;
 use App\Models\Payment;
 use App\Models\Subscription;
 use App\Services\CreditService;
+use App\Services\ManualPaymentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Razorpay\Api\Api;
+use Razorpay\Api\Errors\SignatureVerificationError;
 
 class PaymentController extends Controller
 {
@@ -157,43 +159,122 @@ class PaymentController extends Controller
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Initiate — create Razorpay order and return order_id to frontend JS
+    // Initiate — create Razorpay order for a plan key from config/plans.php.
+    // Returns the Razorpay order_id + key so the frontend can open the
+    // Standard Checkout modal. Amount is derived server-side from the plan
+    // (never trust client-supplied amount).
     // ─────────────────────────────────────────────────────────────────────────
     public function initiate(Request $request)
     {
-        $request->validate([
-            'plan'   => 'required|string',
-            'amount' => 'required|integer|min:100', // minimum 100 paise = ₹1
+        $data = $request->validate([
+            'plan' => 'required|string|max:64',
         ]);
+
+        $plan = config("plans.one_time.{$data['plan']}")
+             ?? config("plans.subscription.{$data['plan']}");
+
+        if (!$plan) {
+            return response()->json(['success' => false, 'message' => 'Unknown plan.'], 422);
+        }
+
+        $amountPaise = (int) round((float) $plan['price'] * 100);
+        if ($amountPaise < 100) {
+            return response()->json(['success' => false, 'message' => 'Amount below minimum.'], 422);
+        }
 
         try {
             $razorpayOrder = $this->api()->order->create([
-                'receipt'          => 'order_' . uniqid(),
-                'amount'           => $request->amount,
-                'currency'         => 'INR',
-                'payment_capture'  => 1,
+                'receipt'         => 'order_' . uniqid(),
+                'amount'          => $amountPaise,
+                'currency'        => config('plans.currency', 'INR'),
+                'payment_capture' => 1,
+                'notes'           => [
+                    'user_id' => Auth::id(),
+                    'plan'    => $data['plan'],
+                ],
             ]);
 
             Payment::create([
                 'user_id'  => Auth::id(),
                 'order_id' => $razorpayOrder['id'],
-                'amount'   => $request->amount / 100,
-                'currency' => 'INR',
+                'amount'   => $plan['price'],
+                'currency' => config('plans.currency', 'INR'),
                 'status'   => 'pending',
-                'plan'     => $request->plan,
+                'plan'     => $data['plan'],
+                'method'   => 'razorpay',
             ]);
 
             return response()->json([
                 'success'      => true,
                 'order_id'     => $razorpayOrder['id'],
-                'amount'       => $request->amount,
+                'amount'       => $amountPaise,
+                'currency'     => config('plans.currency', 'INR'),
                 'razorpay_key' => config('services.razorpay.key'),
+                'name'         => config('app.name'),
+                'plan_label'   => $plan['label'] ?? $data['plan'],
+                'prefill'      => [
+                    'name'  => Auth::user()->name,
+                    'email' => Auth::user()->email,
+                ],
             ]);
 
         } catch (\Exception $e) {
             Log::error('Payment initiation failed', ['error' => $e->getMessage(), 'user_id' => Auth::id()]);
             return response()->json(['success' => false, 'message' => 'Payment initiation failed. Please try again.'], 500);
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Verify — called by the Standard Checkout JS after a successful payment.
+    // Validates the HMAC-SHA256 signature locally (fast, no extra API call),
+    // then activates the plan via ManualPaymentService::grant() so credit
+    // and subscription logic stays in one place and reads from config/plans.php.
+    // ─────────────────────────────────────────────────────────────────────────
+    public function verify(Request $request)
+    {
+        $data = $request->validate([
+            'razorpay_payment_id' => 'required|string',
+            'razorpay_order_id'   => 'required|string',
+            'razorpay_signature'  => 'required|string',
+        ]);
+
+        try {
+            // Verifies HMAC-SHA256(order_id|payment_id, KEY_SECRET) against
+            // the supplied signature. Throws on mismatch — never trust the
+            // payment without this passing.
+            $this->api()->utility->verifyPaymentSignature($data);
+        } catch (SignatureVerificationError $e) {
+            Log::warning('Razorpay signature mismatch', [
+                'order_id'   => $data['razorpay_order_id'],
+                'payment_id' => $data['razorpay_payment_id'],
+                'user_id'    => Auth::id(),
+            ]);
+            return response()->json(['success' => false, 'message' => 'Signature verification failed.'], 400);
+        }
+
+        $dbPayment = Payment::where('order_id', $data['razorpay_order_id'])
+            ->where('user_id', Auth::id())
+            ->first();
+
+        if (!$dbPayment) {
+            return response()->json(['success' => false, 'message' => 'Order not found.'], 404);
+        }
+
+        // Idempotent — if already activated (e.g. webhook beat us here),
+        // just confirm success without re-granting.
+        if ($dbPayment->status !== 'pending') {
+            return response()->json([
+                'success'     => true,
+                'redirect_to' => route('paywall.receipt', ['ref' => $dbPayment->order_id]),
+            ]);
+        }
+
+        $this->activatePlan($dbPayment, $data['razorpay_payment_id']);
+
+        return response()->json([
+            'success'     => true,
+            'redirect_to' => route('paywall.receipt', ['ref' => $dbPayment->order_id]),
+        ]);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -228,7 +309,7 @@ class PaymentController extends Controller
                 ]);
             }
 
-            $this->activateSubscription($dbPayment, $paymentId);
+            $this->activatePlan($dbPayment, $paymentId);
 
             return view('payment.success', [
                 'message' => 'Payment successful! Your subscription is now active.',
@@ -278,13 +359,15 @@ class PaymentController extends Controller
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Shared activation — called by both success() and webhookPaymentCaptured()
-    // Uses DB transaction + status guard to prevent double-activation.
+    // Shared activation — called by verify() and webhookPaymentCaptured().
+    // Uses DB transaction + status guard to prevent double-activation, then
+    // delegates credit/subscription assignment to ManualPaymentService::grant()
+    // so both payment paths (Razorpay + manual UPI fallback) read from the
+    // single source of truth at config/plans.php.
     // ─────────────────────────────────────────────────────────────────────────
-    private function activateSubscription(Payment $dbPayment, string $paymentId): void
+    private function activatePlan(Payment $dbPayment, string $paymentId): void
     {
         \DB::transaction(function () use ($dbPayment, $paymentId) {
-            // Re-fetch inside transaction with a lock to prevent race conditions
             $locked = Payment::where('id', $dbPayment->id)
                 ->where('status', 'pending')
                 ->lockForUpdate()
@@ -295,40 +378,31 @@ class PaymentController extends Controller
             }
 
             $locked->update([
-                'payment_id' => $paymentId,
-                'status'     => 'completed',
+                'payment_id'  => $paymentId,
+                'status'      => 'completed',
+                'verified_at' => now(),
             ]);
 
-            $packageConfig = config('packages.' . $locked->plan);
-            if (!$packageConfig) {
-                Log::error('Unknown plan on activation', ['plan' => $locked->plan, 'payment_id' => $paymentId]);
-                return;
-            }
+            // Delegate to the shared service that already understands
+            // config/plans.php (subscriptions vs one-time credit packs).
+            app(ManualPaymentService::class)->grant($locked);
 
-            // Activate credits + subscription
-            $user = \App\Models\User::find($locked->user_id);
+            $user = $locked->user;
             if ($user) {
-                app(CreditService::class)->activatePro(
-                    $user,
-                    $packageConfig['duration_days'],
-                    $packageConfig['credits']
-                );
+                Log::info('Razorpay payment activated', [
+                    'user_id'    => $user->id,
+                    'plan'       => $locked->plan,
+                    'payment_id' => $paymentId,
+                ]);
 
-                Subscription::updateOrCreate(
-                    ['user_id' => $user->id],
-                    [
-                        'plan'       => $locked->plan,
-                        'status'     => 'active',
-                        'starts_at'  => now(),
-                        'ends_at'    => now()->addDays($packageConfig['duration_days']),
-                        'payment_id' => $locked->id,
-                    ]
-                );
-
-                Log::info('Subscription activated', ['user_id' => $user->id, 'plan' => $locked->plan]);
-
-                // Send payment receipt email (queued)
-                Mail::to($user)->queue(new PaymentReceiptMail($locked, $user));
+                try {
+                    Mail::to($user)->queue(new PaymentReceiptMail($locked, $user));
+                } catch (\Throwable $e) {
+                    Log::warning('Payment receipt mail failed (non-fatal)', [
+                        'user_id' => $user->id,
+                        'error'   => $e->getMessage(),
+                    ]);
+                }
             }
         });
     }
@@ -346,7 +420,7 @@ class PaymentController extends Controller
 
         $dbPayment = Payment::where('order_id', $orderId)->where('status', 'pending')->first();
         if ($dbPayment) {
-            $this->activateSubscription($dbPayment, $paymentId);
+            $this->activatePlan($dbPayment, $paymentId);
         }
     }
 

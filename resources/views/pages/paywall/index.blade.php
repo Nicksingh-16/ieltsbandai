@@ -8,6 +8,9 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800&display=swap" rel="stylesheet" />
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @if($razorpayKey)
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    @endif
 </head>
 <body class="bg-surface-950 text-surface-200 font-sans antialiased">
 
@@ -124,13 +127,11 @@
                     </li>
                     @endforeach
                 </ul>
-                <form method="POST" action="{{ route('paywall.start') }}" class="block">
-                    @csrf
-                    <input type="hidden" name="plan" value="monthly_basic">
-                    <button type="submit" class="btn-primary w-full justify-center text-sm py-2.5">
-                        Unlock unlimited &mdash; {{ $symbol }}{{ $basic['price'] }}
-                    </button>
-                </form>
+                @include('pages.paywall.partials.plan-button', [
+                    'plan'   => 'monthly_basic',
+                    'label'  => 'Unlock unlimited — ' . $symbol . $basic['price'],
+                    'class'  => 'btn-primary w-full justify-center text-sm py-2.5',
+                ])
                 <p class="text-[11px] text-surface-500 text-center mt-3">No auto-renewal &middot; cancel anytime &middot; {{ $beta['guarantee_days'] ?? 7 }}-day refund</p>
             </div>
 
@@ -163,13 +164,11 @@
                     </li>
                     @endforeach
                 </ul>
-                <form method="POST" action="{{ route('paywall.start') }}" class="block">
-                    @csrf
-                    <input type="hidden" name="plan" value="monthly_premium">
-                    <button type="submit" class="w-full justify-center text-sm py-2.5 rounded-lg bg-gradient-to-r from-purple-500 to-purple-700 hover:from-purple-400 hover:to-purple-600 text-white font-semibold transition flex items-center gap-2">
-                        Upgrade to premium &mdash; {{ $symbol }}{{ $premium['price'] }}
-                    </button>
-                </form>
+                @include('pages.paywall.partials.plan-button', [
+                    'plan'   => 'monthly_premium',
+                    'label'  => 'Upgrade to premium — ' . $symbol . $premium['price'],
+                    'class'  => 'w-full justify-center text-sm py-2.5 rounded-lg bg-gradient-to-r from-purple-500 to-purple-700 hover:from-purple-400 hover:to-purple-600 text-white font-semibold transition flex items-center gap-2',
+                ])
                 <p class="text-[11px] text-surface-500 text-center mt-3">Same cancellation + refund terms</p>
             </div>
         </div>
@@ -201,13 +200,11 @@
                     <span class="text-2xl font-bold text-surface-50">{{ $symbol }}{{ $plan['price'] }}</span>
                     <span class="text-[11px] text-surface-500">one-time</span>
                 </div>
-                <form method="POST" action="{{ route('paywall.start') }}">
-                    @csrf
-                    <input type="hidden" name="plan" value="{{ $key }}">
-                    <button type="submit" class="btn-secondary w-full justify-center text-xs py-2">
-                        Buy &mdash; {{ $symbol }}{{ $plan['price'] }}
-                    </button>
-                </form>
+                @include('pages.paywall.partials.plan-button', [
+                    'plan'   => $key,
+                    'label'  => 'Buy — ' . $symbol . $plan['price'],
+                    'class'  => 'btn-secondary w-full justify-center text-xs py-2',
+                ])
             </div>
             @endforeach
         </div>
@@ -282,6 +279,102 @@
     </div>
 
 </div>
+
+@if($razorpayKey)
+{{-- ── Razorpay Standard Checkout flow ─────────────────────────────────────
+     1. Click plan button → POST /payment/initiate with plan key
+     2. Server creates Razorpay order, returns order_id + razorpay_key
+     3. Open Razorpay Checkout modal
+     4. On payment success → POST /payment/verify (HMAC sig check + activate)
+     5. Server returns redirect URL to receipt
+     6. JS navigates there
+
+     The amount is derived server-side from plans.php — client never specifies
+     amount, so a tampered button can't change the price.
+-------------------------------------------------------------------------- --}}
+<script>
+(function() {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+    async function startPayment(button) {
+        const plan = button.getAttribute('data-pay-plan');
+        if (!plan) return;
+        setBusy(button, true);
+
+        let order;
+        try {
+            const r = await fetch(@json(route('payment.initiate')), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+                body: JSON.stringify({ plan }),
+            });
+            order = await r.json();
+            if (!r.ok || !order.success) {
+                throw new Error(order.message || 'Could not start payment.');
+            }
+        } catch (e) {
+            alert(e.message || 'Could not start payment. Please try again.');
+            setBusy(button, false);
+            return;
+        }
+
+        const rzp = new Razorpay({
+            key:         order.razorpay_key,
+            order_id:    order.order_id,
+            amount:      order.amount,
+            currency:    order.currency,
+            name:        order.name,
+            description: order.plan_label,
+            prefill:     order.prefill,
+            theme:       { color: '#2563eb' },
+            modal: {
+                ondismiss: function() { setBusy(button, false); },
+            },
+            handler: async function (response) {
+                try {
+                    const v = await fetch(@json(route('payment.verify')), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+                        body: JSON.stringify({
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id:   response.razorpay_order_id,
+                            razorpay_signature:  response.razorpay_signature,
+                        }),
+                    });
+                    const result = await v.json();
+                    if (v.ok && result.success && result.redirect_to) {
+                        window.location.href = result.redirect_to;
+                    } else {
+                        alert(result.message || 'Payment verification failed. Contact support with order id ' + response.razorpay_order_id + '.');
+                        setBusy(button, false);
+                    }
+                } catch (e) {
+                    alert('Payment verification call failed. Contact support with order id ' + response.razorpay_order_id + '.');
+                    setBusy(button, false);
+                }
+            },
+        });
+
+        rzp.on('payment.failed', function (resp) {
+            alert('Payment failed: ' + (resp.error?.description || 'unknown reason') + '. You can retry.');
+            setBusy(button, false);
+        });
+
+        rzp.open();
+    }
+
+    function setBusy(button, busy) {
+        button.disabled = busy;
+        button.classList.toggle('opacity-60', busy);
+        button.querySelector('.pay-spinner')?.classList.toggle('hidden', !busy);
+    }
+
+    document.querySelectorAll('[data-pay-plan]').forEach((btn) => {
+        btn.addEventListener('click', () => startPayment(btn));
+    });
+})();
+</script>
+@endif
 
 </body>
 </html>

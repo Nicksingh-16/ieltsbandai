@@ -30,7 +30,12 @@ class PaywallController extends Controller
         // relevant single-test pack. Doesn't gate anything, just visual hint.
         $context      = $request->query('from');
 
-        return view('pages.paywall.index', compact('oneTime', 'subscription', 'beta', 'symbol', 'context'));
+        // Razorpay key (publishable). If unset (e.g. no RAZORPAY_KEY in .env),
+        // the view falls back to the manual UPI form-POST flow so the paywall
+        // never goes dark — local dev and emergency rollback both work.
+        $razorpayKey  = config('services.razorpay.key');
+
+        return view('pages.paywall.index', compact('oneTime', 'subscription', 'beta', 'symbol', 'context', 'razorpayKey'));
     }
 
     /**

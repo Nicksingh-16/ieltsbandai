@@ -296,14 +296,21 @@ Route::middleware('auth')->group(function () {
         ->name('self-eval.evaluate');
 });
 
-// Payment routes
-Route::post('/payment/initiate', [PaymentController::class, 'initiate'])
-    ->name('payment.initiate')
-    ->middleware('auth');
-
-Route::get('/payment/success', [PaymentController::class, 'success'])
-    ->name('payment.success')
-    ->middleware('auth');
+// ── Razorpay Standard Checkout routes ────────────────────────────────────────
+// initiate: create order + return Razorpay key/order_id for the JS modal
+// verify:   called by JS after modal success; HMAC-checks the signature
+// webhook:  server-to-server fallback (Razorpay POSTs here if browser flow fails)
+// success:  legacy GET redirect endpoint (kept for backwards compat)
+Route::middleware('auth')->group(function () {
+    Route::post('/payment/initiate', [PaymentController::class, 'initiate'])
+        ->middleware('throttle:30,1')
+        ->name('payment.initiate');
+    Route::post('/payment/verify', [PaymentController::class, 'verify'])
+        ->middleware('throttle:30,1')
+        ->name('payment.verify');
+    Route::get('/payment/success', [PaymentController::class, 'success'])
+        ->name('payment.success');
+});
 
 Route::post('/payment/webhook', [PaymentController::class, 'webhook'])
     ->name('payment.webhook');

@@ -35,18 +35,30 @@ class ListeningTestController extends Controller
             ->limit(20)
             ->pluck('test_questions.question_id');
 
+        // Only consider questions that actually have audio (audio_url OR
+        // section_audios in metadata). Filters out placeholder seed rows so
+        // the no-audio guard below doesn't bounce real users mid-flow.
+        // PostgreSQL and MySQL both honour LIKE on the JSON column when cast
+        // to text; using LIKE keeps this dialect-portable.
+        $audioFilter = fn ($q) => $q->where(function ($w) {
+            $w->where('metadata', 'LIKE', '%"audio_url":"http%')
+              ->orWhere('metadata', 'LIKE', '%"section_audios":[%');
+        });
+
         $question = Question::where('type', 'listening')
             ->where('category', $category)
             ->where('active', true)
+            ->where($audioFilter)
             ->when($seen->isNotEmpty(), fn($q) => $q->whereNotIn('id', $seen))
             ->inRandomOrder()
             ->first();
 
-        // Fallback: all questions seen — ignore deduplication
+        // Fallback 1: relax the seen-deduplication, keep the audio filter.
         if (!$question) {
             $question = Question::where('type', 'listening')
                 ->where('category', $category)
                 ->where('active', true)
+                ->where($audioFilter)
                 ->inRandomOrder()
                 ->first();
         }
@@ -89,7 +101,9 @@ class ListeningTestController extends Controller
             return back()->with('error', 'Could not start test: ' . $e->getMessage());
         }
 
-        $sections = json_decode($question->metadata ?? '{}', true);
+        $sections = is_string($question->metadata)
+            ? (json_decode($question->metadata, true) ?: [])
+            : (is_array($question->metadata) ? $question->metadata : []);
 
         $viewName = $request->boolean('exam_mode') ? 'exam.listening' : 'pages.listening.test';
 
@@ -111,7 +125,9 @@ class ListeningTestController extends Controller
 
         $submitted  = $request->input('answers', []);
         $question   = $test->questions()->first();
-        $sections   = json_decode($question->metadata ?? '{}', true);
+        $sections   = is_string($question->metadata)
+            ? (json_decode($question->metadata, true) ?: [])
+            : (is_array($question->metadata) ? $question->metadata : []);
         $allQs      = $sections['questions'] ?? [];
 
         $correct = 0;
@@ -182,8 +198,12 @@ class ListeningTestController extends Controller
     {
         $test     = Test::where('id', $testId)->where('user_id', Auth::id())->firstOrFail();
         $question = $test->questions()->first();
-        $sections = json_decode($question->metadata ?? '{}', true);
-        $result   = json_decode($test->result ?? '{}', true);
+        $sections = is_string($question->metadata)
+            ? (json_decode($question->metadata, true) ?: [])
+            : (is_array($question->metadata) ? $question->metadata : []);
+        $result   = is_string($test->result)
+            ? (json_decode($test->result, true) ?: [])
+            : (is_array($test->result) ? $test->result : []);
         $answers  = $result['answers'] ?? [];
 
         return view('pages.listening.result', compact('test', 'question', 'sections', 'result', 'answers'));

@@ -1,0 +1,191 @@
+{
+  "_note": "Auto-built from voa_episodes_research.json by title match. Each test picks 4 real episode URLs.",
+  "compositions": [
+    {
+      "test_id": "voa_test_02",
+      "title": "VOA — Idioms, History, Education, Moon Landing",
+      "subtitle": "Section 1: idioms from American football · Section 2: Gettysburg battlefield · Section 3: microcredentials · Section 4: private moon lander",
+      "episodes": [
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/01/02/5dca089d-e7c6-47bc-9ddd-66d7ba48859c_hq.mp3",
+          "title": "'Kicking Off' a New Year",
+          "topic": "language / idioms (American football)",
+          "duration_estimate": "12.6 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/02/06/4f3c93f1-910e-4a8e-83a9-5a3394b41f0c_hq.mp3",
+          "title": "American Places — Gettysburg, Pennsylvania",
+          "topic": "history / travel — American Civil War",
+          "duration_estimate": "8.0 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/01/07/191de2c9-f532-4ac6-bfb3-4c2a26adcc0b_hq.mp3",
+          "title": "Learn New Skills with Microcredentials",
+          "topic": "education / workplace skills",
+          "duration_estimate": "9.5 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/03/05/790f9bd6-2f65-4af7-a59d-08dd5afe0892_hq.mp3",
+          "title": "Private Lander Carrying NASA Experiments Lands on the Moon",
+          "topic": "science / space — private lunar missions",
+          "duration_estimate": "9.9 min"
+        }
+      ]
+    },
+    {
+      "test_id": "voa_test_03",
+      "title": "VOA — Overcommitment, Everest, Brain Health, Asteroid Defense",
+      "subtitle": "Section 1: 'spreading ourself too thin' idioms · Section 2: Nepal raises Everest permits · Section 3: dementia prevention · Section 4: planetary asteroid defence",
+      "episodes": [
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/01/18/cbc6a939-3e64-4b54-8384-adfb6254fe17_hq.mp3",
+          "title": "Sometimes We 'Spread Ourself Too Thin'",
+          "topic": "language / idioms (overcommitment)",
+          "duration_estimate": "7.0 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/02/07/8ad9cca1-83d2-45dd-b6d4-6ab39de4d628_hq.mp3",
+          "title": "Nepal Increases Cost of Permits to Climb Everest",
+          "topic": "travel / Mount Everest",
+          "duration_estimate": "8.1 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/01/15/fefd9305-fec3-4dad-a30a-d51dca848dba_hq.mp3",
+          "title": "How to Lower Your Risk of Dementia Starting in Middle Age",
+          "topic": "health / dementia and aging",
+          "duration_estimate": "12.1 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/02/26/f1280f11-54e8-4c21-eab3-08dd4a81f35f_hq.mp3",
+          "title": "Methods for Protecting Earth against an Asteroid Strike",
+          "topic": "science / planetary defence",
+          "duration_estimate": "10.6 min"
+        }
+      ]
+    },
+    {
+      "test_id": "voa_test_04",
+      "title": "VOA — Instincts, Yellowstone, Workplace Wellbeing, Mars Geology",
+      "subtitle": "Section 1: gut reactions idioms · Section 2: Yellowstone National Park · Section 3: saying no at work · Section 4: why Mars is red",
+      "episodes": [
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/01/16/eaa7e3c6-642a-4e13-be65-5e4a2862f682_hq.mp3",
+          "title": "Knee Jerk and Gut Reactions: When We Are Not in Control",
+          "topic": "language / idioms (reactions and instincts)",
+          "duration_estimate": "9.7 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/02/13/776add5c-bbc5-4a14-83a0-08dd4a843460_hq.mp3",
+          "title": "Yellowstone: The World's First National Park",
+          "topic": "travel / geography — national parks",
+          "duration_estimate": "8.0 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/01/27/cd565e91-78b7-48b8-9278-7710eaeadad4_hq.mp3",
+          "title": "Saying 'No' at Work Can Be Good for Your Health",
+          "topic": "health / workplace wellbeing",
+          "duration_estimate": "15.0 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/02/27/58e7f806-65ba-4432-0363-08dd4a817621_hq.mp3",
+          "title": "New Discovery Could Explain What Gives Mars its Red Color",
+          "topic": "science / Mars geology",
+          "duration_estimate": "10.9 min"
+        }
+      ]
+    },
+    {
+      "test_id": "voa_test_05",
+      "title": "VOA — Eagle Eyes, Wildlife, Assistive AI, Toyota Woven City",
+      "subtitle": "Section 1: 'eagle eyes' idioms · Section 2: aggressive monkeys at Angkor Wat · Section 3: assistive AI for students · Section 4: Toyota's robotics city",
+      "episodes": [
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/02/13/28e1d0dd-e5a5-4e8e-832a-08dd4a843460.mp3",
+          "title": "Don't Miss a Thing With 'Eagle Eyes'",
+          "topic": "language / idioms (vision and observation)",
+          "duration_estimate": "5.9 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/02/11/b506ba65-f537-49ab-dc73-08dd4a81f35f_hq.mp3",
+          "title": "Cambodia Warns of 'Aggressive' Monkeys around Angkor Wat",
+          "topic": "travel / wildlife — Cambodia",
+          "duration_estimate": "8.5 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/01/06/1c68a19c-d59b-4be0-9166-44773b33b387_hq.mp3",
+          "title": "Students with Disabilities Praise Assistive Technology Using AI",
+          "topic": "education / accessibility / AI",
+          "duration_estimate": "13.5 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/02/26/00908c01-d20e-4d12-0247-08dd4a817621_hq.mp3",
+          "title": "Japan's Toyota Builds a City-like Center to Test Robotics, AI",
+          "topic": "technology / robotics — 'Woven City'",
+          "duration_estimate": "11.2 min"
+        }
+      ]
+    },
+    {
+      "test_id": "voa_test_06",
+      "title": "VOA — Power Couples, Monarch Butterflies, Daylight Saving, Stonehenge",
+      "subtitle": "Section 1: 'power couple' idioms · Section 2: monarch butterfly decline · Section 3: daylight saving and health · Section 4: Stonehenge-like circle in Denmark",
+      "episodes": [
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/02/05/4af9e49f-7172-43af-aed0-394526fde29b_hq.mp3",
+          "title": "What Does It Take to Be a 'Power Couple'?",
+          "topic": "language / idioms (relationships)",
+          "duration_estimate": "9.1 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/02/07/8ff75a0d-08fa-47a9-82ed-3f704353c519_hq.mp3",
+          "title": "Monarch Butterfly Count Nears 30-Year Low",
+          "topic": "environment / wildlife — North America",
+          "duration_estimate": "11.8 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/03/06/1a6a170d-7de0-4fbb-2d5a-08dd5c897904_hq.mp3",
+          "title": "How Daylight Saving Time Affects Health",
+          "topic": "health / circadian rhythms",
+          "duration_estimate": "14.4 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/02/27/f80178cd-74b6-4a3a-0343-08dd4a817621_hq.mp3",
+          "title": "Scientists Discover Stonehenge-like Circle in Denmark",
+          "topic": "science / archaeology — Bronze Age",
+          "duration_estimate": "6.6 min"
+        }
+      ]
+    },
+    {
+      "test_id": "voa_test_07",
+      "title": "VOA — Dialed In, Pacific Adventure, Vision Health, Nuclear Fusion",
+      "subtitle": "Section 1: 'dialed in' tech idioms · Section 2: Australian Navy rescues Pacific rower · Section 3: avoiding computer vision trouble · Section 4: France's nuclear fusion record",
+      "episodes": [
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/02/20/57f1d743-7f93-4e15-fd51-08dd4a817620_hq.mp3",
+          "title": "The Importance of Being 'Dialed In'",
+          "topic": "language / idioms (technology-themed)",
+          "duration_estimate": "8.1 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/03/07/bb7a5958-58f5-401d-2e48-08dd5c897904_hq.mp3",
+          "title": "Australian Navy Rescues Rower Crossing Pacific from California",
+          "topic": "travel / adventure — Pacific Ocean",
+          "duration_estimate": "7.4 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/01/29/51324d1e-58cd-4d18-922c-cfe0a60d5b72_hq.mp3",
+          "title": "Experts Provide Tips for Avoiding Computer-linked Vision Trouble",
+          "topic": "health / screen-time and vision",
+          "duration_estimate": "15.2 min"
+        },
+        {
+          "mp3_url": "https://voa-audio.voanews.eu/vle/2025/02/21/b056df7a-c49a-4f38-fe02-08dd4a817620_hq.mp3",
+          "title": "France Sets New Record in Hunt for Nuclear Fusion",
+          "topic": "science / energy — nuclear fusion",
+          "duration_estimate": "10.0 min"
+        }
+      ]
+    }
+  ]
+}

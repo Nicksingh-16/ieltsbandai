@@ -19,26 +19,45 @@ class VoaListeningSeeder extends Seeder
 {
     public function run(): void
     {
-        $spec = 'database/seeders/data/voa_listening_poc.json';
-        if (!file_exists(base_path($spec))) {
-            $this->command?->warn("VOA spec missing at {$spec} — skipping listening POC seed.");
-            return;
-        }
+        $specs = [
+            'database/seeders/data/voa_listening_poc.json',  // original POC
+            'database/seeders/data/voa_test_02.json',        // Idioms, Gettysburg, Microcredentials, Moon
+            'database/seeders/data/voa_test_03.json',        // Overcommitment, Everest, Dementia, Asteroid
+            'database/seeders/data/voa_test_04.json',        // Instincts, Yellowstone, Saying No, Mars
+            'database/seeders/data/voa_test_05.json',        // Eagle Eyes, Monkeys, Assistive AI, Toyota
+            'database/seeders/data/voa_test_06.json',        // Power Couple, Monarchs, DST, Stonehenge
+            'database/seeders/data/voa_test_07.json',        // Dialed In, Pacific Rower, Vision, Fusion
+        ];
 
-        $exitCode = Artisan::call('ingest:voa-listening', [
-            'path'    => $spec,
-            '--force' => true,
-        ]);
+        $seeded = 0;
+        $skipped = 0;
+        $failed  = 0;
 
-        $output = Artisan::output();
-        if ($exitCode === 0) {
-            $this->command?->info('VOA listening POC seeded.');
-            if ($output) {
-                $this->command?->line(trim($output));
+        foreach ($specs as $spec) {
+            if (!file_exists(base_path($spec))) {
+                $this->command?->warn("VOA spec missing at {$spec} — skipping.");
+                $skipped++;
+                continue;
             }
-        } else {
-            $this->command?->error("VOA listening seed failed (exit {$exitCode}):");
-            $this->command?->line(trim($output));
+
+            $exitCode = Artisan::call('ingest:voa-listening', [
+                'path'    => $spec,
+                '--force' => true,
+            ]);
+
+            $output = Artisan::output();
+            if ($exitCode === 0) {
+                $seeded++;
+                $this->command?->line('  ✓ ' . basename($spec));
+            } else {
+                $failed++;
+                $this->command?->error('  ✗ ' . basename($spec) . " (exit {$exitCode})");
+                if ($output) {
+                    $this->command?->line(trim($output));
+                }
+            }
         }
+
+        $this->command?->info("VOA listening: {$seeded} seeded, {$skipped} skipped, {$failed} failed.");
     }
 }

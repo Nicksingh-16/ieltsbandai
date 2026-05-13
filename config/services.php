@@ -44,7 +44,7 @@ return [
     ],
 
     'transcription' => [
-        'provider' => env('TRANSCRIPTION_PROVIDER', 'assemblyai'), // 'deepgram' or 'assemblyai' (assemblyai handles WebM better)
+        'provider' => env('TRANSCRIPTION_PROVIDER', 'deepgram'), // 'deepgram' (primary — faster + cheaper, handles WebM/Opus reliably) or 'assemblyai' (fallback). Order is enforced in TranscriptionService::transcribeWithWords().
     ],
 
     // OpenAI is the optional primary tier in LLMRouter. The router gates this

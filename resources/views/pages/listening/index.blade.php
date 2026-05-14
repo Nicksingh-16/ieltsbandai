@@ -73,24 +73,14 @@
                 </label>
             </div>
 
-            <div class="card p-6">
-                <h2 class="text-sm font-semibold text-surface-400 uppercase tracking-wider mb-4">Test Type</h2>
-                <div class="grid grid-cols-2 gap-3">
-                    <label class="cursor-pointer">
-                        <input type="radio" name="test_type" value="academic" class="sr-only peer" required>
-                        <div class="card p-4 peer-checked:border-brand-500 peer-checked:bg-brand-500/10 hover:border-surface-500 transition-all">
-                            <p class="font-semibold text-surface-100 text-sm">Academic</p>
-                            <p class="text-surface-500 text-xs mt-1">University & professional</p>
-                        </div>
-                    </label>
-                    <label class="cursor-pointer">
-                        <input type="radio" name="test_type" value="general" class="sr-only peer">
-                        <div class="card p-4 peer-checked:border-brand-500 peer-checked:bg-brand-500/10 hover:border-surface-500 transition-all">
-                            <p class="font-semibold text-surface-100 text-sm">General Training</p>
-                            <p class="text-surface-500 text-xs mt-1">Migration & work</p>
-                        </div>
-                    </label>
-                </div>
+            {{-- IELTS Listening is the SAME test for Academic and General Training
+                 takers. Only Reading and Writing Task 1 differ. So we no longer
+                 ask for a test_type — the controller defaults it server-side. --}}
+            <div class="card p-4 bg-surface-800/40 border border-surface-700">
+                <p class="text-xs text-surface-400">
+                    <span class="text-surface-200 font-semibold">Same test for everyone:</span>
+                    The IELTS Listening test is identical for Academic and General Training candidates.
+                </p>
             </div>
 
             <div class="flex gap-3 bg-amber-500/10 border border-amber-500/25 rounded-xl p-4">

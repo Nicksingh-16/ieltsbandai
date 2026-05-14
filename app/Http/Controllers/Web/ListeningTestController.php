@@ -43,19 +43,17 @@ class ListeningTestController extends Controller
             ->limit(20)
             ->pluck('test_questions.question_id');
 
-        // Only consider questions that actually have a playable audio URL.
-        // The patterns are tight on purpose:
-        //   '%"audio_url":"http%'              → audio_url is a real URL string
-        //   '%"section_audios":["http%'        → section_audios array starts
-        //                                         with a URL (NOT empty `[]`,
-        //                                         which an earlier `[%` pattern
-        //                                         would have matched and then
-        //                                         tripped the post-check guard)
-        // PostgreSQL and MySQL both honour LIKE on the JSON column when cast
-        // to text; using LIKE keeps this dialect-portable.
+        // Only consider questions that actually have audio. The pre-filter
+        // is permissive (just checks the field is present + mentions http
+        // somewhere) because MySQL's JSON column type reformats with
+        // whitespace on retrieval — a too-strict pattern like
+        // '%"section_audios":["http%' misses rows where the stored form is
+        // '"section_audios": ["http' (extra space).
+        // The post-check (line ~80) catches the rare false positive (empty
+        // array) via PHP's !empty() before any credit is charged.
         $audioFilter = fn ($q) => $q->where(function ($w) {
-            $w->where('metadata', 'LIKE', '%"audio_url":"http%')
-                ->orWhere('metadata', 'LIKE', '%"section_audios":["http%');
+            $w->where('metadata', 'LIKE', '%audio_url%http%')
+                ->orWhere('metadata', 'LIKE', '%section_audios%http%');
         });
 
         $question = Question::where('type', 'listening')

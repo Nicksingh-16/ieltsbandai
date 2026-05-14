@@ -65,12 +65,17 @@ class Test extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function test_scores()
+    // NOTE: Eloquent relation methods MUST stay camelCase. Pint will try to
+    // snake_case them (php_unit_method_casing or similar) — see .pint.json
+    // exclude-rule, and never let it through. Renaming breaks every callsite
+    // that uses $test->testScores / $test->testQuestions across views,
+    // controllers, services, jobs, and the test_scores DB table is unrelated.
+    public function testScores() // @phpstan-ignore-line
     {
         return $this->hasMany(TestScore::class);
     }
 
-    public function test_questions()
+    public function testQuestions() // @phpstan-ignore-line
     {
         return $this->hasMany(TestQuestion::class);
     }

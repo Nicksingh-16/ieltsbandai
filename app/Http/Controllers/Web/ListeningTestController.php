@@ -35,14 +35,19 @@ class ListeningTestController extends Controller
             ->limit(20)
             ->pluck('test_questions.question_id');
 
-        // Only consider questions that actually have audio (audio_url OR
-        // section_audios in metadata). Filters out placeholder seed rows so
-        // the no-audio guard below doesn't bounce real users mid-flow.
+        // Only consider questions that actually have a playable audio URL.
+        // The patterns are tight on purpose:
+        //   '%"audio_url":"http%'              → audio_url is a real URL string
+        //   '%"section_audios":["http%'        → section_audios array starts
+        //                                         with a URL (NOT empty `[]`,
+        //                                         which an earlier `[%` pattern
+        //                                         would have matched and then
+        //                                         tripped the post-check guard)
         // PostgreSQL and MySQL both honour LIKE on the JSON column when cast
         // to text; using LIKE keeps this dialect-portable.
         $audioFilter = fn ($q) => $q->where(function ($w) {
             $w->where('metadata', 'LIKE', '%"audio_url":"http%')
-                ->orWhere('metadata', 'LIKE', '%"section_audios":[%');
+                ->orWhere('metadata', 'LIKE', '%"section_audios":["http%');
         });
 
         $question = Question::where('type', 'listening')
@@ -64,7 +69,19 @@ class ListeningTestController extends Controller
         }
 
         if (! $question) {
-            return back()->with('error', 'No listening questions available. Please try again later.');
+            // Audio-having questions are seeded only for listening_academic
+            // (VOA POC + voa_test_02..08). Tell General-Training users why
+            // they hit a wall instead of suggesting "try again later".
+            $msg = $testType === 'general'
+                ? 'General Training listening tests are not available yet — please pick Academic for now.'
+                : 'No listening questions with audio are available right now. Please contact support.';
+
+            \Illuminate\Support\Facades\Log::warning('Listening start: no audio question available', [
+                'category' => $category,
+                'user_id' => $userId,
+            ]);
+
+            return back()->with('error', $msg);
         }
 
         // Audio guard — listening tests are unusable without audio. Check that

@@ -19,11 +19,16 @@ class ListeningTestController extends Controller
 
     public function start(Request $request)
     {
+        // test_type was removed from the form in 62e5101 because IELTS Listening
+        // is the SAME test for Academic and General Training candidates (only
+        // Reading/Writing differ). Accept it if posted for backwards-compat with
+        // any existing client/mock pipeline, but default to 'academic' since
+        // that's how the question rows are categorised in the DB.
         $request->validate([
-            'test_type' => 'required|in:academic,general',
+            'test_type' => 'sometimes|in:academic,general',
         ]);
 
-        $testType = $request->input('test_type');
+        $testType = $request->input('test_type', 'academic');
         $category = "listening_{$testType}";
 
         // Per ielts.org: all test takers take the SAME Listening test regardless

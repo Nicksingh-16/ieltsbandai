@@ -83,7 +83,10 @@ return [
             env('GEMINI_API_KEY_4'),
             env('GEMINI_API_KEY_5'),
         ])),
-        'primary_model'  => env('GEMINI_PRIMARY_MODEL', 'gemini-2.5-flash'),
+        // Primary (used first by the Gemini provider) and fallback (tried on
+        // quota / rate-limit failure). Distinct by default so the "retry with
+        // fallback model" branch in LLMRouter is meaningful out of the box.
+        'primary_model'  => env('GEMINI_PRIMARY_MODEL', 'gemini-2.5-pro'),
         'fallback_model' => env('GEMINI_FALLBACK_MODEL', 'gemini-2.5-flash'),
         'base_url'       => env('OPENAI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/openai/'),
 

@@ -5,23 +5,38 @@ namespace App\Services;
 use Illuminate\Support\Facades\Log;
 
 /**
- * LLM Provider Note
- * -----------------
- * This service delegates all LLM transport to LLMRouter, which calls Gemini
- * via its OpenAI-compatible endpoint. Despite legacy OPENAI_* env vars and
- * config('services.openai.*') names, the active provider is Gemini 2.5 Pro
- * (with Flash as the quota-fallback). Free tier; ~95% of GPT-4o-mini quality.
+ * Writing & speaking scoring service.
  *
- * Migration to a real OpenAI key (production launch):
- *   1. Set OPENAI_API_KEY=<real OpenAI key> in production secrets.
- *   2. Set OPENAI_BASE_URL=https://api.openai.com/v1
- *   3. Set OPENAI_MODEL=gpt-4o-mini (or whichever model is purchased).
- *   No code changes required — LLMRouter and prompt-building stay identical.
+ * Provider routing (lives in LLMRouter, see app/Services/LLMRouter.php):
+ *   - Pro Plus subscribers (users.model_tier='premium'): OpenRouter → openai/gpt-4o
+ *   - Everyone else: OpenRouter → openai/gpt-4o-mini
+ *   - Fallback chain: Groq Llama 3.3 70B → Gemini 2.5 Flash (round-robin keys)
  *
- * What this service still owns: prompt construction (Cambridge band
- * descriptors + Layer 3 few-shot calibration anchors via CalibrationService)
- * and post-LLM validation/normalization of scores. The HTTP call itself
- * lives in LLMRouter.
+ * What this service owns:
+ *   1. Prompt construction — official Cambridge band descriptors + L3
+ *      few-shot calibration anchors retrieved via CalibrationService +
+ *      L4 ground-truth signals block (LinguisticAnalyzer + LanguageToolClient
+ *      + SyntacticComplexityAnalyzer).
+ *   2. Post-LLM correction pipeline (L5-v6, current):
+ *        a. applyBiasCorrection         — confidence-range cap + downward nudge
+ *                                          for error-heavy optimism.
+ *        b. enforceLengthCaps           — descriptor-based ceilings for short
+ *                                          responses.
+ *        c. enforceQuestionPartCoverage — TR cap when multi-part prompts have
+ *                                          unaddressed sub-questions.
+ *        d. recomputeOverallFromCriteria — keeps headline = mean(sub-scores).
+ *   3. Validation & normalization of LLM JSON output (renaming
+ *      task_response→task_achievement, etc., enforcing 0..9 range,
+ *      stripping markdown fences, validating error spans).
+ *
+ * Calibration history:
+ *   L5-v2: piecewise UPWARD bias shift (+1.0/+0.5) — REPLACED.
+ *          Was based on the assumption that the LLM under-scored; empirically
+ *          GPT-4-class models over-score Writing on language criteria
+ *          (Hentschel et al. LAK '25, Mizumoto & Eguchi 2023), so the upward
+ *          shift compounded the bias and produced "everyone gets 6.5".
+ *   L5-v6: downward-only nudge for error-heavy + confidence-range cap.
+ *          See applyBiasCorrection() docstring.
  */
 class ScoringService
 {
@@ -30,7 +45,7 @@ class ScoringService
      * Bump on any material change to the prompt body or retrieval strategy
      * (e.g. L3-v2 = topic-keyword-ranked few-shot, L4-v1 = LanguageTool block).
      */
-    public const PROMPT_VERSION = 'L5-v5';
+    public const PROMPT_VERSION = 'L5-v6';
 
     protected CalibrationService $calibration;
     protected LLMRouter $router;
@@ -199,39 +214,31 @@ class ScoringService
                 $scoring[$field] = $score;
             }
 
-            // L5-v1: hard server-side under-length cap on TA/TR. Rule 6 of the
-            // prompt tells the LLM to reduce TA/TR by 0.5 when below minimum
-            // word count, but observed runs show the model frequently ignores
-            // it — apply deterministically here so the penalty is always
-            // enforced and visible in benchmark deltas.
             $wordCount = str_word_count(trim($answer));
             $category = (string) ($question->category ?? '');
             $isTask2  = str_contains($category, 'task2');
-            $minWords = $isTask2 ? 250 : 150;
-            if ($wordCount > 0 && $wordCount < $minWords) {
-                $original = $scoring['task_achievement'];
-                $scoring['task_achievement'] = max(0.0, round(($original - 0.5) * 2) / 2);
-                Log::info('Applied under-length TA/TR penalty', [
-                    'word_count'  => $wordCount,
-                    'min_words'   => $minWords,
-                    'original_ta' => $original,
-                    'adjusted_ta' => $scoring['task_achievement'],
-                ]);
-            }
 
-            // L5-v2: single canonical bias-correction site. Shifts EACH
-            // criterion AND overall_band by the same piecewise amount so the
-            // report is internally consistent (sub-scores average to overall).
-            //
-            // L5-v3 experiment (signal-driven high-band boost) was tried and
-            // reverted: TTR/cohesion/CEFR-share signals do NOT reliably
-            // separate Band 6 from Band 8.5 in the Cambridge dataset. The
-            // detector false-positived on strong Band 6 essays (over-shifted
-            // them to Band 8) without recovering the genuinely-Band-8.5 cases.
-            // Re-enable only when LanguageTool grammar-error density is
-            // available (it's the strongest discriminator we have, and is
-            // unreliable in dev without Docker running).
+            // L5-v6 post-LLM correction pipeline. Order matters:
+            //   1. applyBiasCorrection — confidence-range cap + downward nudge
+            //      for error-heavy essays the LLM rated optimistically.
+            //   2. enforceLengthCaps   — hard descriptor-based ceilings for
+            //      under-length responses (TR/LR/GRA can't be Band 7+ if the
+            //      essay is too short to demonstrate the descriptor).
+            //   3. enforceQuestionPartCoverage — if a multi-part Task 2 prompt
+            //      had any sub-question unaddressed, push TR to descriptor
+            //      Band 5 ("incompletely addressed").
+            // Each step recomputes overall_band as the mean of the (capped)
+            // sub-scores so the displayed math is always internally consistent.
             $this->applyBiasCorrection($scoring, [
+                'task_achievement', 'coherence_cohesion', 'lexical_resource', 'grammar',
+            ]);
+
+            $this->enforceLengthCaps($scoring, $wordCount, $isTask2);
+
+            $this->enforceQuestionPartCoverage($scoring, $question);
+
+            // Final recompute so callers and persisted JSON agree.
+            $this->recomputeOverallFromCriteria($scoring, [
                 'task_achievement', 'coherence_cohesion', 'lexical_resource', 'grammar',
             ]);
 
@@ -685,6 +692,22 @@ STRICT TASK 2 RULES:
 - At least 2 developed ideas required.
 - Each idea must include explanation + example or consequence.
 - If position is unclear or ideas underdeveloped -> TR <= 6.0.
+
+QUESTION-PART COVERAGE CHECK (mandatory):
+- Read the prompt above and break it into its distinct sub-questions or
+  instructions. A two-part prompt like "Why is this happening? Do you think
+  this is a positive or negative development?" has TWO parts. A three-part
+  prompt like "Discuss both views and give your own opinion" has THREE parts
+  (view A, view B, your opinion).
+- For EACH part, decide whether the candidate's response addresses it in
+  any substantive way (not just a passing mention). Populate the
+  question_parts[] array in the JSON output with one entry per part:
+  { "part": "verbatim sub-question text", "addressed": true|false,
+    "evidence": "1-line evidence from the essay if addressed, else why not" }
+- Be honest. An essay that ignores half of a two-part question CANNOT score
+  above Band 5 on Task Response per the official descriptor ("the main parts
+  of the prompt are incompletely addressed"). The post-LLM pipeline will
+  enforce this cap automatically based on question_parts[].addressed.
 TASK2;
         }
 
@@ -887,6 +910,10 @@ Provide evaluation in JSON:
   "grammatical_range_accuracy": 0.0,
   "overall_band": 0.0,
   "band_confidence_range": "X.X – X.X",
+  "question_parts": [
+    { "part": "first sub-question or instruction", "addressed": true,  "evidence": "1-line evidence" },
+    { "part": "second sub-question or instruction", "addressed": false, "evidence": "what was missing" }
+  ],
   "descriptor_match": {
     "task_achievement": "Exact phrase from the official descriptor that best matches the awarded band",
     "coherence_cohesion": "Exact phrase from the official descriptor that best matches the awarded band",
@@ -1237,18 +1264,6 @@ CRITERIA;
     }
 
     /**
-     * Single canonical bias-correction site (L5-v2).
-     *
-     * Applies the piecewise upward shift to EACH criterion and recomputes
-     * overall_band as their mean, so the displayed report is internally
-     * consistent (sub-scores average to overall). Stamps the raw uncorrected
-     * values to {field}_raw for debugging / future regression work.
-     *
-     * The shift table is derived from the mini-tuned 10-essay holdout. It is
-     * gated by services.calibration.bias_correction_enabled so we can A/B or
-     * disable for non-mini providers (which have different bias profiles).
-     */
-    /**
      * Parse the upper bound from a "X.X – Y.Y" confidence range string the LLM
      * emits. Accepts en-dash, em-dash, or hyphen. Returns null on any oddness
      * so callers fall back to the un-clamped behaviour.
@@ -1266,14 +1281,37 @@ CRITERIA;
         return ($max > 0 && $max <= 9.0) ? $max : null;
     }
 
+    /**
+     * Single canonical bias-correction site (L5-v6).
+     *
+     * Prior L5-v2 applied a +1.0 / +0.5 UPWARD shift below rawMean 6.0 / 6.5
+     * on the theory that the LLM under-scored. Empirically (and per the
+     * 2024–25 LLM-essay-scoring literature, e.g. Hentschel et al. LAK '25)
+     * GPT-4-class models *over-score* IELTS Writing by 0.5–1.0 band on the
+     * language criteria, so the +1.0 shift compounded the bias. This version:
+     *
+     *   1. Computes the raw criterion mean.
+     *   2. Applies a small DOWNWARD nudge for "error-heavy but optimistically
+     *      rated" essays (high grammar/100w density combined with a mid-band
+     *      rating). The official descriptors at Band 5 explicitly cite
+     *      frequent grammatical errors that "may cause some difficulty"; at
+     *      Band 6 errors "rarely impede communication". An LLM that gave 6+
+     *      to an essay with 12+ errors/100w needs to be corrected down.
+     *   3. Caps the result at the LLM's own confidence-range maximum, so the
+     *      headline can never disagree with the range printed beneath it.
+     *
+     * Each criterion is shifted by the same amount as overall, so the report
+     * stays internally consistent (sub-scores average to overall). Raw values
+     * stamped to {field}_raw for benchmark deltas.
+     *
+     * Gated by services.calibration.bias_correction_enabled (env BIAS_CORRECTION_ENABLED).
+     */
     protected function applyBiasCorrection(array &$scoring, array $criterionFields): void
     {
         if (!config('services.calibration.bias_correction_enabled', true)) {
             return;
         }
 
-        // Determine shift from the raw criterion mean — what the LLM intended
-        // the overall to be, before its own rounding choice.
         $rawValues = [];
         foreach ($criterionFields as $f) {
             if (isset($scoring[$f])) {
@@ -1285,26 +1323,27 @@ CRITERIA;
         }
 
         $rawMean = array_sum($rawValues) / count($rawValues);
-        $shift = match (true) {
-            $rawMean <= 6.0 => 1.0,
-            $rawMean <= 6.5 => 0.5,
-            default         => 0.0,
-        };
 
-        // Respect the LLM's own confidence range. If the model said "this is
-        // probably 5.0–6.0", we should not bias-shift the headline up to 6.5
-        // just because the raw mean fell into a piecewise-shift bucket — that
-        // creates an internal contradiction between the headline and the range
-        // shown right under it, and over-scores borderline (Band 5–6) essays.
+        // Step 1 — downward nudge for error-heavy optimism. The LLM is asked
+        // to self-report grammar_errors_per_100_words; in practice it tends
+        // to underestimate this, so the threshold is conservative.
+        $errorsPer100 = (float) ($scoring['error_summary']['grammar_errors_per_100_words'] ?? 0);
+        $shift = 0.0;
+        if ($errorsPer100 >= 18 && $rawMean >= 5.5) {
+            $shift = -1.0; // severe error density at any mid-band
+        } elseif ($errorsPer100 >= 12 && $rawMean >= 6.0) {
+            $shift = -0.5; // moderate-high errors but rated Band 6+
+        }
+
+        // Step 2 — clamp to the LLM's own confidence-range maximum. If the
+        // model said "this is probably 5.0–6.0", any rawMean+shift above 6.0
+        // is an internal contradiction; pull shift down further to match.
         $confMax = $this->parseConfidenceMax($scoring['band_confidence_range'] ?? null);
         if ($confMax !== null) {
-            // Cap the post-shift overall at confidence max (rounded up to the
-            // nearest 0.5 band). The shift is reduced (not removed) to keep
-            // sub-score / overall arithmetic consistent.
             $confCap = (float) (round($confMax * 2) / 2);
             $postShiftMean = $rawMean + $shift;
             if ($postShiftMean > $confCap) {
-                $shift = max(0.0, $confCap - $rawMean);
+                $shift = $confCap - $rawMean; // can be negative; that's the point
             }
         }
 
@@ -1333,101 +1372,162 @@ CRITERIA;
         $correctedMean = array_sum($correctedValues) / count($correctedValues);
         $scoring['overall_band'] = (float) max(0.0, min(9.0, round($correctedMean * 2) / 2));
 
-        Log::info('Applied L5-v2 bias correction', [
-            'raw_mean'       => round($rawMean, 2),
-            'shift'          => $shift,
-            'corrected_mean' => round($correctedMean, 2),
+        Log::info('Applied L5-v6 bias correction', [
+            'raw_mean'        => round($rawMean, 2),
+            'errors_per_100w' => $errorsPer100,
+            'shift'           => $shift,
+            'corrected_mean'  => round($correctedMean, 2),
             'overall_band'   => $scoring['overall_band'],
         ]);
     }
 
     /**
-     * High-band quality detector (L5-v2). Returns an additional shift to apply
-     * on top of the baseline piecewise correction when ground-truth signals
-     * indicate exceptional writing that mini's raw score is compressing.
+     * Enforce IELTS descriptor-based hard ceilings for under-length responses.
      *
-     * Five binary indicators, each tuned against Cambridge Band 7-8.5 essays:
-     *   - TTR ≥ 0.55                    (lexical diversity)
-     *   - Grammar+spelling ≤ 2/100w     (accuracy)
-     *   - Cohesion markers ≥ 8 distinct (range of cohesive devices)
-     *   - C1+C2 vocabulary share ≥ 30%  (lexical sophistication)
-     *   - Word count ≥ 280              (developed response)
+     * Official rule (post-2018): there is no fixed under-length penalty.
+     * Instead, the descriptors at lower bands explicitly cite short length:
+     *   • LR Band 3: "the response being significantly underlength"
+     *   • GRA Band 3: "Length may be insufficient to provide evidence of
+     *     control of sentence forms"
+     *   • TR Band 9: requires ideas "fully extended" (impossible in 100 words)
      *
-     * 4-5 indicators = exceptional → +1.5 (lifts raw 6.0-6.5 to ~Band 8)
-     * 3 indicators   = strong      → +1.0 (lifts raw 6.0-6.5 to ~Band 7.5)
-     * ≤2 indicators  = no boost
+     * In practice human examiners pull TR/LR/GRA down for short scripts, but
+     * GPT-4-class LLMs reliably miss this. The buckets below mirror the
+     * descriptor ceiling for each length band:
      *
-     * The detector silently degrades when LanguageTool is unavailable
-     * (counts that indicator as not-met, so a weak signal blocks the boost
-     * rather than over-rewarding it).
+     *   Task 2 (250-word minimum)
+     *     • < 100 words → TR ≤ 4.0, LR ≤ 5.0, GRA ≤ 5.0  (Band 3-4 territory)
+     *     • 100–149     → TR ≤ 4.5, LR ≤ 5.5, GRA ≤ 5.5
+     *     • 150–219     → TR ≤ 5.5
+     *     • 220–249     → TR ≤ 6.0
+     *     • ≥ 250       → no length cap
+     *
+     *   Task 1 (150-word minimum)
+     *     • < 75 words  → TA ≤ 4.0, LR ≤ 5.0, GRA ≤ 5.0
+     *     • 75–99       → TA ≤ 4.5, LR ≤ 5.5, GRA ≤ 5.5
+     *     • 100–149     → TA ≤ 6.0
+     *     • ≥ 150       → no length cap
+     *
+     * Hard cap from descriptors (≤20 words → Band 1) is enforced upstream by
+     * the controller's min:50-char validation, so we don't need it here.
      */
-    protected function detectHighBandBoost(string $essay): float
+    protected function enforceLengthCaps(array &$scoring, int $wordCount, bool $isTask2): void
     {
-        /** @var LinguisticAnalyzer $analyzer */
-        $analyzer = app(LinguisticAnalyzer::class);
-        $signals  = $analyzer->analyze($essay);
-
-        /** @var LanguageToolClient $lt */
-        $lt = app(LanguageToolClient::class);
-        $ltResult = $lt->check($essay);
-
-        $words = max(1, (int) ($signals['word_count'] ?? 0));
-        $hits  = 0;
-
-        if (($signals['ttr'] ?? 0) >= 0.55) $hits++;
-
-        if (($ltResult['available'] ?? false) === true) {
-            $errPer100 = (($ltResult['grammar_errors'] ?? 0) + ($ltResult['spelling_errors'] ?? 0)) * 100 / $words;
-            if ($errPer100 <= 2.0) $hits++;
+        if ($wordCount <= 0) {
+            return;
         }
 
-        $cohesion = (int) ($signals['cohesion_markers']['count'] ?? 0);
-        if ($cohesion >= 8) $hits++;
+        $caps = [];
+        if ($isTask2) {
+            if ($wordCount < 100) {
+                $caps = ['task_achievement' => 4.0, 'lexical_resource' => 5.0, 'grammar' => 5.0];
+            } elseif ($wordCount < 150) {
+                $caps = ['task_achievement' => 4.5, 'lexical_resource' => 5.5, 'grammar' => 5.5];
+            } elseif ($wordCount < 220) {
+                $caps = ['task_achievement' => 5.5];
+            } elseif ($wordCount < 250) {
+                $caps = ['task_achievement' => 6.0];
+            }
+        } else {
+            if ($wordCount < 75) {
+                $caps = ['task_achievement' => 4.0, 'lexical_resource' => 5.0, 'grammar' => 5.0];
+            } elseif ($wordCount < 100) {
+                $caps = ['task_achievement' => 4.5, 'lexical_resource' => 5.5, 'grammar' => 5.5];
+            } elseif ($wordCount < 150) {
+                $caps = ['task_achievement' => 6.0];
+            }
+        }
 
-        $cefr     = $signals['cefr_distribution'] ?? [];
-        $advanced = (float) (($cefr['C1'] ?? 0) + ($cefr['C2'] ?? 0));
-        if ($advanced >= 30.0) $hits++;
+        if (empty($caps)) {
+            return;
+        }
 
-        if ($words >= 280) $hits++;
+        $applied = [];
+        foreach ($caps as $field => $cap) {
+            if (!isset($scoring[$field])) {
+                continue;
+            }
+            $before = (float) $scoring[$field];
+            if ($before > $cap) {
+                $scoring[$field] = $cap;
+                $applied[$field] = ['from' => $before, 'to' => $cap];
+            }
+        }
 
-        $boost = match (true) {
-            $hits >= 4 => 1.5,
-            $hits >= 3 => 1.0,
-            default    => 0.0,
-        };
-
-        if ($boost > 0) {
-            Log::info('High-band quality boost triggered', [
-                'hits'  => $hits,
-                'boost' => $boost,
-                'ttr'   => $signals['ttr'] ?? null,
-                'cohesion_count' => $cohesion,
-                'cefr_advanced'  => round($advanced, 1),
-                'word_count'     => $words,
+        if (!empty($applied)) {
+            Log::info('Applied under-length descriptor caps', [
+                'word_count' => $wordCount,
+                'is_task2'   => $isTask2,
+                'caps'       => $applied,
             ]);
         }
-
-        return $boost;
     }
 
     /**
-     * Post-scoring adjustment — Stage 1 downward nudge only (L5-v2).
+     * Push TR/TA down to Band 5 ("the main parts of the prompt are
+     * incompletely addressed") when a multi-part Task 2 prompt has any
+     * sub-question unaddressed.
      *
-     * Catches "polite over-scoring" of error-heavy essays at the Band 5.5–6.5
-     * boundary: if grammar error density is high AND the average is in that
-     * range, cap at 6.0.
-     *
-     * Stage 2 upward correction has moved to applyBiasCorrection() so sub-scores
-     * and overall_band stay synchronised.
+     * The LLM is asked to populate scoring.parts_addressed[] alongside the
+     * main scores; this method enforces the descriptor ceiling deterministically
+     * because the model frequently scores high TR despite flagging missing
+     * parts in its own explanation.
      */
-    protected function calibrateScore(float $average, array $scores): float
+    protected function enforceQuestionPartCoverage(array &$scoring, object $question): void
     {
-        if ($average >= 5.5 && $average <= 6.5) {
-            $errorDensity = $scores['error_summary']['grammar_errors_per_100_words'] ?? 0;
-            if ($errorDensity > 8 && $average > 6.0) {
-                $average = 6.0;
+        $parts = $scoring['question_parts'] ?? null;
+        if (!is_array($parts) || count($parts) < 2) {
+            return; // single-part prompt — nothing to enforce
+        }
+
+        $unaddressed = 0;
+        foreach ($parts as $p) {
+            if (!is_array($p)) continue;
+            if (($p['addressed'] ?? true) === false) {
+                $unaddressed++;
             }
         }
-        return $average;
+
+        if ($unaddressed === 0) {
+            return;
+        }
+
+        // One missed part → cap TR at 5.5 (Band 5 "incompletely addressed").
+        // Two or more missed → cap at 4.5 (Band 4 "tangential / minimal").
+        $cap = $unaddressed >= 2 ? 4.5 : 5.5;
+
+        if (isset($scoring['task_achievement']) && $scoring['task_achievement'] > $cap) {
+            $before = (float) $scoring['task_achievement'];
+            $scoring['task_achievement'] = $cap;
+
+            Log::info('Applied question-part coverage cap', [
+                'parts_total'      => count($parts),
+                'parts_unaddressed' => $unaddressed,
+                'cap'              => $cap,
+                'ta_before'        => $before,
+                'ta_after'         => $cap,
+            ]);
+        }
+    }
+
+    /**
+     * Recompute overall_band as the mean of the 4 criterion scores, rounded
+     * to the nearest 0.5 band (official IELTS rounding rule). Called as the
+     * last step of the post-LLM pipeline so the displayed overall always
+     * agrees with the displayed sub-scores.
+     */
+    protected function recomputeOverallFromCriteria(array &$scoring, array $criterionFields): void
+    {
+        $values = [];
+        foreach ($criterionFields as $f) {
+            if (isset($scoring[$f])) {
+                $values[] = (float) $scoring[$f];
+            }
+        }
+        if (count($values) !== count($criterionFields)) {
+            return; // missing fields — leave overall alone
+        }
+        $mean = array_sum($values) / count($values);
+        $scoring['overall_band'] = (float) max(0.0, min(9.0, round($mean * 2) / 2));
     }
 }

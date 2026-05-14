@@ -288,6 +288,59 @@ class ScoringLogicTest extends TestCase
         $this->assertNull($this->invokeProtected('parseConfidenceMax', ['5.0']));
     }
 
+    // ── enforceTopicRelevance ────────────────────────────────────────────
+
+    public function test_topic_relevance_off_topic_caps_ta_at_band_3_5()
+    {
+        $scoring = ['task_achievement' => 7.5, 'topic_relevance' => 10];
+        $this->invokeProtected('enforceTopicRelevance', [&$scoring]);
+        $this->assertSame(3.5, $scoring['task_achievement']);
+    }
+
+    public function test_topic_relevance_tangential_caps_ta_at_5()
+    {
+        $scoring = ['task_achievement' => 7.0, 'topic_relevance' => 35];
+        $this->invokeProtected('enforceTopicRelevance', [&$scoring]);
+        $this->assertSame(5.0, $scoring['task_achievement']);
+    }
+
+    public function test_topic_relevance_partially_relevant_caps_ta_at_6()
+    {
+        $scoring = ['task_achievement' => 7.5, 'topic_relevance' => 60];
+        $this->invokeProtected('enforceTopicRelevance', [&$scoring]);
+        $this->assertSame(6.0, $scoring['task_achievement']);
+    }
+
+    public function test_topic_relevance_high_does_not_cap()
+    {
+        $scoring = ['task_achievement' => 8.0, 'topic_relevance' => 90];
+        $this->invokeProtected('enforceTopicRelevance', [&$scoring]);
+        $this->assertSame(8.0, $scoring['task_achievement']);
+    }
+
+    public function test_topic_relevance_missing_or_invalid_skipped()
+    {
+        $scoring = ['task_achievement' => 7.5];
+        $this->invokeProtected('enforceTopicRelevance', [&$scoring]);
+        $this->assertSame(7.5, $scoring['task_achievement']);
+
+        $scoring = ['task_achievement' => 7.5, 'topic_relevance' => 'high'];
+        $this->invokeProtected('enforceTopicRelevance', [&$scoring]);
+        $this->assertSame(7.5, $scoring['task_achievement']);
+
+        $scoring = ['task_achievement' => 7.5, 'topic_relevance' => 150];
+        $this->invokeProtected('enforceTopicRelevance', [&$scoring]);
+        $this->assertSame(7.5, $scoring['task_achievement']);
+    }
+
+    public function test_topic_relevance_never_raises_ta()
+    {
+        // If LLM already gave low TA, the cap shouldn't bump it back up
+        $scoring = ['task_achievement' => 2.0, 'topic_relevance' => 90];
+        $this->invokeProtected('enforceTopicRelevance', [&$scoring]);
+        $this->assertSame(2.0, $scoring['task_achievement']);
+    }
+
     // ── error pipeline ───────────────────────────────────────────────────
 
     public function test_normalise_llm_errors_filters_empty_text_and_lowercases_severity()

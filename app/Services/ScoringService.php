@@ -245,6 +245,8 @@ class ScoringService
 
             $this->enforceLengthCaps($scoring, $wordCount, $isTask2);
 
+            $this->enforceTopicRelevance($scoring);
+
             $this->enforceQuestionPartCoverage($scoring, $question);
 
             // Final recompute so callers and persisted JSON agree.
@@ -699,6 +701,19 @@ STRICT TASK 2 RULES:
 - Each idea must include explanation + example or consequence.
 - If position is unclear or ideas underdeveloped -> TR <= 6.0.
 
+TOPIC RELEVANCE CHECK (mandatory):
+- Score the candidate's overall on-topicness as an integer 0-100 in the
+  topic_relevance field. Be calibrated:
+    100 = directly addresses the prompt with no off-topic digressions
+    75  = addresses the prompt; one or two paragraphs drift into adjacent territory
+    50  = partially relevant — half the response is on-topic, half meanders
+    25  = tangential — touches the topic but mostly discusses something else
+    0   = wholly off-topic (e.g. essay about climate change for a prompt about education)
+- The post-LLM pipeline will cap Task Response based on this number per the
+  Band 3 descriptor ("the prompt is tackled in a minimal way, or the answer
+  is tangential"). Be honest; an off-topic Band 9-quality essay still scores
+  Band 3 on TR per the official rules.
+
 QUESTION-PART COVERAGE CHECK (mandatory):
 - Read the prompt above and break it into its distinct sub-questions or
   instructions. A two-part prompt like "Why is this happening? Do you think
@@ -916,6 +931,7 @@ Provide evaluation in JSON:
   "grammatical_range_accuracy": 0.0,
   "overall_band": 0.0,
   "band_confidence_range": "X.X – X.X",
+  "topic_relevance": 0,
   "question_parts": [
     { "part": "first sub-question or instruction", "addressed": true,  "evidence": "1-line evidence" },
     { "part": "second sub-question or instruction", "addressed": false, "evidence": "what was missing" }
@@ -1475,6 +1491,58 @@ CRITERIA;
                 'word_count' => $wordCount,
                 'is_task2' => $isTask2,
                 'caps' => $applied,
+            ]);
+        }
+    }
+
+    /**
+     * Hard-cap Task Response based on the LLM's `topic_relevance` (0-100)
+     * self-assessment. Mirrors the official descriptors:
+     *
+     *   ≥75 → no cap (response addresses the prompt)
+     *   50-74 → TR ≤ 6.0 ("main parts addressed; some more fully than others")
+     *   25-49 → TR ≤ 5.0 ("the prompt is incompletely addressed")
+     *   <25  → TR ≤ 3.5 ("tackled in a minimal way / tangential")
+     *
+     * This catches the AI failure mode where a beautifully-written but
+     * off-topic essay gets Band 7+ from the LLM because it can't help but
+     * reward fluent prose. Real examiners pull TR straight to Band 3.
+     *
+     * Skipped if topic_relevance is missing or out of range — the LLM may
+     * legitimately omit it on certain task types.
+     */
+    protected function enforceTopicRelevance(array &$scoring): void
+    {
+        $relevance = $scoring['topic_relevance'] ?? null;
+        if (! is_numeric($relevance)) {
+            return;
+        }
+
+        $relevance = (int) $relevance;
+        if ($relevance < 0 || $relevance > 100) {
+            return;
+        }
+
+        $cap = match (true) {
+            $relevance >= 75 => null,
+            $relevance >= 50 => 6.0,
+            $relevance >= 25 => 5.0,
+            default => 3.5,
+        };
+
+        if ($cap === null) {
+            return;
+        }
+
+        if (isset($scoring['task_achievement']) && $scoring['task_achievement'] > $cap) {
+            $before = (float) $scoring['task_achievement'];
+            $scoring['task_achievement'] = $cap;
+
+            Log::info('Applied topic-relevance cap', [
+                'topic_relevance' => $relevance,
+                'cap' => $cap,
+                'ta_before' => $before,
+                'ta_after' => $cap,
             ]);
         }
     }

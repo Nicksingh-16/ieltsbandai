@@ -4,11 +4,9 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
-use Laravel\Socialite\Facades\Socialite;
 use Exception;
+use Illuminate\Support\Facades\Auth;
+use Laravel\Socialite\Facades\Socialite;
 
 class SocialAuthController extends Controller
 {
@@ -21,6 +19,7 @@ class SocialAuthController extends Controller
             return redirect()->route('login')
                 ->with('error', 'Google sign-in is temporarily disabled during beta. Please use email and password.');
         }
+
         return Socialite::driver('google')->redirect();
     }
 
@@ -31,31 +30,31 @@ class SocialAuthController extends Controller
     {
         try {
             $googleUser = Socialite::driver('google')->user();
-            
+
             \Log::info('Google OAuth callback received', [
                 'email' => $googleUser->getEmail(),
                 'name' => $googleUser->getName(),
             ]);
-            
+
             // Check if user exists by email
             $user = User::where('email', $googleUser->getEmail())->first();
 
             if ($user) {
                 \Log::info('Existing user found, updating OAuth info');
-                
+
                 // Update OAuth info if not already set. provider/provider_id/
                 // avatar/email_verified_at are intentionally NOT in User::$fillable
                 // — use forceFill inside this trusted OAuth callback.
-                if (!$user->provider) {
+                if (! $user->provider) {
                     $user->forceFill([
-                        'provider'    => 'google',
+                        'provider' => 'google',
                         'provider_id' => $googleUser->getId(),
-                        'avatar'      => $googleUser->getAvatar(),
+                        'avatar' => $googleUser->getAvatar(),
                     ])->save();
                 }
             } else {
                 \Log::info('Creating new user from Google OAuth');
-                
+
                 // Create new user. Credit amount comes from config: beta mode
                 // grants config('beta.signup_credits'); otherwise the free-plan
                 // default. Switch with BETA_MODE in .env, no code changes.
@@ -63,39 +62,39 @@ class SocialAuthController extends Controller
                     ? config('beta.signup_credits')
                     : config('packages.free.credits', 3);
 
-                $user = new User();
+                $user = new User;
                 $user->forceFill([
-                    'name'              => $googleUser->getName(),
-                    'email'             => $googleUser->getEmail(),
-                    'provider'          => 'google',
-                    'provider_id'       => $googleUser->getId(),
-                    'avatar'            => $googleUser->getAvatar(),
-                    'password'          => null,                       // OAuth users have no local password
+                    'name' => $googleUser->getName(),
+                    'email' => $googleUser->getEmail(),
+                    'provider' => 'google',
+                    'provider_id' => $googleUser->getId(),
+                    'avatar' => $googleUser->getAvatar(),
+                    'password' => null,                       // OAuth users have no local password
                     'email_verified_at' => now(),                      // Google guarantees email ownership
-                    'test_credits'      => $signupCredits,
+                    'test_credits' => $signupCredits,
                     'self_eval_credits' => 1,                          // separate pool for /evaluate
-                    'ref_source'        => session()->pull('ref_source'),
+                    'ref_source' => session()->pull('ref_source'),
                 ])->save();
-                
+
                 \Log::info('New user created successfully', ['user_id' => $user->id]);
             }
 
             // Log the user in
             Auth::login($user, true);
-            
+
             \Log::info('User logged in successfully', ['user_id' => $user->id]);
 
             return redirect()->route('dashboard')
-                ->with('success', 'Welcome back, ' . $user->name . '!');
+                ->with('success', 'Welcome back, '.$user->name.'!');
 
         } catch (Exception $e) {
             \Log::error('Google OAuth failed', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
-            
+
             return redirect()->route('login')
-                ->with('error', 'Unable to login with Google. Please try again. Error: ' . $e->getMessage());
+                ->with('error', 'Unable to login with Google. Please try again. Error: '.$e->getMessage());
         }
     }
 

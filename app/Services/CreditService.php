@@ -51,9 +51,10 @@ class CreditService
     {
         // Pro / institute users — record marker for accounting parity, no debit.
         if ($this->isPro($user)) {
-            if (!$test->credit_charged_at) {
+            if (! $test->credit_charged_at) {
                 $test->forceFill(['credit_charged_at' => now()])->save();
             }
+
             return;
         }
 
@@ -61,13 +62,13 @@ class CreditService
             // Lock the test row first to enforce idempotency on this single
             // test. If another request already charged it, no-op.
             $lockedTest = Test::whereKey($test->id)->lockForUpdate()->first();
-            if (!$lockedTest || $lockedTest->credit_charged_at) {
+            if (! $lockedTest || $lockedTest->credit_charged_at) {
                 return;
             }
 
             // Lock user row — defeats the parallel-start race condition.
             $lockedUser = User::whereKey($user->id)->lockForUpdate()->first();
-            if (!$lockedUser) {
+            if (! $lockedUser) {
                 throw new \RuntimeException('User vanished mid-charge');
             }
 
@@ -92,21 +93,21 @@ class CreditService
     {
         return DB::transaction(function () use ($test) {
             $lockedTest = Test::whereKey($test->id)->lockForUpdate()->first();
-            if (!$lockedTest) {
+            if (! $lockedTest) {
                 return false;
             }
             // Already refunded, or never charged — nothing to do.
-            if ($lockedTest->credit_refunded_at || !$lockedTest->credit_charged_at) {
+            if ($lockedTest->credit_refunded_at || ! $lockedTest->credit_charged_at) {
                 return false;
             }
 
             $user = User::whereKey($lockedTest->user_id)->lockForUpdate()->first();
-            if (!$user) {
+            if (! $user) {
                 return false;
             }
 
             // Pro users were never debited — mark refunded for audit, no credit.
-            if (!$this->isPro($user)) {
+            if (! $this->isPro($user)) {
                 $user->increment('test_credits');
             }
 
@@ -115,6 +116,7 @@ class CreditService
                 'test_id' => $lockedTest->id,
                 'user_id' => $user->id,
             ]);
+
             return true;
         });
     }
@@ -130,7 +132,7 @@ class CreditService
     /**
      * Activate pro subscription
      */
-    public function activatePro(User $user, int $durationDays, int $credits = null): void
+    public function activatePro(User $user, int $durationDays, ?int $credits = null): void
     {
         $user->update([
             'is_pro' => true,
@@ -155,16 +157,17 @@ class CreditService
 
         $sub = $user->subscription;
 
-        if (!$sub || $sub->status !== 'active' || !$sub->ends_at || $sub->ends_at->isPast()) {
+        if (! $sub || $sub->status !== 'active' || ! $sub->ends_at || $sub->ends_at->isPast()) {
             // Sync cached field if stale
             if ($user->is_pro) {
                 $user->update(['is_pro' => false]);
             }
+
             return false;
         }
 
         // Sync cached field if needed
-        if (!$user->is_pro) {
+        if (! $user->is_pro) {
             $user->update(['is_pro' => true, 'pro_expires_at' => $sub->ends_at]);
         }
 
@@ -176,11 +179,12 @@ class CreditService
      */
     public function hasSeatAccess(User $user): bool
     {
-        if (!$user->institute_id || !in_array($user->institute_role, ['student', 'teacher', 'owner'])) {
+        if (! $user->institute_id || ! in_array($user->institute_role, ['student', 'teacher', 'owner'])) {
             return false;
         }
 
         $institute = $user->institute;
+
         return $institute && $institute->is_active;
     }
 

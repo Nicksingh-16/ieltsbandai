@@ -7,21 +7,21 @@ use App\Models\Question;
 class SpeakingRepository
 {
     public function getSpeakingQuestions()
-{
-    $part1 = Question::where('category', 'speaking_part1')->inRandomOrder()->first();
-    $part2 = Question::where('category', 'speaking_part2')->inRandomOrder()->first();
-    $part3 = Question::where('category', 'speaking_part3')->inRandomOrder()->first();
+    {
+        $part1 = Question::where('category', 'speaking_part1')->inRandomOrder()->first();
+        $part2 = Question::where('category', 'speaking_part2')->inRandomOrder()->first();
+        $part3 = Question::where('category', 'speaking_part3')->inRandomOrder()->first();
 
-    if (!$part1 || !$part2 || !$part3) {
-        throw new \Exception("Speaking questions missing in DB. Please seed at least 1 question per part.");
+        if (! $part1 || ! $part2 || ! $part3) {
+            throw new \Exception('Speaking questions missing in DB. Please seed at least 1 question per part.');
+        }
+
+        return [
+            'part1' => $part1,
+            'part2' => $part2,
+            'part3' => $part3,
+        ];
     }
-
-    return [
-        'part1' => $part1,
-        'part2' => $part2,
-        'part3' => $part3,
-    ];
-}
 
     public function countAudioFilesForTest($testId)
     {

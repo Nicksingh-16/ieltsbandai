@@ -30,7 +30,7 @@ return new class extends Migration
 
         foreach ($rows as $row) {
             $raw = $row->metadata;
-            if (!is_string($raw)) {
+            if (! is_string($raw)) {
                 continue;
             }
 
@@ -58,8 +58,8 @@ return new class extends Migration
         $deactivated = [];
         foreach ($silent as $q) {
             $meta = is_string($q->metadata) ? (json_decode($q->metadata, true) ?: []) : (array) $q->metadata;
-            $hasAudio = !empty($meta['audio_url']) || !empty($meta['section_audios']);
-            if (!$hasAudio) {
+            $hasAudio = ! empty($meta['audio_url']) || ! empty($meta['section_audios']);
+            if (! $hasAudio) {
                 DB::table('questions')->where('id', $q->id)->update(['active' => 0]);
                 $deactivated[] = $q->id;
             }

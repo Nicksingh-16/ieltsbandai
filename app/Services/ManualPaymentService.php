@@ -23,9 +23,7 @@ use Illuminate\Support\Str;
  */
 class ManualPaymentService
 {
-    public function __construct(protected CreditService $credits)
-    {
-    }
+    public function __construct(protected CreditService $credits) {}
 
     /**
      * Create a pending Payment row for a user picking a plan.
@@ -34,25 +32,25 @@ class ManualPaymentService
     public function createPendingPayment(User $user, string $planKey): Payment
     {
         $plan = $this->resolvePlan($planKey);
-        if (!$plan) {
+        if (! $plan) {
             throw new \InvalidArgumentException("Unknown plan: {$planKey}");
         }
 
         // Short, unambiguous reference. Excludes 0/O/I/1 to avoid confusion
         // when users hand-type the UTR-note field on their UPI app.
-        $ref = 'IBAI-' . strtoupper(Str::random(6));
+        $ref = 'IBAI-'.strtoupper(Str::random(6));
         while (Payment::where('order_id', $ref)->exists()) {
-            $ref = 'IBAI-' . strtoupper(Str::random(6));
+            $ref = 'IBAI-'.strtoupper(Str::random(6));
         }
 
         return Payment::create([
-            'user_id'  => $user->id,
+            'user_id' => $user->id,
             'order_id' => $ref,
-            'amount'   => $plan['price'],
+            'amount' => $plan['price'],
             'currency' => config('plans.currency', 'INR'),
-            'status'   => 'pending',
-            'plan'     => $planKey,
-            'method'   => 'manual',
+            'status' => 'pending',
+            'plan' => $planKey,
+            'method' => 'manual',
         ]);
     }
 
@@ -64,7 +62,7 @@ class ManualPaymentService
      */
     public function buildUpiDeepLink(Payment $payment): string
     {
-        $vpa  = (string) config('services.upi.vpa');
+        $vpa = (string) config('services.upi.vpa');
         $name = (string) config('services.upi.name', 'IELTS Band AI');
 
         $params = [
@@ -75,7 +73,7 @@ class ManualPaymentService
             'cu' => $payment->currency ?: 'INR',
         ];
 
-        return 'upi://pay?' . http_build_query($params);
+        return 'upi://pay?'.http_build_query($params);
     }
 
     /**
@@ -90,7 +88,7 @@ class ManualPaymentService
     public function submitUtr(Payment $payment, string $utr): Payment
     {
         $utr = preg_replace('/\s+/', '', $utr);
-        if (!preg_match('/^[A-Za-z0-9]{8,22}$/', $utr)) {
+        if (! preg_match('/^[A-Za-z0-9]{8,22}$/', $utr)) {
             throw new \RuntimeException('UTR must be 8–22 alphanumeric characters. Check your UPI app receipt.');
         }
         if ($payment->status !== 'pending') {
@@ -109,16 +107,16 @@ class ManualPaymentService
             ->exists();
         if ($dup) {
             Log::warning('Duplicate UTR submission blocked', [
-                'utr'        => $utr,
+                'utr' => $utr,
                 'payment_id' => $payment->id,
-                'user_id'    => $payment->user_id,
+                'user_id' => $payment->user_id,
             ]);
             throw new \RuntimeException('This UTR is already linked to another payment. Each bank transaction has a unique UTR — double-check your UPI app receipt or contact support.');
         }
 
         return DB::transaction(function () use ($payment, $utr) {
             $locked = Payment::whereKey($payment->id)->lockForUpdate()->first();
-            if (!$locked || $locked->status !== 'pending') {
+            if (! $locked || $locked->status !== 'pending') {
                 throw new \RuntimeException('Payment was already processed.');
             }
 
@@ -134,17 +132,17 @@ class ManualPaymentService
             }
 
             $locked->proof_id = $utr;
-            $locked->status   = 'pending_verification';
+            $locked->status = 'pending_verification';
             $locked->save();
 
             $this->grant($locked);
 
             Log::info('Manual UPI payment submitted', [
                 'payment_id' => $locked->id,
-                'user_id'    => $locked->user_id,
-                'plan'       => $locked->plan,
-                'amount'     => $locked->amount,
-                'utr'        => $utr,
+                'user_id' => $locked->user_id,
+                'plan' => $locked->plan,
+                'amount' => $locked->amount,
+                'utr' => $utr,
             ]);
 
             return $locked->refresh();
@@ -163,38 +161,39 @@ class ManualPaymentService
         }
 
         $plan = $payment->planConfig();
-        if (!$plan) {
+        if (! $plan) {
             Log::error('grant() called with unknown plan', ['payment_id' => $payment->id, 'plan' => $payment->plan]);
+
             return;
         }
 
         $user = $payment->user()->lockForUpdate()->first();
-        if (!$user) {
+        if (! $user) {
             return;
         }
 
-        if (!empty($plan['duration_days'])) {
+        if (! empty($plan['duration_days'])) {
             // Subscription plan — extend or create.
             $sub = Subscription::firstOrNew(['user_id' => $user->id]);
             $base = ($sub->exists && $sub->ends_at && $sub->ends_at->isFuture())
                 ? $sub->ends_at
                 : Carbon::now();
             $sub->user_id = $user->id;
-            $sub->plan       = $payment->plan;
-            $sub->status     = 'active';
-            $sub->starts_at  = $sub->starts_at ?: Carbon::now();
-            $sub->ends_at    = $base->copy()->addDays((int) $plan['duration_days']);
+            $sub->plan = $payment->plan;
+            $sub->status = 'active';
+            $sub->starts_at = $sub->starts_at ?: Carbon::now();
+            $sub->ends_at = $base->copy()->addDays((int) $plan['duration_days']);
             $sub->payment_id = $payment->id;
             $sub->save();
 
             $user->forceFill([
-                'is_pro'         => true,
+                'is_pro' => true,
                 'pro_expires_at' => $sub->ends_at,
-                'model_tier'     => $plan['model_tier'] ?? 'standard',
+                'model_tier' => $plan['model_tier'] ?? 'standard',
             ])->save();
 
             $payment->credits_granted = null;
-        } elseif (!empty($plan['credits'])) {
+        } elseif (! empty($plan['credits'])) {
             // One-time pack — route to the right credit pool.
             $pool = $plan['credits_pool'] ?? 'test';   // 'test' or 'self_eval'
             $amount = (int) $plan['credits'];
@@ -217,7 +216,7 @@ class ManualPaymentService
     {
         $payment->verified_at = Carbon::now();
         $payment->verified_by = $admin->id;
-        $payment->status      = 'completed';
+        $payment->status = 'completed';
         if ($note) {
             $payment->admin_note = $note;
         }
@@ -231,26 +230,26 @@ class ManualPaymentService
     {
         DB::transaction(function () use ($payment, $admin, $reason) {
             $user = $payment->user()->lockForUpdate()->first();
-            if (!$user) {
+            if (! $user) {
                 return;
             }
 
             $plan = $payment->planConfig();
 
-            if ($plan && !empty($plan['duration_days'])) {
+            if ($plan && ! empty($plan['duration_days'])) {
                 // Subscription — cancel it if it traces back to this payment.
                 $sub = Subscription::where('user_id', $user->id)
                     ->where('payment_id', $payment->id)
                     ->first();
                 if ($sub) {
-                    $sub->status  = 'cancelled';
+                    $sub->status = 'cancelled';
                     $sub->ends_at = Carbon::now();
                     $sub->save();
                 }
                 $user->forceFill([
-                    'is_pro'         => false,
+                    'is_pro' => false,
                     'pro_expires_at' => null,
-                    'model_tier'     => 'standard',
+                    'model_tier' => 'standard',
                 ])->save();
             } elseif ($payment->credits_granted) {
                 // Credits — claw back from the same pool we granted to.
@@ -262,9 +261,9 @@ class ManualPaymentService
                 }
             }
 
-            $payment->status     = 'refunded';
-            $payment->admin_note = ($payment->admin_note ? $payment->admin_note . "\n---\n" : '')
-                . "REVOKED by admin #{$admin->id} on " . Carbon::now()->toIso8601String() . ": {$reason}";
+            $payment->status = 'refunded';
+            $payment->admin_note = ($payment->admin_note ? $payment->admin_note."\n---\n" : '')
+                ."REVOKED by admin #{$admin->id} on ".Carbon::now()->toIso8601String().": {$reason}";
             $payment->save();
         });
     }

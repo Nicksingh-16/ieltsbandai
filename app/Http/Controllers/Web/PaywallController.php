@@ -10,9 +10,7 @@ use Illuminate\Support\Facades\Auth;
 
 class PaywallController extends Controller
 {
-    public function __construct(protected ManualPaymentService $payments)
-    {
-    }
+    public function __construct(protected ManualPaymentService $payments) {}
 
     /**
      * The pricing page. Renders the full plan ladder + conversion psychology.
@@ -21,19 +19,19 @@ class PaywallController extends Controller
      */
     public function index(Request $request)
     {
-        $oneTime      = config('plans.one_time', []);
+        $oneTime = config('plans.one_time', []);
         $subscription = config('plans.subscription', []);
-        $beta         = config('plans.beta', []);
-        $symbol       = config('plans.currency_symbol', '₹');
+        $beta = config('plans.beta', []);
+        $symbol = config('plans.currency_symbol', '₹');
 
         // ?from=writing etc. — optional context to subtly highlight the most
         // relevant single-test pack. Doesn't gate anything, just visual hint.
-        $context      = $request->query('from');
+        $context = $request->query('from');
 
         // Razorpay key (publishable). If unset (e.g. no RAZORPAY_KEY in .env),
         // the view falls back to the manual UPI form-POST flow so the paywall
         // never goes dark — local dev and emergency rollback both work.
-        $razorpayKey  = config('services.razorpay.key');
+        $razorpayKey = config('services.razorpay.key');
 
         return view('pages.paywall.index', compact('oneTime', 'subscription', 'beta', 'symbol', 'context', 'razorpayKey'));
     }
@@ -51,7 +49,7 @@ class PaywallController extends Controller
         $plan = config("plans.one_time.{$data['plan']}")
              ?? config("plans.subscription.{$data['plan']}");
 
-        if (!$plan) {
+        if (! $plan) {
             return back()->with('error', 'Unknown plan. Please try again.');
         }
 
@@ -74,10 +72,10 @@ class PaywallController extends Controller
             return redirect()->route('paywall.receipt', ['ref' => $payment->order_id]);
         }
 
-        $plan        = $payment->planConfig();
-        $upiUri      = $this->payments->buildUpiDeepLink($payment);
-        $upiVpa      = config('services.upi.vpa');
-        $upiName     = config('services.upi.name');
+        $plan = $payment->planConfig();
+        $upiUri = $this->payments->buildUpiDeepLink($payment);
+        $upiVpa = config('services.upi.vpa');
+        $upiName = config('services.upi.name');
 
         return view('pages.paywall.pay', compact(
             'payment', 'plan', 'upiUri', 'upiVpa', 'upiName'

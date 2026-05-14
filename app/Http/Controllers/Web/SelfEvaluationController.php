@@ -26,16 +26,14 @@ use Illuminate\Support\Facades\Log;
  */
 class SelfEvaluationController extends Controller
 {
-    public function __construct(protected ScoringService $scorer)
-    {
-    }
+    public function __construct(protected ScoringService $scorer) {}
 
     /** Show the paste-your-own-essay form. */
     public function index()
     {
-        $user      = Auth::user();
+        $user = Auth::user();
         $remaining = $this->resolveRemainingCredits($user);
-        $isPro     = app(\App\Services\CreditService::class)->isPro($user);
+        $isPro = app(\App\Services\CreditService::class)->isPro($user);
 
         return view('pages.self-eval.index', compact('remaining', 'isPro'));
     }
@@ -45,18 +43,18 @@ class SelfEvaluationController extends Controller
     {
         $data = $request->validate([
             'question' => 'required|string|min:30|max:2000',
-            'answer'   => 'required|string|min:100|max:8000',
+            'answer' => 'required|string|min:100|max:8000',
         ], [
             'question.min' => 'Paste the full IELTS prompt (at least 30 characters).',
-            'answer.min'   => 'Your essay needs at least 100 characters to evaluate meaningfully.',
+            'answer.min' => 'Your essay needs at least 100 characters to evaluate meaningfully.',
         ]);
 
-        $user      = $request->user();
-        $isPro     = app(\App\Services\CreditService::class)->isPro($user);
+        $user = $request->user();
+        $isPro = app(\App\Services\CreditService::class)->isPro($user);
         $remaining = $this->resolveRemainingCredits($user);
 
         // Out of credits → paywall.
-        if (!$isPro && $remaining <= 0) {
+        if (! $isPro && $remaining <= 0) {
             return redirect()->route('paywall.index', ['from' => 'self_eval'])
                 ->with('error', "You've used your free essay evaluation. Pick a plan below to keep going.");
         }
@@ -71,7 +69,7 @@ class SelfEvaluationController extends Controller
         // Decrement credit BEFORE the LLM call so a parallel submission can't
         // double-spend. Refund on scoring failure.
         $deducted = false;
-        if (!$isPro) {
+        if (! $isPro) {
             DB::transaction(function () use ($user, &$deducted) {
                 $locked = User::whereKey($user->id)->lockForUpdate()->first();
                 if ($locked && $locked->self_eval_credits > 0) {
@@ -79,7 +77,7 @@ class SelfEvaluationController extends Controller
                     $deducted = true;
                 }
             });
-            if (!$deducted) {
+            if (! $deducted) {
                 return redirect()->route('paywall.index', ['from' => 'self_eval']);
             }
         }
@@ -87,8 +85,8 @@ class SelfEvaluationController extends Controller
         // Synthesise a Question-like object — ScoringService accepts a plain
         // object with ->content / ->category / ->metadata, no DB Question needed.
         $questionStub = (object) [
-            'content'  => $data['question'],
-            'title'    => $data['question'],
+            'content' => $data['question'],
+            'title' => $data['question'],
             'category' => 'writing_academic_task2',
             'metadata' => [],
         ];
@@ -101,36 +99,38 @@ class SelfEvaluationController extends Controller
             if ($deducted) {
                 $user->increment('self_eval_credits');
             }
+
             return back()->with('error', 'Evaluation failed. Your credit was refunded — please try again.')->withInput();
         }
 
-        if (!$scoring || !isset($scoring['overall_band'])) {
+        if (! $scoring || ! isset($scoring['overall_band'])) {
             if ($deducted) {
                 $user->increment('self_eval_credits');
             }
+
             return back()->with('error', 'AI returned an incomplete result. Your credit was refunded.')->withInput();
         }
 
         // Persist as a Test row so the existing /results/{id} view handles
         // display. metadata.self_eval=true tags it for the dashboard list.
         $test = Test::create([
-            'user_id'      => $user->id,
-            'type'         => 'writing',
-            'test_type'    => 'academic',
-            'category'     => 'writing_academic_task2',
-            'status'       => 'completed',
-            'answer'       => $data['answer'],
-            'metadata'     => [
-                'self_eval'     => true,
+            'user_id' => $user->id,
+            'type' => 'writing',
+            'test_type' => 'academic',
+            'category' => 'writing_academic_task2',
+            'status' => 'completed',
+            'answer' => $data['answer'],
+            'metadata' => [
+                'self_eval' => true,
                 'user_question' => $data['question'],
             ],
             'overall_band' => $scoring['overall_band'],
-            'score'        => $scoring['overall_band'],
-            'result'       => json_encode(array_merge($scoring, [
+            'score' => $scoring['overall_band'],
+            'result' => json_encode(array_merge($scoring, [
                 'original_answer' => $data['answer'],
-                'word_count'      => $wordCount,
+                'word_count' => $wordCount,
             ])),
-            'started_at'   => now(),
+            'started_at' => now(),
             'completed_at' => now(),
             'credit_charged_at' => $deducted ? now() : null,
         ]);
@@ -138,8 +138,8 @@ class SelfEvaluationController extends Controller
         Log::info('Self-eval completed', [
             'user_id' => $user->id,
             'test_id' => $test->id,
-            'band'    => $scoring['overall_band'],
-            'words'   => $wordCount,
+            'band' => $scoring['overall_band'],
+            'words' => $wordCount,
         ]);
 
         return redirect()->route('writing.result', $test->id);
@@ -150,6 +150,7 @@ class SelfEvaluationController extends Controller
         if (app(\App\Services\CreditService::class)->isPro($user)) {
             return 'Unlimited';
         }
+
         return (int) ($user->self_eval_credits ?? 0);
     }
 }

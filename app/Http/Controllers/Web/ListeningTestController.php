@@ -42,19 +42,19 @@ class ListeningTestController extends Controller
         // to text; using LIKE keeps this dialect-portable.
         $audioFilter = fn ($q) => $q->where(function ($w) {
             $w->where('metadata', 'LIKE', '%"audio_url":"http%')
-              ->orWhere('metadata', 'LIKE', '%"section_audios":[%');
+                ->orWhere('metadata', 'LIKE', '%"section_audios":[%');
         });
 
         $question = Question::where('type', 'listening')
             ->where('category', $category)
             ->where('active', true)
             ->where($audioFilter)
-            ->when($seen->isNotEmpty(), fn($q) => $q->whereNotIn('id', $seen))
+            ->when($seen->isNotEmpty(), fn ($q) => $q->whereNotIn('id', $seen))
             ->inRandomOrder()
             ->first();
 
         // Fallback 1: relax the seen-deduplication, keep the audio filter.
-        if (!$question) {
+        if (! $question) {
             $question = Question::where('type', 'listening')
                 ->where('category', $category)
                 ->where('active', true)
@@ -63,7 +63,7 @@ class ListeningTestController extends Controller
                 ->first();
         }
 
-        if (!$question) {
+        if (! $question) {
             return back()->with('error', 'No listening questions available. Please try again later.');
         }
 
@@ -74,31 +74,33 @@ class ListeningTestController extends Controller
         $meta = is_string($question->metadata)
             ? (json_decode($question->metadata, true) ?: [])
             : (is_array($question->metadata) ? $question->metadata : []);
-        $hasAudio = !empty($meta['audio_url']) || !empty($meta['section_audios']);
-        if (!$hasAudio) {
+        $hasAudio = ! empty($meta['audio_url']) || ! empty($meta['section_audios']);
+        if (! $hasAudio) {
             \Illuminate\Support\Facades\Log::warning('Listening question missing audio', [
                 'question_id' => $question->id,
-                'category'    => $category,
+                'category' => $category,
             ]);
+
             return back()->with('error', 'This listening test is missing its audio. Please try another or contact support.');
         }
 
         try {
             $test = DB::transaction(function () use ($question, $testType) {
                 $test = Test::create([
-                    'user_id'    => Auth::id(),
-                    'type'       => 'listening',
-                    'test_type'  => $testType,
-                    'category'   => "listening_{$testType}",
-                    'status'     => 'in_progress',
+                    'user_id' => Auth::id(),
+                    'type' => 'listening',
+                    'test_type' => $testType,
+                    'category' => "listening_{$testType}",
+                    'status' => 'in_progress',
                     'started_at' => now(),
                 ]);
                 $test->questions()->attach($question->id, ['part' => 1]);
                 app(CreditService::class)->chargeForTest(Auth::user(), $test);
+
                 return $test;
             });
         } catch (\RuntimeException $e) {
-            return back()->with('error', 'Could not start test: ' . $e->getMessage());
+            return back()->with('error', 'Could not start test: '.$e->getMessage());
         }
 
         $sections = is_string($question->metadata)
@@ -123,15 +125,15 @@ class ListeningTestController extends Controller
             return redirect()->route('listening.result', $test->id);
         }
 
-        $submitted  = $request->input('answers', []);
-        $question   = $test->questions()->first();
-        $sections   = is_string($question->metadata)
+        $submitted = $request->input('answers', []);
+        $question = $test->questions()->first();
+        $sections = is_string($question->metadata)
             ? (json_decode($question->metadata, true) ?: [])
             : (is_array($question->metadata) ? $question->metadata : []);
-        $allQs      = $sections['questions'] ?? [];
+        $allQs = $sections['questions'] ?? [];
 
         $correct = 0;
-        $total   = 0;
+        $total = 0;
 
         foreach ($allQs as $q) {
             $type = $q['type'] ?? 'fill';
@@ -139,54 +141,63 @@ class ListeningTestController extends Controller
             // ── Types that are a single scored item ──────────────────
             if (in_array($type, ['fill', 'sentence_completion', 'short_answer', 'mcq', 'note_completion', 'flow_chart', 'summary_completion'])) {
                 $total++;
-                $given  = trim(strtolower($submitted[$q['id']] ?? ''));
+                $given = trim(strtolower($submitted[$q['id']] ?? ''));
                 $answer = trim(strtolower($q['answer'] ?? ''));
-                if ($given !== '' && $given === $answer) $correct++;
+                if ($given !== '' && $given === $answer) {
+                    $correct++;
+                }
 
-            // ── MCQ multiple (choose 2 — 1 mark total, all-or-nothing) ─
+                // ── MCQ multiple (choose 2 — 1 mark total, all-or-nothing) ─
             } elseif ($type === 'mcq_multi') {
                 $total++;
-                $raw       = $submitted[$q['id']] ?? [];
-                $selected  = array_map('trim', array_map('strtolower', is_array($raw) ? $raw : [$raw]));
-                $expected  = array_map('trim', array_map('strtolower', $q['answers'] ?? []));
-                sort($selected); sort($expected);
-                if ($selected === $expected) $correct++;
+                $raw = $submitted[$q['id']] ?? [];
+                $selected = array_map('trim', array_map('strtolower', is_array($raw) ? $raw : [$raw]));
+                $expected = array_map('trim', array_map('strtolower', $q['answers'] ?? []));
+                sort($selected);
+                sort($expected);
+                if ($selected === $expected) {
+                    $correct++;
+                }
 
-            // ── Matching / headings / sentence-endings / features ─────
-            // Each item in the group = 1 mark
+                // ── Matching / headings / sentence-endings / features ─────
+                // Each item in the group = 1 mark
             } elseif (in_array($type, ['matching_item', 'heading_match', 'sentence_ending', 'feature_match'])) {
                 $total++;
-                $given  = trim(strtolower($submitted[$q['id']] ?? ''));
+                $given = trim(strtolower($submitted[$q['id']] ?? ''));
                 $answer = trim(strtolower($q['answer'] ?? ''));
-                if ($given !== '' && $given === $answer) $correct++;
+                if ($given !== '' && $given === $answer) {
+                    $correct++;
+                }
 
-            // ── Diagram label — text input per label ──────────────────
+                // ── Diagram label — text input per label ──────────────────
             } elseif ($type === 'diagram_label') {
                 $labels = $q['labels'] ?? [];
                 foreach ($labels as $lbl) {
                     $total++;
-                    $key    = $lbl['key'];
-                    $given  = trim(strtolower($submitted[$key] ?? ''));
+                    $key = $lbl['key'];
+                    $given = trim(strtolower($submitted[$key] ?? ''));
                     $answer = trim(strtolower($lbl['answer'] ?? ''));
-                    if ($given !== '' && $given === $answer) $correct++;
+                    if ($given !== '' && $given === $answer) {
+                        $correct++;
+                    }
                 }
             }
         }
 
         // Normalise to 40-mark scale for band lookup
         $raw40 = $total > 0 ? (int) round($correct / $total * 40) : 0;
-        $band  = $this->rawToBand($raw40);
+        $band = $this->rawToBand($raw40);
 
         $test->update([
-            'status'       => 'completed',
-            'score'        => $band,
+            'status' => 'completed',
+            'score' => $band,
             'overall_band' => $band,
-            'answer'       => json_encode($submitted),
-            'result'       => json_encode([
-                'correct'    => $correct,
-                'total'      => $total,
+            'answer' => json_encode($submitted),
+            'result' => json_encode([
+                'correct' => $correct,
+                'total' => $total,
                 'percentage' => $total > 0 ? round($correct / $total * 100) : 0,
-                'answers'    => $submitted,
+                'answers' => $submitted,
             ]),
             'completed_at' => now(),
         ]);
@@ -196,15 +207,15 @@ class ListeningTestController extends Controller
 
     public function result($testId)
     {
-        $test     = Test::where('id', $testId)->where('user_id', Auth::id())->firstOrFail();
+        $test = Test::where('id', $testId)->where('user_id', Auth::id())->firstOrFail();
         $question = $test->questions()->first();
         $sections = is_string($question->metadata)
             ? (json_decode($question->metadata, true) ?: [])
             : (is_array($question->metadata) ? $question->metadata : []);
-        $result   = is_string($test->result)
+        $result = is_string($test->result)
             ? (json_decode($test->result, true) ?: [])
             : (is_array($test->result) ? $test->result : []);
-        $answers  = $result['answers'] ?? [];
+        $answers = $result['answers'] ?? [];
 
         return view('pages.listening.result', compact('test', 'question', 'sections', 'result', 'answers'));
     }
@@ -217,8 +228,11 @@ class ListeningTestController extends Controller
             10 => 4.0,  8 => 3.5,  6 => 3.0,  4 => 2.5,  2 => 2.0,
         ];
         foreach ($scale as $threshold => $band) {
-            if ($raw >= $threshold) return $band;
+            if ($raw >= $threshold) {
+                return $band;
+            }
         }
+
         return 1.0;
     }
 }

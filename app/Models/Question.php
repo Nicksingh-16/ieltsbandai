@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
 class Question extends Model
 {
@@ -16,7 +16,7 @@ class Question extends Model
 
     protected $casts = [
         'metadata' => 'array',
-        'active'   => 'boolean',
+        'active' => 'boolean',
     ];
 
     public function institute()
@@ -32,7 +32,7 @@ class Question extends Model
     public function templates()
     {
         return $this->belongsToMany(TestTemplate::class, 'template_questions')
-                    ->withPivot('order', 'config');
+            ->withPivot('order', 'config');
     }
 
     /** True if this question belongs to the global/master bank. */

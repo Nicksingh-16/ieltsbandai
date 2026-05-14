@@ -6,7 +6,6 @@ use App\Models\User;
 use App\Models\UserEvent;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Request;
 
 /**
  * Lightweight first-party analytics. Writes one row per event to user_events.
@@ -25,11 +24,11 @@ class EventTracker
             $request = app('request');
 
             UserEvent::create([
-                'user_id'    => $user?->id,
-                'event'      => substr($event, 0, 64),
+                'user_id' => $user?->id,
+                'event' => substr($event, 0, 64),
                 'properties' => $properties ?: null,
                 'session_id' => $request?->hasSession() ? substr($request->session()->getId(), 0, 64) : null,
-                'ip'         => $request?->ip(),
+                'ip' => $request?->ip(),
                 'user_agent' => $request ? substr((string) $request->userAgent(), 0, 500) : null,
                 'created_at' => now(),
             ]);

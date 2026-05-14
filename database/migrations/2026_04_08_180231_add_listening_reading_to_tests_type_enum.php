@@ -12,7 +12,7 @@ return new class extends Migration
         if ($driver === 'mysql') {
             DB::statement("ALTER TABLE tests MODIFY COLUMN type ENUM('speaking', 'writing', 'listening', 'reading') NOT NULL");
         } else {
-            DB::statement("ALTER TABLE tests DROP CONSTRAINT IF EXISTS tests_type_check");
+            DB::statement('ALTER TABLE tests DROP CONSTRAINT IF EXISTS tests_type_check');
             DB::statement("ALTER TABLE tests ADD CONSTRAINT tests_type_check CHECK (type IN ('speaking', 'writing', 'listening', 'reading'))");
         }
     }
@@ -24,7 +24,7 @@ return new class extends Migration
         if ($driver === 'mysql') {
             DB::statement("ALTER TABLE tests MODIFY COLUMN type ENUM('speaking', 'writing') NOT NULL");
         } else {
-            DB::statement("ALTER TABLE tests DROP CONSTRAINT IF EXISTS tests_type_check");
+            DB::statement('ALTER TABLE tests DROP CONSTRAINT IF EXISTS tests_type_check');
             DB::statement("ALTER TABLE tests ADD CONSTRAINT tests_type_check CHECK (type IN ('speaking', 'writing'))");
         }
     }

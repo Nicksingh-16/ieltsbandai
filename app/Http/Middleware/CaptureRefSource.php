@@ -20,7 +20,7 @@ class CaptureRefSource
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (config('beta.track_ref') && $request->filled('ref') && !$request->session()->has('ref_source')) {
+        if (config('beta.track_ref') && $request->filled('ref') && ! $request->session()->has('ref_source')) {
             $ref = substr(preg_replace('/[^A-Za-z0-9_\-]/', '', (string) $request->query('ref')), 0, 64);
             if ($ref !== '') {
                 $request->session()->put('ref_source', $ref);

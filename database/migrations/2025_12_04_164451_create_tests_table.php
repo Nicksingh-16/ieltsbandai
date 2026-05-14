@@ -12,15 +12,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('tests', function (Blueprint $table) {
-    $table->id();
-    $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-    $table->enum('type', ['speaking', 'writing']);
-    $table->integer('duration_seconds')->nullable();
-    $table->decimal('overall_band', 3, 1)->nullable();
-    $table->longText('feedback')->nullable();
-    $table->enum('status', ['created', 'in_progress', 'processing', 'completed', 'failed'])->default('created');
-    $table->timestamps();
-});
+            $table->id();
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->enum('type', ['speaking', 'writing']);
+            $table->integer('duration_seconds')->nullable();
+            $table->decimal('overall_band', 3, 1)->nullable();
+            $table->longText('feedback')->nullable();
+            $table->enum('status', ['created', 'in_progress', 'processing', 'completed', 'failed'])->default('created');
+            $table->timestamps();
+        });
 
     }
 

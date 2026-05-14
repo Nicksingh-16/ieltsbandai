@@ -20,7 +20,7 @@ class CalibratedEssayPrivacyTest extends TestCase
 {
     private function makeEssay(): CalibratedEssay
     {
-        $essay = new CalibratedEssay();
+        $essay = new CalibratedEssay;
         $essay->forceFill([
             'id' => 1,
             'external_id' => 'test_privacy_w1',
@@ -40,6 +40,7 @@ class CalibratedEssayPrivacyTest extends TestCase
             'word_count' => 250,
             'is_holdout' => false,
         ]);
+
         return $essay;
     }
 

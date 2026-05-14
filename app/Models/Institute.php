@@ -19,7 +19,7 @@ class Institute extends Model
     public static function booted(): void
     {
         static::creating(function ($institute) {
-            $institute->slug = Str::slug($institute->name) . '-' . Str::random(5);
+            $institute->slug = Str::slug($institute->name).'-'.Str::random(5);
         });
     }
 

@@ -16,8 +16,8 @@ class ContactController extends Controller
     public function send(Request $request)
     {
         $validated = $request->validate([
-            'name'    => 'required|string|max:100',
-            'email'   => 'required|email|max:150',
+            'name' => 'required|string|max:100',
+            'email' => 'required|email|max:150',
             'subject' => 'required|string|max:150',
             'message' => 'required|string|min:20|max:2000',
         ]);
@@ -28,13 +28,13 @@ class ContactController extends Controller
                 "Name: {$validated['name']}\nEmail: {$validated['email']}\n\nSubject: {$validated['subject']}\n\nMessage:\n{$validated['message']}",
                 function ($message) use ($validated) {
                     $message->to(config('mail.from.address', 'support@ieltsbandai.com'))
-                            ->subject('Contact Form: ' . $validated['subject'])
-                            ->replyTo($validated['email'], $validated['name']);
+                        ->subject('Contact Form: '.$validated['subject'])
+                        ->replyTo($validated['email'], $validated['name']);
                 }
             );
         } catch (\Exception $e) {
             // Mail not configured — log silently and continue
-            \Log::info('Contact form submission (mail not sent): ' . json_encode($validated));
+            \Log::info('Contact form submission (mail not sent): '.json_encode($validated));
         }
 
         return redirect()->route('contact')

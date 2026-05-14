@@ -4,8 +4,8 @@ namespace App\Jobs;
 
 use App\Models\AudioFile;
 use App\Models\Test;
-use App\Services\TranscriptionService;
 use App\Services\LanguageToolClient;
+use App\Services\TranscriptionService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -23,8 +23,10 @@ class TranscribeAudioJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $tries   = 3;
+    public $tries = 3;
+
     public $timeout = 200; // AssemblyAI: up to 90s upload + poll per file
+
     public $backoff = [20, 60];
 
     public function __construct(
@@ -37,23 +39,24 @@ class TranscribeAudioJob implements ShouldQueue
         $audioFile = AudioFile::findOrFail($this->audioFileId);
 
         // Skip if already transcribed (job retried after partial success)
-        if (!empty($audioFile->transcript)) {
-            Log::info("TranscribeAudioJob: already transcribed, skipping", [
+        if (! empty($audioFile->transcript)) {
+            Log::info('TranscribeAudioJob: already transcribed, skipping', [
                 'audio_file_id' => $this->audioFileId,
             ]);
             $this->checkAndDispatchScoring();
+
             return;
         }
 
-        Log::info("TranscribeAudioJob: starting transcription", [
+        Log::info('TranscribeAudioJob: starting transcription', [
             'audio_file_id' => $this->audioFileId,
-            'test_id'       => $this->testId,
-            'file'          => $audioFile->file_url,
+            'test_id' => $this->testId,
+            'file' => $audioFile->file_url,
         ]);
 
         $result = $transcriptionService->transcribeWithWords($audioFile->file_url);
 
-        if (!$result || empty($result['text'])) {
+        if (! $result || empty($result['text'])) {
             // Will retry up to $tries times
             throw new \RuntimeException(
                 "Transcription returned null for audio file {$this->audioFileId}"
@@ -61,21 +64,21 @@ class TranscribeAudioJob implements ShouldQueue
         }
 
         $transcript = $result['text'];
-        $words      = $result['words'] ?? [];
+        $words = $result['words'] ?? [];
 
         // Persist words[] alongside the plain transcript. The 'array' cast on
         // AudioFile::$casts handles JSON encoding. If the provider returned
         // no word-level data we still save an empty array — the downstream
         // analyzer gracefully skips when this is empty.
         $audioFile->update([
-            'transcript'       => $transcript,
+            'transcript' => $transcript,
             'transcript_words' => $words,
         ]);
 
-        Log::info("TranscribeAudioJob: transcription saved", [
-            'audio_file_id'     => $this->audioFileId,
+        Log::info('TranscribeAudioJob: transcription saved', [
+            'audio_file_id' => $this->audioFileId,
             'transcript_length' => strlen($transcript),
-            'word_count'        => count($words),
+            'word_count' => count($words),
         ]);
 
         // Best-effort grammar check via self-hosted LanguageTool. If the
@@ -84,31 +87,31 @@ class TranscribeAudioJob implements ShouldQueue
         // null. The result page hides the grammar panel in that case.
         try {
             $lt = app(LanguageToolClient::class)->check($transcript);
-            if ($lt['available'] && !empty($lt['raw'])) {
+            if ($lt['available'] && ! empty($lt['raw'])) {
                 $matches = [];
                 foreach ($lt['raw'] as $m) {
                     $matches[] = [
-                        'offset'       => (int)($m['offset'] ?? 0),
-                        'length'       => (int)($m['length'] ?? 0),
-                        'message'      => (string)($m['message'] ?? ''),
-                        'short_message'=> (string)($m['shortMessage'] ?? ''),
-                        'category'     => (string)($m['rule']['category']['id'] ?? 'GRAMMAR'),
-                        'rule_id'      => (string)($m['rule']['id'] ?? ''),
+                        'offset' => (int) ($m['offset'] ?? 0),
+                        'length' => (int) ($m['length'] ?? 0),
+                        'message' => (string) ($m['message'] ?? ''),
+                        'short_message' => (string) ($m['shortMessage'] ?? ''),
+                        'category' => (string) ($m['rule']['category']['id'] ?? 'GRAMMAR'),
+                        'rule_id' => (string) ($m['rule']['id'] ?? ''),
                         'replacements' => array_slice(
-                            array_map(fn($r) => (string)($r['value'] ?? ''), $m['replacements'] ?? []),
+                            array_map(fn ($r) => (string) ($r['value'] ?? ''), $m['replacements'] ?? []),
                             0, 3
                         ),
                     ];
                 }
                 $audioFile->update(['grammar_matches' => $matches]);
-                Log::info("TranscribeAudioJob: grammar matches saved", [
+                Log::info('TranscribeAudioJob: grammar matches saved', [
                     'audio_file_id' => $this->audioFileId,
-                    'match_count'   => count($matches),
+                    'match_count' => count($matches),
                 ]);
             }
         } catch (\Throwable $e) {
             // Never let LT failure block the scoring pipeline
-            Log::info("TranscribeAudioJob: grammar check skipped: " . $e->getMessage(), [
+            Log::info('TranscribeAudioJob: grammar check skipped: '.$e->getMessage(), [
                 'audio_file_id' => $this->audioFileId,
             ]);
         }
@@ -127,7 +130,7 @@ class TranscribeAudioJob implements ShouldQueue
             // Lock the test row to avoid race conditions between concurrent jobs
             $test = Test::lockForUpdate()->find($this->testId);
 
-            if (!$test || $test->status !== 'processing') {
+            if (! $test || $test->status !== 'processing') {
                 return; // already scoring or completed
             }
 
@@ -138,10 +141,10 @@ class TranscribeAudioJob implements ShouldQueue
 
             $totalParts = $test->audioFiles()->count();
 
-            Log::info("TranscribeAudioJob: completion check", [
-                'test_id'    => $this->testId,
-                'done'       => $doneCount,
-                'total'      => $totalParts,
+            Log::info('TranscribeAudioJob: completion check', [
+                'test_id' => $this->testId,
+                'done' => $doneCount,
+                'total' => $totalParts,
             ]);
 
             if ($doneCount >= $totalParts && $totalParts >= 3) {
@@ -149,7 +152,7 @@ class TranscribeAudioJob implements ShouldQueue
                 $test->update(['status' => 'scoring']);
                 SpeakingScoreJob::dispatch($this->testId)->onQueue('scoring');
 
-                Log::info("TranscribeAudioJob: all parts done — SpeakingScoreJob dispatched", [
+                Log::info('TranscribeAudioJob: all parts done — SpeakingScoreJob dispatched', [
                     'test_id' => $this->testId,
                 ]);
             }
@@ -160,15 +163,15 @@ class TranscribeAudioJob implements ShouldQueue
     {
         Log::error("TranscribeAudioJob: permanently failed after {$this->tries} attempts", [
             'audio_file_id' => $this->audioFileId,
-            'test_id'       => $this->testId,
-            'error'         => $e->getMessage(),
+            'test_id' => $this->testId,
+            'error' => $e->getMessage(),
         ]);
 
         // Mark test failed only if no scoring job was dispatched yet
         $test = Test::find($this->testId);
         if ($test && $test->status === 'processing') {
             $test->update([
-                'status'   => 'failed',
+                'status' => 'failed',
                 'feedback' => 'Audio transcription failed. Please try again.',
             ]);
         }

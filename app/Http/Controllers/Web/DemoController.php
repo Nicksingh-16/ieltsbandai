@@ -13,22 +13,23 @@ class DemoController extends Controller
     private function demoQuestion(): object
     {
         return (object) [
-            'title'    => 'Some people believe that universities should focus on providing academic knowledge, while others think they should prepare students for employment. Discuss both views and give your own opinion.',
-            'content'  => 'Some people believe that universities should focus on providing academic knowledge, while others think they should prepare students for employment. Discuss both views and give your own opinion.',
+            'title' => 'Some people believe that universities should focus on providing academic knowledge, while others think they should prepare students for employment. Discuss both views and give your own opinion.',
+            'content' => 'Some people believe that universities should focus on providing academic knowledge, while others think they should prepare students for employment. Discuss both views and give your own opinion.',
             'category' => 'writing_academic_task2',
-            'type'     => 'writing',
-            'min_words'  => 250,
+            'type' => 'writing',
+            'min_words' => 250,
             'time_limit' => 2400,
         ];
     }
 
     private const DEMO_COOKIE = 'demo_used';
+
     private const DEMO_COOKIE_DAYS = 30;
 
     public function tour(Request $request)
     {
         $question = $this->demoQuestion();
-        $used     = (bool) $request->cookie(self::DEMO_COOKIE);
+        $used = (bool) $request->cookie(self::DEMO_COOKIE);
 
         if ($used && session('demo_result')) {
             return redirect()->route('demo.result');
@@ -40,7 +41,7 @@ class DemoController extends Controller
     public function index(Request $request)
     {
         $question = $this->demoQuestion();
-        $used     = (bool) $request->cookie(self::DEMO_COOKIE);
+        $used = (bool) $request->cookie(self::DEMO_COOKIE);
 
         // If they've already submitted AND session result still lives, jump to result
         if ($used && session('demo_result')) {
@@ -58,6 +59,7 @@ class DemoController extends Controller
             if ($scoring) {
                 return redirect()->route('demo.result');
             }
+
             return redirect()->route('demo')->with('error', 'You have already used the demo. Schedule a call to see the full product.');
         }
 
@@ -65,12 +67,12 @@ class DemoController extends Controller
             'answer' => ['required', 'string', 'min:50', 'max:5000'],
         ]);
 
-        $answer   = $request->input('answer');
+        $answer = $request->input('answer');
         $question = $this->demoQuestion();
 
         $scoring = $scorer->scoreWriting($answer, $question);
 
-        if (!$scoring) {
+        if (! $scoring) {
             return back()->withInput()->with('error', 'Scoring service is temporarily unavailable. Please try again in a moment.');
         }
 
@@ -87,11 +89,11 @@ class DemoController extends Controller
 
     public function result()
     {
-        $scoring  = session('demo_result');
-        $answer   = session('demo_answer');
+        $scoring = session('demo_result');
+        $answer = session('demo_answer');
         $demoMode = session('demo_mode', 'practice');
 
-        if (!$scoring) {
+        if (! $scoring) {
             return redirect()->route('demo');
         }
 

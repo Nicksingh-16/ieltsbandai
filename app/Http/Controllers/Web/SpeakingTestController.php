@@ -3,15 +3,16 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Repositories\SpeakingRepository;
+use App\Services\SpeakingTestService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use App\Repositories\SpeakingRepository;
-use App\Services\SpeakingTestService;
 
 class SpeakingTestController extends Controller
 {
     protected $speakingRepo;
+
     protected $speakingService;
 
     public function __construct(SpeakingRepository $speakingRepo, SpeakingTestService $speakingService)
@@ -41,19 +42,19 @@ class SpeakingTestController extends Controller
             if ($test->testQuestions->isNotEmpty()) {
                 $questions = [];
                 foreach ($test->testQuestions as $testQuestion) {
-                    $partKey = 'part' . $testQuestion->part;
+                    $partKey = 'part'.$testQuestion->part;
                     $questions[$partKey] = $testQuestion->question;
                 }
             }
 
             return view('pages.speaking.index', compact('test', 'questions'));
         } catch (\Exception $e) {
-            Log::error('Speaking test access failed: ' . $e->getMessage(), [
+            Log::error('Speaking test access failed: '.$e->getMessage(), [
                 'user_id' => Auth::id(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
 
-            return redirect()->route('dashboard')->with('error', 'Unable to start speaking test: ' . $e->getMessage());
+            return redirect()->route('dashboard')->with('error', 'Unable to start speaking test: '.$e->getMessage());
         }
     }
 
@@ -85,18 +86,18 @@ class SpeakingTestController extends Controller
             return response()->json([
                 'success' => false,
                 'error' => $e->getMessage(),
-                'errors' => $e->errors()
+                'errors' => $e->errors(),
             ], 422);
 
         } catch (\Exception $e) {
-            Log::error('Audio upload failed: ' . $e->getMessage(), [
+            Log::error('Audio upload failed: '.$e->getMessage(), [
                 'test_id' => $request->test_id,
                 'user_id' => Auth::id(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'error' => 'Failed to upload audio. Please try again.'
+                'error' => 'Failed to upload audio. Please try again.',
             ], 500);
         }
     }

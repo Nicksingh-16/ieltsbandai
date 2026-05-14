@@ -16,8 +16,10 @@ class WritingEvaluationJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $tries   = 3;
+    public $tries = 3;
+
     public $timeout = 300; // 5 minutes — GPT-4 writing scoring can take 60-90s
+
     public $backoff = [30, 60];
 
     public function __construct(protected int $testId) {}
@@ -49,22 +51,24 @@ class WritingEvaluationJob implements ShouldQueue
                     'test_id' => $this->testId,
                 ]);
                 ob_end_clean();
+
                 return;
             }
 
             $result = $writingService->scoreAndComplete($this->testId);
 
-            if (!($result['success'] ?? false)) {
+            if (! ($result['success'] ?? false)) {
                 Log::error('WritingEvaluationJob scoring failed', [
                     'test_id' => $this->testId,
-                    'error'   => $result['error'] ?? 'unknown',
+                    'error' => $result['error'] ?? 'unknown',
                 ]);
                 $this->fail(new \RuntimeException($result['error'] ?? 'Scoring failed'));
+
                 return;
             }
 
             Log::info('WritingEvaluationJob completed', [
-                'test_id'      => $this->testId,
+                'test_id' => $this->testId,
                 'overall_band' => $result['result']['overall_band'] ?? null,
             ]);
 
@@ -76,9 +80,9 @@ class WritingEvaluationJob implements ShouldQueue
             // (status update + credit refund). Don't rethrow.
             Log::error('WritingEvaluationJob caught exception', [
                 'test_id' => $this->testId,
-                'error'   => $e->getMessage(),
-                'file'    => $e->getFile(),
-                'line'    => $e->getLine(),
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ]);
             try {
                 $this->fail($e);
@@ -86,14 +90,15 @@ class WritingEvaluationJob implements ShouldQueue
                 // Last-resort: directly mark failed if fail() itself throws.
                 try {
                     $this->failed($e);
-                } catch (\Throwable $__) { /* swallow */ }
+                } catch (\Throwable $__) { /* swallow */
+                }
             }
         } finally {
             $stray = ob_get_clean();
             if ($stray !== false && $stray !== '') {
                 Log::warning('WritingEvaluationJob captured stray output (suppressed)', [
                     'test_id' => $this->testId,
-                    'bytes'   => strlen($stray),
+                    'bytes' => strlen($stray),
                     'preview' => substr($stray, 0, 200),
                 ]);
             }
@@ -107,11 +112,11 @@ class WritingEvaluationJob implements ShouldQueue
     {
         Log::error('WritingEvaluationJob permanently failed', [
             'test_id' => $this->testId,
-            'error'   => $e->getMessage(),
+            'error' => $e->getMessage(),
         ]);
 
         $test = Test::find($this->testId);
-        if (!$test) {
+        if (! $test) {
             return;
         }
 
@@ -125,7 +130,7 @@ class WritingEvaluationJob implements ShouldQueue
         } catch (\Throwable $refundError) {
             Log::error('Credit refund failed after evaluation failure', [
                 'test_id' => $this->testId,
-                'error'   => $refundError->getMessage(),
+                'error' => $refundError->getMessage(),
             ]);
         }
     }

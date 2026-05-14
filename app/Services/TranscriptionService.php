@@ -9,23 +9,26 @@ use Illuminate\Support\Facades\Storage;
 class TranscriptionService
 {
     protected $apiKey;
+
     protected $provider;
+
     protected $uploadTimeout = 120;
+
     protected $transcriptionTimeout = 180;
 
     public function __construct()
     {
         $this->provider = config('services.transcription.provider', 'assemblyai');
-        
+
         if ($this->provider === 'deepgram') {
             $this->apiKey = config('services.deepgram.api_key');
         } else {
             $this->apiKey = config('services.assemblyai.api_key');
         }
-        
-        if (!$this->apiKey) {
-            Log::error('No API key configured for transcription provider: ' . $this->provider);
-            throw new \Exception('Transcription API key not configured for provider: ' . $this->provider);
+
+        if (! $this->apiKey) {
+            Log::error('No API key configured for transcription provider: '.$this->provider);
+            throw new \Exception('Transcription API key not configured for provider: '.$this->provider);
         }
     }
 
@@ -38,6 +41,7 @@ class TranscriptionService
     public function transcribe(string $filePath): ?string
     {
         $result = $this->transcribeWithWords($filePath);
+
         return $result['text'] ?? null;
     }
 
@@ -59,14 +63,14 @@ class TranscriptionService
             // Check if file needs conversion (WebM files often need it)
             $fullPath = Storage::disk('public')->path($filePath);
             $extension = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
-            
+
             // For WebM files, try to convert to WAV first if FFmpeg is available
             $workingFilePath = $filePath;
             if ($extension === 'webm' && $this->isFFmpegAvailable()) {
                 Log::info('Converting WebM to WAV for better compatibility', [
                     'original_file' => $filePath,
                 ]);
-                
+
                 $convertedPath = $this->convertToWav($filePath);
                 if ($convertedPath) {
                     $workingFilePath = $convertedPath;
@@ -77,11 +81,11 @@ class TranscriptionService
                     Log::warning('WebM conversion failed, will try with original file');
                 }
             }
-            
+
             if ($this->provider === 'deepgram') {
                 $result = $this->transcribeWithDeepgram($workingFilePath);
 
-                if (!$result && config('services.assemblyai.api_key')) {
+                if (! $result && config('services.assemblyai.api_key')) {
                     Log::info('Deepgram failed, trying AssemblyAI as fallback', [
                         'file_path' => $workingFilePath,
                     ]);
@@ -97,7 +101,7 @@ class TranscriptionService
             } else {
                 $result = $this->transcribeWithAssemblyAI($workingFilePath);
 
-                if (!$result && config('services.deepgram.api_key')) {
+                if (! $result && config('services.deepgram.api_key')) {
                     Log::info('AssemblyAI failed, trying Deepgram as fallback', [
                         'file_path' => $workingFilePath,
                     ]);
@@ -112,11 +116,12 @@ class TranscriptionService
                 return $result;
             }
         } catch (\Exception $e) {
-            Log::error('Transcription failed: ' . $e->getMessage(), [
+            Log::error('Transcription failed: '.$e->getMessage(), [
                 'file_path' => $filePath,
                 'provider' => $this->provider,
                 'trace' => $e->getTraceAsString(),
             ]);
+
             return null;
         }
     }
@@ -127,16 +132,16 @@ class TranscriptionService
     protected function isFFmpegAvailable(): bool
     {
         static $available = null;
-        
+
         if ($available === null) {
             exec('ffmpeg -version 2>&1', $output, $returnCode);
             $available = ($returnCode === 0);
-            
-            if (!$available) {
+
+            if (! $available) {
                 Log::info('FFmpeg not available - WebM files will be sent directly to transcription services');
             }
         }
-        
+
         return $available;
     }
 
@@ -147,49 +152,52 @@ class TranscriptionService
     {
         try {
             $fullWebmPath = Storage::disk('public')->path($webmPath);
-            
+
             // Create WAV filename in the same directory
             $wavFilename = str_replace('.webm', '_converted.wav', basename($webmPath));
-            $wavPath = dirname($webmPath) . '/' . $wavFilename;
+            $wavPath = dirname($webmPath).'/'.$wavFilename;
             $fullWavPath = Storage::disk('public')->path($wavPath);
-            
+
             // FFmpeg command: convert to 16kHz mono WAV (optimal for speech recognition)
             $command = sprintf(
                 'ffmpeg -i %s -ar 16000 -ac 1 -c:a pcm_s16le %s 2>&1',
                 escapeshellarg($fullWebmPath),
                 escapeshellarg($fullWavPath)
             );
-            
+
             Log::info('Running FFmpeg conversion', [
                 'command' => $command,
             ]);
-            
+
             exec($command, $output, $returnCode);
-            
-            if ($returnCode !== 0 || !file_exists($fullWavPath)) {
+
+            if ($returnCode !== 0 || ! file_exists($fullWavPath)) {
                 Log::error('FFmpeg conversion failed', [
                     'return_code' => $returnCode,
                     'output' => implode("\n", $output),
                 ]);
+
                 return null;
             }
-            
+
             $wavSize = filesize($fullWavPath);
             if ($wavSize === 0) {
                 Log::error('FFmpeg created empty WAV file');
                 @unlink($fullWavPath);
+
                 return null;
             }
-            
+
             Log::info('FFmpeg conversion successful', [
                 'output_file' => $wavPath,
                 'file_size' => $wavSize,
             ]);
-            
+
             return $wavPath;
-            
+
         } catch (\Exception $e) {
-            Log::error('Error during FFmpeg conversion: ' . $e->getMessage());
+            Log::error('Error during FFmpeg conversion: '.$e->getMessage());
+
             return null;
         }
     }
@@ -208,7 +216,7 @@ class TranscriptionService
                 }
             }
         } catch (\Exception $e) {
-            Log::warning('Failed to cleanup converted file: ' . $e->getMessage());
+            Log::warning('Failed to cleanup converted file: '.$e->getMessage());
         }
     }
 
@@ -219,32 +227,33 @@ class TranscriptionService
     {
         $fileSize = filesize($fullPath);
         $extension = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
-        
+
         $info = [
             'valid' => false,
             'size' => $fileSize,
             'extension' => $extension,
         ];
-        
+
         if ($fileSize === 0) {
             Log::error('Audio file is empty', ['file_path' => $fullPath]);
+
             return $info;
         }
-        
+
         if ($fileSize < 100) {
             Log::warning('Audio file suspiciously small', [
                 'file_path' => $fullPath,
                 'size' => $fileSize,
             ]);
         }
-        
+
         // For WebM files, do basic validation
         if ($extension === 'webm') {
             $handle = fopen($fullPath, 'rb');
             if ($handle) {
                 $header = fread($handle, 4096);
                 fclose($handle);
-                
+
                 $info['has_webm_signature'] = (substr($header, 0, 4) === "\x1A\x45\xDF\xA3");
                 $info['valid'] = $info['has_webm_signature'] && $fileSize > 100;
             }
@@ -260,7 +269,7 @@ class TranscriptionService
             // For other formats, just check size
             $info['valid'] = $fileSize > 0;
         }
-        
+
         return $info;
     }
 
@@ -269,43 +278,47 @@ class TranscriptionService
      */
     protected function transcribeWithDeepgram(string $filePath): ?array
     {
-        if (!$this->apiKey) {
+        if (! $this->apiKey) {
             Log::error('Deepgram API key not configured');
+
             return null;
         }
 
         $fullPath = Storage::disk('public')->path($filePath);
-        
-        if (!file_exists($fullPath)) {
-            Log::error('Audio file not found: ' . $fullPath);
+
+        if (! file_exists($fullPath)) {
+            Log::error('Audio file not found: '.$fullPath);
+
             return null;
         }
 
         $validation = $this->validateAudioFile($fullPath);
-        if (!$validation['valid']) {
+        if (! $validation['valid']) {
             Log::error('Audio file validation failed for Deepgram', [
                 'file_path' => $filePath,
                 'validation' => $validation,
             ]);
+
             return null;
         }
 
         $fileContents = file_get_contents($fullPath);
-        
+
         if ($fileContents === false || empty($fileContents)) {
-            Log::error('Failed to read audio file: ' . $fullPath);
+            Log::error('Failed to read audio file: '.$fullPath);
+
             return null;
         }
 
         $extension = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
         $contentType = $this->getContentTypeForExtension($extension);
-        
+
         Log::info('Uploading to Deepgram', [
             'file_path' => $filePath,
             'file_size' => strlen($fileContents),
             'content_type' => $contentType,
         ]);
-        
+
         // Deepgram takes parameters via URL query string, not body. The previous
         // call passed them as the second arg to ->post(), but withBody() had
         // already claimed the body slot — so Laravel's HTTP client silently
@@ -313,31 +326,32 @@ class TranscriptionService
         // model and produced low-accuracy transcripts (hallucinated text on
         // accented / browser-mic recordings). Building the URL explicitly so
         // these params actually reach Deepgram.
-        $deepgramUrl = 'https://api.deepgram.com/v1/listen?' . http_build_query([
-            'model'        => 'nova-2',
-            'language'     => 'en',
-            'punctuate'    => 'true',
-            'diarize'      => 'false',
+        $deepgramUrl = 'https://api.deepgram.com/v1/listen?'.http_build_query([
+            'model' => 'nova-2',
+            'language' => 'en',
+            'punctuate' => 'true',
+            'diarize' => 'false',
             'smart_format' => 'true',
-            'utterances'   => 'false',
-            'numerals'     => 'true',
+            'utterances' => 'false',
+            'numerals' => 'true',
         ]);
 
         try {
             $response = Http::timeout($this->uploadTimeout)
                 ->withHeaders([
-                    'Authorization' => 'Token ' . $this->apiKey,
+                    'Authorization' => 'Token '.$this->apiKey,
                     'Content-Type' => $contentType,
                 ])
                 ->withBody($fileContents, $contentType)
                 ->post($deepgramUrl);
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 Log::error('Deepgram API error', [
                     'status' => $response->status(),
                     'body' => $response->body(),
                     'file_path' => $filePath,
                 ]);
+
                 return null;
             }
 
@@ -345,41 +359,42 @@ class TranscriptionService
             $alt = $data['results']['channels'][0]['alternatives'][0] ?? null;
             $transcript = $alt['transcript'] ?? null;
 
-            if (!$transcript) {
+            if (! $transcript) {
                 return null;
             }
 
             $rawWords = $alt['words'] ?? [];
             $words = [];
             foreach ($rawWords as $w) {
-                if (!isset($w['start'], $w['end'])) {
+                if (! isset($w['start'], $w['end'])) {
                     continue;
                 }
                 // Deepgram prefers "punctuated_word" when smart_format is on,
                 // falling back to "word".
                 $text = $w['punctuated_word'] ?? ($w['word'] ?? '');
                 $words[] = [
-                    'text'       => (string) $text,
-                    'start'      => (float) $w['start'],
-                    'end'        => (float) $w['end'],
+                    'text' => (string) $text,
+                    'start' => (float) $w['start'],
+                    'end' => (float) $w['end'],
                     'confidence' => isset($w['confidence']) ? (float) $w['confidence'] : 0.0,
                 ];
             }
 
             Log::info('Deepgram transcription successful', [
                 'transcript_length' => strlen($transcript),
-                'word_count'        => count($words),
+                'word_count' => count($words),
             ]);
 
             return [
-                'text'  => trim($transcript),
+                'text' => trim($transcript),
                 'words' => $words,
             ];
-            
+
         } catch (\Exception $e) {
-            Log::error('Deepgram transcription exception: ' . $e->getMessage(), [
+            Log::error('Deepgram transcription exception: '.$e->getMessage(), [
                 'file_path' => $filePath,
             ]);
+
             return null;
         }
     }
@@ -406,32 +421,36 @@ class TranscriptionService
      */
     protected function transcribeWithAssemblyAI(string $filePath): ?array
     {
-        if (!$this->apiKey) {
+        if (! $this->apiKey) {
             Log::error('AssemblyAI API key not configured');
+
             return null;
         }
 
         $fullPath = Storage::disk('public')->path($filePath);
-        
-        if (!file_exists($fullPath)) {
-            Log::error('Audio file not found: ' . $fullPath);
+
+        if (! file_exists($fullPath)) {
+            Log::error('Audio file not found: '.$fullPath);
+
             return null;
         }
 
         $validation = $this->validateAudioFile($fullPath);
-        if (!$validation['valid']) {
+        if (! $validation['valid']) {
             Log::error('Audio file validation failed for AssemblyAI', [
                 'file_path' => $filePath,
                 'validation' => $validation,
             ]);
+
             return null;
         }
 
         try {
             $fileContents = file_get_contents($fullPath);
-            
+
             if ($fileContents === false || empty($fileContents)) {
-                Log::error('Failed to read audio file contents: ' . $fullPath);
+                Log::error('Failed to read audio file contents: '.$fullPath);
+
                 return null;
             }
 
@@ -451,24 +470,26 @@ class TranscriptionService
                 ])
                 ->withBody($fileContents, $contentType)
                 ->post('https://api.assemblyai.com/v2/upload');
-            
-            if (!$uploadResponse->successful()) {
+
+            if (! $uploadResponse->successful()) {
                 Log::error('AssemblyAI upload error', [
                     'status' => $uploadResponse->status(),
                     'body' => $uploadResponse->body(),
                     'file_size' => strlen($fileContents),
                     'content_type' => $contentType,
                 ]);
+
                 return null;
             }
-            
+
             $uploadData = $uploadResponse->json();
             $uploadUrl = $uploadData['upload_url'] ?? null;
-            
-            if (!$uploadUrl) {
+
+            if (! $uploadUrl) {
                 Log::error('AssemblyAI did not return upload_url', [
                     'response' => $uploadData,
                 ]);
+
                 return null;
             }
 
@@ -489,21 +510,23 @@ class TranscriptionService
                     'format_text' => true,
                 ]);
 
-            if (!$transcribeResponse->successful()) {
+            if (! $transcribeResponse->successful()) {
                 Log::error('AssemblyAI transcription start error', [
                     'status' => $transcribeResponse->status(),
                     'body' => $transcribeResponse->body(),
                 ]);
+
                 return null;
             }
 
             $transcriptData = $transcribeResponse->json();
             $transcriptId = $transcriptData['id'] ?? null;
 
-            if (!$transcriptId) {
+            if (! $transcriptId) {
                 Log::error('AssemblyAI did not return transcript ID', [
                     'response' => $transcriptData,
                 ]);
+
                 return null;
             }
 
@@ -514,22 +537,23 @@ class TranscriptionService
             // Poll for completion
             $maxAttempts = 90;
             $attempt = 0;
-            
+
             while ($attempt < $maxAttempts) {
                 sleep(2);
-                
+
                 $statusResponse = Http::timeout(30)
                     ->withHeaders([
                         'authorization' => $this->apiKey,
                     ])
                     ->get("https://api.assemblyai.com/v2/transcript/{$transcriptId}");
 
-                if (!$statusResponse->successful()) {
+                if (! $statusResponse->successful()) {
                     Log::error('AssemblyAI status check error', [
                         'status' => $statusResponse->status(),
                         'attempt' => $attempt,
                     ]);
                     $attempt++;
+
                     continue;
                 }
 
@@ -539,7 +563,7 @@ class TranscriptionService
                 if ($status === 'completed') {
                     $text = $statusData['text'] ?? '';
 
-                    if (!$text) {
+                    if (! $text) {
                         return null;
                     }
 
@@ -549,25 +573,25 @@ class TranscriptionService
                     $rawWords = $statusData['words'] ?? [];
                     $words = [];
                     foreach ($rawWords as $w) {
-                        if (!isset($w['start'], $w['end'])) {
+                        if (! isset($w['start'], $w['end'])) {
                             continue;
                         }
                         $words[] = [
-                            'text'       => (string) ($w['text'] ?? ''),
-                            'start'      => ((float) $w['start']) / 1000.0,
-                            'end'        => ((float) $w['end']) / 1000.0,
+                            'text' => (string) ($w['text'] ?? ''),
+                            'start' => ((float) $w['start']) / 1000.0,
+                            'end' => ((float) $w['end']) / 1000.0,
                             'confidence' => isset($w['confidence']) ? (float) $w['confidence'] : 0.0,
                         ];
                     }
 
                     Log::info('AssemblyAI transcription completed', [
                         'transcript_id' => $transcriptId,
-                        'text_length'   => strlen($text),
-                        'word_count'    => count($words),
+                        'text_length' => strlen($text),
+                        'word_count' => count($words),
                     ]);
 
                     return [
-                        'text'  => trim($text),
+                        'text' => trim($text),
                         'words' => $words,
                     ];
                 }
@@ -578,6 +602,7 @@ class TranscriptionService
                         'transcript_id' => $transcriptId,
                         'error' => $error,
                     ]);
+
                     return null;
                 }
 
@@ -588,13 +613,15 @@ class TranscriptionService
                 'transcript_id' => $transcriptId,
                 'attempts' => $maxAttempts,
             ]);
+
             return null;
-            
+
         } catch (\Exception $e) {
-            Log::error('AssemblyAI transcription exception: ' . $e->getMessage(), [
+            Log::error('AssemblyAI transcription exception: '.$e->getMessage(), [
                 'file_path' => $filePath,
                 'trace' => $e->getTraceAsString(),
             ]);
+
             return null;
         }
     }

@@ -3,7 +3,6 @@
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -21,7 +20,7 @@ class SpeakingScoreReadyMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Your IELTS Speaking Score is Ready — Band ' . ($this->test->overall_band ?? '?'),
+            subject: 'Your IELTS Speaking Score is Ready — Band '.($this->test->overall_band ?? '?'),
         );
     }
 

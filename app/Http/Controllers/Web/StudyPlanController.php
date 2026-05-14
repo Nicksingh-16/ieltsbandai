@@ -4,20 +4,19 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Test;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-
-
 
 class StudyPlanController extends Controller
 {
     public function show(Test $test)
     {
-        if ($test->user_id !== Auth::id()) abort(403);
+        if ($test->user_id !== Auth::id()) {
+            abort(403);
+        }
 
-        $scores   = $this->extractScores($test);
+        $scores = $this->extractScores($test);
         $cacheKey = "study_plan_{$test->id}";
 
         $plan = Cache::remember($cacheKey, now()->addDays(30), function () use ($test, $scores) {
@@ -29,8 +28,11 @@ class StudyPlanController extends Controller
 
     public function regenerate(Test $test)
     {
-        if ($test->user_id !== Auth::id()) abort(403);
+        if ($test->user_id !== Auth::id()) {
+            abort(403);
+        }
         Cache::forget("study_plan_{$test->id}");
+
         return redirect()->route('study-plan.show', $test)->with('success', 'Study plan regenerated.');
     }
 
@@ -43,17 +45,17 @@ class StudyPlanController extends Controller
         if ($module === 'writing') {
             $ts = $test->testScores ?? collect();
             $criteria = [
-                'task_response'      => $ts->where('criterion', 'task_response')->first()?->score ?? 0,
+                'task_response' => $ts->where('criterion', 'task_response')->first()?->score ?? 0,
                 'coherence_cohesion' => $ts->where('criterion', 'coherence_cohesion')->first()?->score ?? 0,
-                'lexical_resource'   => $ts->where('criterion', 'lexical_resource')->first()?->score ?? 0,
-                'grammar'            => $ts->where('criterion', 'grammatical_range_accuracy')->first()?->score ?? 0,
+                'lexical_resource' => $ts->where('criterion', 'lexical_resource')->first()?->score ?? 0,
+                'grammar' => $ts->where('criterion', 'grammatical_range_accuracy')->first()?->score ?? 0,
             ];
         } elseif ($module === 'speaking') {
             $meta = is_array($test->metadata) ? $test->metadata : json_decode($test->metadata ?? '{}', true);
             $criteria = [
-                'fluency'       => $meta['fluency_coherence'] ?? 0,
-                'vocabulary'    => $meta['lexical_resource'] ?? 0,
-                'grammar'       => $meta['grammatical_range_accuracy'] ?? 0,
+                'fluency' => $meta['fluency_coherence'] ?? 0,
+                'vocabulary' => $meta['lexical_resource'] ?? 0,
+                'grammar' => $meta['grammatical_range_accuracy'] ?? 0,
                 'pronunciation' => $meta['pronunciation'] ?? 0,
             ];
         } else {
@@ -62,18 +64,18 @@ class StudyPlanController extends Controller
 
         return array_merge($criteria, [
             'overall' => (float) ($test->overall_band ?? 0),
-            'module'  => $module,
+            'module' => $module,
         ]);
     }
 
     private function generatePlan(Test $test, array $scores): array
     {
-        $module  = $scores['module'];
+        $module = $scores['module'];
         $overall = $scores['overall'];
 
         $scoreLines = collect($scores)
             ->except(['module', 'overall'])
-            ->map(fn($v, $k) => ucwords(str_replace('_', ' ', $k)) . ': ' . $v)
+            ->map(fn ($v, $k) => ucwords(str_replace('_', ' ', $k)).': '.$v)
             ->implode(', ');
 
         $prompt = <<<PROMPT
@@ -106,9 +108,9 @@ PROMPT;
             $body = app(\App\Services\LLMRouter::class)
                 ->withContext(\Illuminate\Support\Facades\Auth::id(), $test->id, 'study_plan')
                 ->chatCompletion([
-                    'max_tokens'  => 2000,
+                    'max_tokens' => 2000,
                     'temperature' => 0.3,
-                    'messages'    => [
+                    'messages' => [
                         ['role' => 'system', 'content' => 'You are an expert IELTS coach. Return valid JSON only. No markdown, no code fences.'],
                         ['role' => 'user',   'content' => $prompt],
                     ],
@@ -117,9 +119,11 @@ PROMPT;
             // Strip optional code fences some providers add.
             $content = preg_replace('/^```(?:json)?\s*|\s*```$/m', '', trim($content));
             $data = json_decode($content, true);
+
             return is_array($data) ? $data : $this->fallbackPlan($overall);
         } catch (\Throwable $e) {
             Log::error('StudyPlan generation failed', ['error' => $e->getMessage()]);
+
             return $this->fallbackPlan($overall);
         }
     }
@@ -127,11 +131,11 @@ PROMPT;
     private function fallbackPlan(float $overall): array
     {
         return [
-            'target_band'  => min(9.0, $overall + 0.5),
-            'focus_areas'  => ['Task Response', 'Vocabulary Range', 'Grammar Accuracy'],
+            'target_band' => min(9.0, $overall + 0.5),
+            'focus_areas' => ['Task Response', 'Vocabulary Range', 'Grammar Accuracy'],
             'weekly_hours' => 8,
-            'weeks'        => [],
-            'tips'         => [
+            'weeks' => [],
+            'tips' => [
                 'Practice with authentic Cambridge IELTS materials (Books 13–18)',
                 'Record yourself speaking 2 minutes daily and listen back critically',
                 'Read one IELTS-level article daily and write a 150-word summary',

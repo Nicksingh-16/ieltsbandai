@@ -23,10 +23,10 @@ class AssignedTestController extends Controller
 
     public function index()
     {
-        $institute   = $this->getInstituteOrFail();
+        $institute = $this->getInstituteOrFail();
         $assignments = AssignedTest::where('institute_id', $institute->id)
             ->with(['template', 'batch', 'assigner'])
-            ->withCount(['studentRecords', 'studentRecords as completed_count' => fn($q) => $q->where('status', 'completed')])
+            ->withCount(['studentRecords', 'studentRecords as completed_count' => fn ($q) => $q->where('status', 'completed')])
             ->latest()
             ->paginate(20);
 
@@ -58,12 +58,12 @@ class AssignedTestController extends Controller
 
         $data = $request->validate([
             'test_template_id' => 'required|exists:test_templates,id',
-            'batch_id'         => 'required|exists:batches,id',
-            'title'            => 'required|string|max:255',
-            'instructions'     => 'nullable|string|max:2000',
-            'due_date'         => 'nullable|date|after:now',
-            'is_mandatory'     => 'boolean',
-            'allows_retake'    => 'boolean',
+            'batch_id' => 'required|exists:batches,id',
+            'title' => 'required|string|max:255',
+            'instructions' => 'nullable|string|max:2000',
+            'due_date' => 'nullable|date|after:now',
+            'is_mandatory' => 'boolean',
+            'allows_retake' => 'boolean',
         ]);
 
         // Ensure template belongs to this institute
@@ -79,15 +79,15 @@ class AssignedTestController extends Controller
         DB::transaction(function () use ($data, $institute, $template, $batch) {
             $assignment = AssignedTest::create([
                 'test_template_id' => $template->id,
-                'institute_id'     => $institute->id,
-                'batch_id'         => $batch->id,
-                'assigned_by'      => Auth::id(),
-                'title'            => $data['title'],
-                'instructions'     => $data['instructions'] ?? null,
-                'due_date'         => $data['due_date'] ?? null,
-                'is_mandatory'     => $data['is_mandatory'] ?? true,
-                'allows_retake'    => $data['allows_retake'] ?? false,
-                'status'           => 'active',
+                'institute_id' => $institute->id,
+                'batch_id' => $batch->id,
+                'assigned_by' => Auth::id(),
+                'title' => $data['title'],
+                'instructions' => $data['instructions'] ?? null,
+                'due_date' => $data['due_date'] ?? null,
+                'is_mandatory' => $data['is_mandatory'] ?? true,
+                'allows_retake' => $data['allows_retake'] ?? false,
+                'status' => 'active',
             ]);
 
             // Enroll all current batch students
@@ -141,10 +141,10 @@ class AssignedTestController extends Controller
 
     public function myTests()
     {
-        $user    = Auth::user();
+        $user = Auth::user();
         $records = AssignedTestStudent::where('user_id', $user->id)
             ->with(['assignment.template', 'assignment.batch', 'test'])
-            ->whereHas('assignment', fn($q) => $q->where('status', 'active'))
+            ->whereHas('assignment', fn ($q) => $q->where('status', 'active'))
             ->orderByRaw("FIELD(status, 'pending', 'started', 'completed', 'skipped')")
             ->get();
 
@@ -155,14 +155,14 @@ class AssignedTestController extends Controller
 
     public function startAssigned(AssignedTest $assignment)
     {
-        $user   = Auth::user();
+        $user = Auth::user();
         $record = AssignedTestStudent::where('assigned_test_id', $assignment->id)
             ->where('user_id', $user->id)
             ->firstOrFail();
 
         abort_if($assignment->status !== 'active', 403, 'This assignment is closed.');
         abort_if(
-            $record->status === 'completed' && !$assignment->allows_retake,
+            $record->status === 'completed' && ! $assignment->allows_retake,
             403,
             'You have already completed this test.'
         );
@@ -172,15 +172,15 @@ class AssignedTestController extends Controller
         abort_if($template->questions->isEmpty(), 422, 'This question set has no questions yet.');
 
         // Route to the correct module based on template type
-        return match($template->type) {
-            'writing'   => $this->startWritingFromTemplate($template, $record, $assignment),
-            'speaking'  => redirect()->route('speaking.test')
-                            ->with('assignment_id', $assignment->id),
+        return match ($template->type) {
+            'writing' => $this->startWritingFromTemplate($template, $record, $assignment),
+            'speaking' => redirect()->route('speaking.test')
+                ->with('assignment_id', $assignment->id),
             'listening' => redirect()->route('listening.index')
-                            ->with('assignment_id', $assignment->id),
-            'reading'   => redirect()->route('reading.index')
-                            ->with('assignment_id', $assignment->id),
-            default     => back()->with('error', 'Full mock assigned tests coming soon.'),
+                ->with('assignment_id', $assignment->id),
+            'reading' => redirect()->route('reading.index')
+                ->with('assignment_id', $assignment->id),
+            default => back()->with('error', 'Full mock assigned tests coming soon.'),
         };
     }
 
@@ -195,30 +195,30 @@ class AssignedTestController extends Controller
             $testType = str_contains($question->category, 'academic') ? 'academic' : 'general';
 
             $test = Test::create([
-                'user_id'    => Auth::id(),
-                'type'       => 'writing',
-                'category'   => $question->category,
-                'test_type'  => $testType,
-                'status'     => 'in_progress',
+                'user_id' => Auth::id(),
+                'type' => 'writing',
+                'category' => $question->category,
+                'test_type' => $testType,
+                'status' => 'in_progress',
                 'started_at' => now(),
-                'metadata'   => json_encode([
+                'metadata' => json_encode([
                     'from_assignment' => $assignment->id,
-                    'template_id'     => $template->id,
-                    'time_limit'      => $template->duration_minutes * 60,
+                    'template_id' => $template->id,
+                    'time_limit' => $template->duration_minutes * 60,
                 ]),
             ]);
 
             TestQuestion::create([
-                'test_id'     => $test->id,
+                'test_id' => $test->id,
                 'question_id' => $question->id,
-                'part'        => str_contains($question->category, 'task2') ? 2 : 1,
+                'part' => str_contains($question->category, 'task2') ? 2 : 1,
             ]);
 
             // Mark student record as started
             $record->update([
-                'status'     => 'started',
+                'status' => 'started',
                 'started_at' => now(),
-                'test_id'    => $test->id,
+                'test_id' => $test->id,
             ]);
 
             return $test;
@@ -238,7 +238,7 @@ class AssignedTestController extends Controller
         $record = AssignedTestStudent::where('test_id', $testId)->first();
         if ($record && $record->status !== 'completed') {
             $record->update([
-                'status'       => 'completed',
+                'status' => 'completed',
                 'completed_at' => now(),
             ]);
         }
@@ -249,7 +249,8 @@ class AssignedTestController extends Controller
     private function getInstituteOrFail()
     {
         $institute = Auth::user()->institute;
-        abort_if(!$institute, 403, 'You do not belong to any institute.');
+        abort_if(! $institute, 403, 'You do not belong to any institute.');
+
         return $institute;
     }
 

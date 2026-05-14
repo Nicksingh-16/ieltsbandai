@@ -12,8 +12,8 @@ class Batch extends Model
     ];
 
     protected $casts = [
-        'is_active'   => 'boolean',
-        'exam_date'   => 'date',
+        'is_active' => 'boolean',
+        'exam_date' => 'date',
         'target_band' => 'decimal:1',
     ];
 
@@ -36,9 +36,9 @@ class Batch extends Model
     {
         // Pull latest test per student and average overall_band
         $scores = $this->students()
-            ->with(['tests' => fn($q) => $q->whereNotNull('overall_band')->latest()->limit(1)])
+            ->with(['tests' => fn ($q) => $q->whereNotNull('overall_band')->latest()->limit(1)])
             ->get()
-            ->map(fn($u) => optional($u->tests->first())->overall_band)
+            ->map(fn ($u) => optional($u->tests->first())->overall_band)
             ->filter();
 
         return $scores->isEmpty() ? null : round($scores->avg() * 2) / 2;

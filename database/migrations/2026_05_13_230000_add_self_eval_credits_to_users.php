@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\Schema;
  * own Task 2 question + answer and get an AI evaluation. Each user gets 5 free
  * self-evals; after that the paywall offers a `self_eval_single` plan at ₹10.
  */
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {

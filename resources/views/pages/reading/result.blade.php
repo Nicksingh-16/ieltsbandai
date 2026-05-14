@@ -1,6 +1,8 @@
 <x-app-layout>
 @php
     $allQuestions = collect($meta['questions'] ?? []);
+    $passage      = $meta['passage'] ?? '';
+    $passageTitle = $meta['title'] ?? ($question->title ?? '');
     $correct      = $result['correct'] ?? 0;
     $total        = $result['total'] ?? 40;
     $pct          = $result['percentage'] ?? 0;
@@ -64,6 +66,28 @@
                 @endif
             </p>
         </div>
+
+        {{-- Reading passage — collapsible. Critical for reviewing answers:
+             without the source text, the user can't tell why an answer is
+             right or wrong, only whether it matched. --}}
+        @if($passage)
+        <details class="card overflow-hidden mb-6 group" open>
+            <summary class="px-6 py-4 border-b border-surface-600 cursor-pointer flex items-center justify-between hover:bg-surface-800/40 transition list-none">
+                <div>
+                    <h2 class="section-title">Reading Passage</h2>
+                    @if($passageTitle)
+                    <p class="text-sm text-surface-300 mt-0.5">{{ $passageTitle }}</p>
+                    @endif
+                </div>
+                <svg class="w-5 h-5 text-surface-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </summary>
+            <div class="px-6 py-5 max-h-96 overflow-y-auto prose prose-invert prose-sm max-w-none text-surface-300 leading-relaxed">
+                {!! nl2br(e($passage)) !!}
+            </div>
+        </details>
+        @endif
 
         {{-- Answer review --}}
         <div class="card overflow-hidden mb-8">

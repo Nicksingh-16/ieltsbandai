@@ -48,18 +48,19 @@ class ScoringService
     public const PROMPT_VERSION = 'L5-v6';
 
     protected CalibrationService $calibration;
+
     protected LLMRouter $router;
 
     public function __construct(?CalibrationService $calibration = null, ?LLMRouter $router = null)
     {
         $this->calibration = $calibration ?? app(CalibrationService::class);
-        $this->router      = $router ?? app(LLMRouter::class);
+        $this->router = $router ?? app(LLMRouter::class);
     }
 
     /**
      * Score IELTS speaking transcript using OpenAI API directly
-     * 
-     * @param string $transcript Combined transcript text
+     *
+     * @param  string  $transcript  Combined transcript text
      * @return array|null Scoring data or null on failure
      */
     public function scoreSpeaking(string $transcript, ?int $userId = null, ?int $testId = null, array $words = []): ?array
@@ -70,24 +71,25 @@ class ScoringService
             $data = $this->router
                 ->withContext($userId, $testId, 'speaking_score')
                 ->chatCompletion([
-                'messages' => [
-                    [
-                        'role' => 'system',
-                        'content' => 'You are a standardised IELTS Speaking examiner certified by the British Council and IDP. You score transcripts using the official IELTS Speaking Band Descriptors exactly as trained. You must respond ONLY with valid JSON, no prose before or after.',
+                    'messages' => [
+                        [
+                            'role' => 'system',
+                            'content' => 'You are a standardised IELTS Speaking examiner certified by the British Council and IDP. You score transcripts using the official IELTS Speaking Band Descriptors exactly as trained. You must respond ONLY with valid JSON, no prose before or after.',
+                        ],
+                        [
+                            'role' => 'user',
+                            'content' => $prompt,
+                        ],
                     ],
-                    [
-                        'role' => 'user',
-                        'content' => $prompt,
-                    ],
-                ],
-                'temperature' => 0.1,
-                'response_format' => ['type' => 'json_object'],
-            ]);
+                    'temperature' => 0.1,
+                    'response_format' => ['type' => 'json_object'],
+                ]);
 
             $content = $data['choices'][0]['message']['content'] ?? null;
 
-            if (!$content) {
+            if (! $content) {
                 Log::error('LLM response missing content');
+
                 return null;
             }
 
@@ -100,6 +102,7 @@ class ScoringService
                     'content' => $content,
                     'error' => json_last_error_msg(),
                 ]);
+
                 return null;
             }
 
@@ -109,8 +112,9 @@ class ScoringService
             // Validate / Normalize
             $required = ['fluency', 'lexical', 'grammar', 'pronunciation'];
             foreach ($required as $field) {
-                if (!isset($scoring[$field])) {
-                    Log::error('Missing scoring field: ' . $field);
+                if (! isset($scoring[$field])) {
+                    Log::error('Missing scoring field: '.$field);
+
                     return null;
                 }
             }
@@ -119,7 +123,8 @@ class ScoringService
             foreach ($required as $field) {
                 $score = (float) $scoring[$field];
                 if ($score < 0 || $score > 9) {
-                    Log::error('Invalid score range for ' . $field . ': ' . $score);
+                    Log::error('Invalid score range for '.$field.': '.$score);
+
                     return null;
                 }
                 $scoring[$field] = $score;
@@ -133,18 +138,19 @@ class ScoringService
             return $scoring;
 
         } catch (\Exception $e) {
-            Log::error('Speaking scoring failed: ' . $e->getMessage(), [
+            Log::error('Speaking scoring failed: '.$e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
             ]);
+
             return null;
         }
     }
 
     /**
      * Score IELTS writing using OpenAI API
-     * 
-     * @param string $answer User's written response
-     * @param object $question Question object with type and content
+     *
+     * @param  string  $answer  User's written response
+     * @param  object  $question  Question object with type and content
      * @return array|null Scoring data or null on failure
      */
     public function scoreWriting(string $answer, $question, ?int $userId = null, ?int $testId = null): ?array
@@ -155,24 +161,25 @@ class ScoringService
             $data = $this->router
                 ->withContext($userId, $testId, 'writing_score')
                 ->chatCompletion([
-                'messages' => [
-                    [
-                        'role' => 'system',
-                        'content' => 'You are a standardised IELTS Writing examiner certified by Cambridge Assessment English. You score writing responses using the official IELTS Writing Band Descriptors exactly as trained. You must respond ONLY with valid JSON, no prose before or after.',
+                    'messages' => [
+                        [
+                            'role' => 'system',
+                            'content' => 'You are a standardised IELTS Writing examiner certified by Cambridge Assessment English. You score writing responses using the official IELTS Writing Band Descriptors exactly as trained. You must respond ONLY with valid JSON, no prose before or after.',
+                        ],
+                        [
+                            'role' => 'user',
+                            'content' => $prompt,
+                        ],
                     ],
-                    [
-                        'role' => 'user',
-                        'content' => $prompt,
-                    ],
-                ],
-                'temperature' => 0.1,
-                'response_format' => ['type' => 'json_object'],
-            ]);
+                    'temperature' => 0.1,
+                    'response_format' => ['type' => 'json_object'],
+                ]);
 
             $content = $data['choices'][0]['message']['content'] ?? null;
 
-            if (!$content) {
+            if (! $content) {
                 Log::error('LLM response missing content for writing scoring');
+
                 return null;
             }
 
@@ -183,17 +190,19 @@ class ScoringService
                     'content' => $content,
                     'error' => json_last_error_msg(),
                 ]);
+
                 return null;
             }
 
             // Validate and normalize fields
             $scoring['task_achievement'] = $scoring['task_response'] ?? ($scoring['task_achievement'] ?? 0);
             $scoring['grammar'] = $scoring['grammatical_range_accuracy'] ?? ($scoring['grammar'] ?? 0);
-            
+
             $required = ['task_achievement', 'coherence_cohesion', 'lexical_resource', 'grammar'];
             foreach ($required as $field) {
-                if (!isset($scoring[$field])) {
-                    Log::error('Missing scoring field: ' . $field);
+                if (! isset($scoring[$field])) {
+                    Log::error('Missing scoring field: '.$field);
+
                     return null;
                 }
             }
@@ -208,7 +217,8 @@ class ScoringService
             foreach ($required as $field) {
                 $score = (float) $scoring[$field];
                 if ($score < 0 || $score > 9) {
-                    Log::error('Invalid score range for ' . $field . ': ' . $score);
+                    Log::error('Invalid score range for '.$field.': '.$score);
+
                     return null;
                 }
                 $scoring[$field] = $score;
@@ -216,7 +226,7 @@ class ScoringService
 
             $wordCount = str_word_count(trim($answer));
             $category = (string) ($question->category ?? '');
-            $isTask2  = str_contains($category, 'task2');
+            $isTask2 = str_contains($category, 'task2');
 
             // L5-v6 post-LLM correction pipeline. Order matters:
             //   1. applyBiasCorrection — confidence-range cap + downward nudge
@@ -247,10 +257,12 @@ class ScoringService
             $rawErrors = $scoring['errors'] ?? [];
             if (is_array($rawErrors)) {
                 foreach ($rawErrors as $index => $error) {
-                    if (empty($error['text'])) continue;
-                    
+                    if (empty($error['text'])) {
+                        continue;
+                    }
+
                     $normalizedErrors[] = [
-                        'id' => 'err_' . ($index + 1) . '_' . dechex(time()),
+                        'id' => 'err_'.($index + 1).'_'.dechex(time()),
                         'text' => trim($error['text']),
                         'type' => ucfirst(strtolower($error['type'] ?? 'Grammar')),
                         'category' => ucfirst(strtolower($error['type'] ?? 'Grammar')),
@@ -268,9 +280,10 @@ class ScoringService
             return $scoring;
 
         } catch (\Exception $e) {
-            Log::error('Writing scoring failed: ' . $e->getMessage(), [
+            Log::error('Writing scoring failed: '.$e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
             ]);
+
             return null;
         }
     }
@@ -289,67 +302,71 @@ class ScoringService
             $trimmed = preg_replace('/\s*```\s*$/', '', $trimmed) ?? $trimmed;
         }
         // Safety net: extract the outermost JSON object if there's prose around it.
-        if (!str_starts_with(trim($trimmed), '{') && preg_match('/\{.*\}/s', $trimmed, $m)) {
+        if (! str_starts_with(trim($trimmed), '{') && preg_match('/\{.*\}/s', $trimmed, $m)) {
             $trimmed = $m[0];
         }
+
         return trim($trimmed);
     }
 
     /**
      * Validate and clean AI-detected errors to prevent false positives
-     * 
-     * @param array $errors Array of errors from AI
-     * @param string $userAnswer Original user's answer text
+     *
+     * @param  array  $errors  Array of errors from AI
+     * @param  string  $userAnswer  Original user's answer text
      * @return array Validated errors only
      */
     protected function validateAndCleanErrors(array $errors, string $userAnswer): array
     {
         $validated = [];
         $seen = [];
-        
+
         foreach ($errors as $error) {
             $errorText = trim($error['text'] ?? '');
-            
+
             // Skip empty errors
             if (empty($errorText)) {
                 Log::debug('Skipping empty error text');
+
                 continue;
             }
-            
+
             // Skip duplicate errors (case-insensitive)
             $key = strtolower($errorText);
             if (isset($seen[$key])) {
                 Log::debug('Skipping duplicate error', ['text' => $errorText]);
+
                 continue;
             }
             $seen[$key] = true;
-            
+
             // CRITICAL: Verify error text actually exists in user's answer
             // Use case-insensitive search to handle minor variations
             if (stripos($userAnswer, $errorText) === false) {
                 // Try with normalized whitespace
                 $normalizedError = preg_replace('/\s+/', ' ', $errorText);
                 $normalizedAnswer = preg_replace('/\s+/', ' ', $userAnswer);
-                
+
                 if (stripos($normalizedAnswer, $normalizedError) === false) {
                     Log::warning('AI hallucinated error - text not found in answer', [
                         'error_text' => $errorText,
                         'type' => $error['type'] ?? 'unknown',
-                        'category' => $error['category'] ?? 'unknown'
+                        'category' => $error['category'] ?? 'unknown',
                     ]);
+
                     continue;
                 }
             }
-            
+
             $validated[] = $error;
         }
-        
+
         Log::info('Error validation complete', [
             'original_count' => count($errors),
             'validated_count' => count($validated),
-            'removed_count' => count($errors) - count($validated)
+            'removed_count' => count($errors) - count($validated),
         ]);
-        
+
         return $validated;
     }
 
@@ -367,10 +384,10 @@ class ScoringService
         // missing (legacy rows / provider returned no word data) — block
         // renders as empty string and the prompt continues unchanged.
         $acousticBlock = '';
-        if (!empty($words)) {
+        if (! empty($words)) {
             /** @var SpeakingAcousticAnalyzer $analyzer */
             $analyzer = app(SpeakingAcousticAnalyzer::class);
-            $signals  = $analyzer->analyze($words);
+            $signals = $analyzer->analyze($words);
             $acousticBlock = $analyzer->buildPromptBlock($signals);
         }
 
@@ -660,7 +677,7 @@ PROMPT;
         // does not have to count or estimate these features itself.
         $signalsBlock = $this->buildGroundTruthSignalsBlock($answer);
 
-        $task1MetadataInstructions = "";
+        $task1MetadataInstructions = '';
         if (str_contains($taskType, 'Task 1') && str_contains($taskType, 'Academic')) {
             $metaJson = json_encode($metadata, JSON_PRETTY_PRINT);
             $task1MetadataInstructions = <<<META
@@ -684,9 +701,9 @@ The presence and quality of an overview is a key TA signal but NOT a hard cap.
 META;
         }
 
-        $task2Instructions = "";
+        $task2Instructions = '';
         if (str_contains($taskType, 'Task 2')) {
-            $task2Instructions = <<<TASK2
+            $task2Instructions = <<<'TASK2'
 STRICT TASK 2 RULES:
 - Clear position must be maintained throughout.
 - At least 2 developed ideas required.
@@ -1016,6 +1033,7 @@ PROMPT;
         if (str_contains($humanTaskType, 'Task 2')) {
             return 'writing_task_2';
         }
+
         return 'writing_task_2';
     }
 
@@ -1059,7 +1077,7 @@ PROMPT;
         );
 
         $cohesion = $signals['cohesion_markers'];
-        $cohesionList = !empty($cohesion['found']) ? implode(', ', $cohesion['found']) : '(none detected)';
+        $cohesionList = ! empty($cohesion['found']) ? implode(', ', $cohesion['found']) : '(none detected)';
 
         $caveat = 'NOTE: The C2/unknown bucket includes both genuinely sophisticated vocabulary AND words outside our curated reference lists (proper nouns, topic-specific terms, less common forms). Treat a high C2 figure as "uses non-basic vocabulary" rather than as proof of mastery.';
 
@@ -1155,7 +1173,7 @@ FS;
     protected function estimateBandFromSignals(string $essay): float
     {
         $analyzer = app(LinguisticAnalyzer::class);
-        $signals  = $analyzer->analyze($essay);
+        $signals = $analyzer->analyze($essay);
 
         $lt = app(LanguageToolClient::class);
         $ltResult = $lt->check($essay);
@@ -1166,25 +1184,39 @@ FS;
         // Grammar/spelling density (only when LT is available)
         if (($ltResult['available'] ?? false) === true) {
             $errPer100 = (($ltResult['grammar_errors'] ?? 0) + ($ltResult['spelling_errors'] ?? 0)) * 100 / $words;
-            if ($errPer100 <= 2)       $band += 0.5;
-            elseif ($errPer100 >= 11)  $band -= 1.0;
-            elseif ($errPer100 >= 7)   $band -= 0.5;
+            if ($errPer100 <= 2) {
+                $band += 0.5;
+            } elseif ($errPer100 >= 11) {
+                $band -= 1.0;
+            } elseif ($errPer100 >= 7) {
+                $band -= 0.5;
+            }
         }
 
         $ttr = (float) ($signals['ttr'] ?? 0);
-        if ($ttr >= 0.55)      $band += 0.5;
-        elseif ($ttr < 0.40)   $band -= 0.5;
+        if ($ttr >= 0.55) {
+            $band += 0.5;
+        } elseif ($ttr < 0.40) {
+            $band -= 0.5;
+        }
 
         $cohesion = (int) ($signals['cohesion_markers']['count'] ?? 0);
-        if ($cohesion >= 8)    $band += 0.5;
-        elseif ($cohesion <= 2) $band -= 0.5;
+        if ($cohesion >= 8) {
+            $band += 0.5;
+        } elseif ($cohesion <= 2) {
+            $band -= 0.5;
+        }
 
         $cefr = $signals['cefr_distribution'] ?? [];
         $advanced = (float) (($cefr['C1'] ?? 0) + ($cefr['C2'] ?? 0));
-        if ($advanced >= 25.0) $band += 0.5;
+        if ($advanced >= 25.0) {
+            $band += 0.5;
+        }
 
         // Under-length penalty (rough — used only for anchor biasing)
-        if ($words < 150) $band -= 1.0;
+        if ($words < 150) {
+            $band -= 1.0;
+        }
 
         // Clamp to plausible IELTS band range.
         return (float) max(4.0, min(9.0, round($band * 2) / 2));
@@ -1196,7 +1228,7 @@ FS;
     protected function getTaskSpecificCriteria($taskType): string
     {
         if (str_contains($taskType, 'Academic Task 1')) {
-            return <<<CRITERIA
+            return <<<'CRITERIA'
 TASK 1 SPECIFIC REQUIREMENTS:
 - Minimum 150 words
 - Describe visual information (graphs, charts, diagrams, tables, processes)
@@ -1207,7 +1239,7 @@ TASK 1 SPECIFIC REQUIREMENTS:
 - No personal opinion required
 CRITERIA;
         } elseif (str_contains($taskType, 'General Training Task 1')) {
-            return <<<CRITERIA
+            return <<<'CRITERIA'
 TASK 1 LETTER REQUIREMENTS:
 - Minimum 150 words
 - Address all bullet points in the question
@@ -1217,7 +1249,7 @@ TASK 1 LETTER REQUIREMENTS:
 - Logical organization of ideas
 CRITERIA;
         } else {
-            return <<<CRITERIA
+            return <<<'CRITERIA'
 TASK 2 ESSAY REQUIREMENTS:
 - Minimum 250 words
 - Clear position/opinion throughout
@@ -1270,14 +1302,15 @@ CRITERIA;
      */
     protected function parseConfidenceMax(mixed $range): ?float
     {
-        if (!is_string($range) || trim($range) === '') {
+        if (! is_string($range) || trim($range) === '') {
             return null;
         }
         $normalised = str_replace(['–', '—'], '-', $range);
-        if (!preg_match('/(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)/', $normalised, $m)) {
+        if (! preg_match('/(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)/', $normalised, $m)) {
             return null;
         }
         $max = (float) $m[2];
+
         return ($max > 0 && $max <= 9.0) ? $max : null;
     }
 
@@ -1308,7 +1341,7 @@ CRITERIA;
      */
     protected function applyBiasCorrection(array &$scoring, array $criterionFields): void
     {
-        if (!config('services.calibration.bias_correction_enabled', true)) {
+        if (! config('services.calibration.bias_correction_enabled', true)) {
             return;
         }
 
@@ -1349,7 +1382,7 @@ CRITERIA;
 
         // Stamp raw mean + shift for traceability.
         $scoring['overall_band_raw'] = (float) round($rawMean * 2) / 2;
-        $scoring['bias_shift']       = $shift;
+        $scoring['bias_shift'] = $shift;
 
         if ($shift === 0.0) {
             // No shift needed — still recompute overall from raw mean so
@@ -1357,6 +1390,7 @@ CRITERIA;
             if (isset($scoring['overall_band'])) {
                 $scoring['overall_band'] = (float) max(0.0, min(9.0, round($rawMean * 2) / 2));
             }
+
             return;
         }
 
@@ -1364,20 +1398,20 @@ CRITERIA;
         $correctedValues = [];
         foreach ($rawValues as $f => $v) {
             $corrected = max(0.0, min(9.0, round(($v + $shift) * 2) / 2));
-            $scoring[$f . '_raw'] = $v;
-            $scoring[$f]          = $corrected;
-            $correctedValues[]    = $corrected;
+            $scoring[$f.'_raw'] = $v;
+            $scoring[$f] = $corrected;
+            $correctedValues[] = $corrected;
         }
 
         $correctedMean = array_sum($correctedValues) / count($correctedValues);
         $scoring['overall_band'] = (float) max(0.0, min(9.0, round($correctedMean * 2) / 2));
 
         Log::info('Applied L5-v6 bias correction', [
-            'raw_mean'        => round($rawMean, 2),
+            'raw_mean' => round($rawMean, 2),
             'errors_per_100w' => $errorsPer100,
-            'shift'           => $shift,
-            'corrected_mean'  => round($correctedMean, 2),
-            'overall_band'   => $scoring['overall_band'],
+            'shift' => $shift,
+            'corrected_mean' => round($correctedMean, 2),
+            'overall_band' => $scoring['overall_band'],
         ]);
     }
 
@@ -1444,7 +1478,7 @@ CRITERIA;
 
         $applied = [];
         foreach ($caps as $field => $cap) {
-            if (!isset($scoring[$field])) {
+            if (! isset($scoring[$field])) {
                 continue;
             }
             $before = (float) $scoring[$field];
@@ -1454,11 +1488,11 @@ CRITERIA;
             }
         }
 
-        if (!empty($applied)) {
+        if (! empty($applied)) {
             Log::info('Applied under-length descriptor caps', [
                 'word_count' => $wordCount,
-                'is_task2'   => $isTask2,
-                'caps'       => $applied,
+                'is_task2' => $isTask2,
+                'caps' => $applied,
             ]);
         }
     }
@@ -1476,13 +1510,15 @@ CRITERIA;
     protected function enforceQuestionPartCoverage(array &$scoring, object $question): void
     {
         $parts = $scoring['question_parts'] ?? null;
-        if (!is_array($parts) || count($parts) < 2) {
+        if (! is_array($parts) || count($parts) < 2) {
             return; // single-part prompt — nothing to enforce
         }
 
         $unaddressed = 0;
         foreach ($parts as $p) {
-            if (!is_array($p)) continue;
+            if (! is_array($p)) {
+                continue;
+            }
             if (($p['addressed'] ?? true) === false) {
                 $unaddressed++;
             }
@@ -1501,11 +1537,11 @@ CRITERIA;
             $scoring['task_achievement'] = $cap;
 
             Log::info('Applied question-part coverage cap', [
-                'parts_total'      => count($parts),
+                'parts_total' => count($parts),
                 'parts_unaddressed' => $unaddressed,
-                'cap'              => $cap,
-                'ta_before'        => $before,
-                'ta_after'         => $cap,
+                'cap' => $cap,
+                'ta_before' => $before,
+                'ta_after' => $cap,
             ]);
         }
     }

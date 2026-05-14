@@ -2,10 +2,10 @@
 
 namespace Tests\Feature;
 
-use Tests\TestCase;
-use App\Services\ScoringService;
 use App\Models\Question;
+use App\Services\ScoringService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
 
 /**
  * Unit-style coverage for ScoringService post-LLM correction pipeline (L5-v6).
@@ -38,6 +38,7 @@ class ScoringLogicTest extends TestCase
         $r = new \ReflectionClass($this->scoringService);
         $m = $r->getMethod($method);
         $m->setAccessible(true);
+
         return $m->invokeArgs($this->scoringService, $args);
     }
 
@@ -46,10 +47,10 @@ class ScoringLogicTest extends TestCase
     public function test_overall_band_is_the_mean_of_four_criteria_rounded_to_half()
     {
         $scores = [
-            'task_achievement'   => 6.5,
+            'task_achievement' => 6.5,
             'coherence_cohesion' => 7.0,
-            'lexical_resource'   => 7.0,
-            'grammar'            => 7.0,
+            'lexical_resource' => 7.0,
+            'grammar' => 7.0,
         ];
         // mean = 6.875 → IELTS rounds to nearest 0.5 → 7.0
         $this->assertSame(7.0, $this->scoringService->calculateOverallBand($scores));
@@ -59,10 +60,10 @@ class ScoringLogicTest extends TestCase
     {
         // mean = 6.25; IELTS official rule: .25 rounds up to next half band.
         $scores = [
-            'task_achievement'   => 6.0,
+            'task_achievement' => 6.0,
             'coherence_cohesion' => 6.0,
-            'lexical_resource'   => 6.5,
-            'grammar'            => 6.5,
+            'lexical_resource' => 6.5,
+            'grammar' => 6.5,
         ];
         $this->assertSame(6.5, $this->scoringService->calculateOverallBand($scores));
     }
@@ -73,10 +74,10 @@ class ScoringLogicTest extends TestCase
         // The headline is purely the mean (rounded), with length/coverage
         // caps and confidence-range caps applied as separate steps upstream.
         $scores = [
-            'task_achievement'   => 5.0,
+            'task_achievement' => 5.0,
             'coherence_cohesion' => 7.0,
-            'lexical_resource'   => 7.0,
-            'grammar'            => 7.0,
+            'lexical_resource' => 7.0,
+            'grammar' => 7.0,
         ];
         // mean = 6.5 — no per-criterion cap any more
         $this->assertSame(6.5, $this->scoringService->calculateOverallBand($scores));
@@ -89,11 +90,11 @@ class ScoringLogicTest extends TestCase
         // Pre-L5-v6 this would have shifted +1.0 (rawMean 5.5 → overall 6.5).
         // Post-L5-v6 there is no upward shift at all.
         $scoring = [
-            'task_achievement'   => 5.5,
+            'task_achievement' => 5.5,
             'coherence_cohesion' => 5.5,
-            'lexical_resource'   => 5.5,
-            'grammar'            => 5.5,
-            'overall_band'       => 5.5,
+            'lexical_resource' => 5.5,
+            'grammar' => 5.5,
+            'overall_band' => 5.5,
             'band_confidence_range' => '5.0 – 6.0',
         ];
         $this->call('applyBiasCorrection', [&$scoring, [
@@ -108,11 +109,11 @@ class ScoringLogicTest extends TestCase
         // LLM said confidence is 5.0–6.0 but raw mean is 6.5.
         // Headline should not exceed the LLM's own confidence maximum.
         $scoring = [
-            'task_achievement'   => 7.0,
+            'task_achievement' => 7.0,
             'coherence_cohesion' => 6.5,
-            'lexical_resource'   => 6.5,
-            'grammar'            => 6.0,
-            'overall_band'       => 6.5,
+            'lexical_resource' => 6.5,
+            'grammar' => 6.0,
+            'overall_band' => 6.5,
             'band_confidence_range' => '5.0 – 6.0',
         ];
         $this->call('applyBiasCorrection', [&$scoring, [
@@ -124,12 +125,12 @@ class ScoringLogicTest extends TestCase
     public function test_bias_correction_pulls_down_when_errors_per_100w_are_severe()
     {
         $scoring = [
-            'task_achievement'   => 6.5,
+            'task_achievement' => 6.5,
             'coherence_cohesion' => 6.5,
-            'lexical_resource'   => 6.5,
-            'grammar'            => 6.5,
-            'overall_band'       => 6.5,
-            'error_summary'      => ['grammar_errors_per_100_words' => 20],
+            'lexical_resource' => 6.5,
+            'grammar' => 6.5,
+            'overall_band' => 6.5,
+            'error_summary' => ['grammar_errors_per_100_words' => 20],
             'band_confidence_range' => '6.0 – 7.0',
         ];
         $this->call('applyBiasCorrection', [&$scoring, [
@@ -143,11 +144,11 @@ class ScoringLogicTest extends TestCase
     {
         config(['services.calibration.bias_correction_enabled' => false]);
         $scoring = [
-            'task_achievement'   => 5.0,
+            'task_achievement' => 5.0,
             'coherence_cohesion' => 5.0,
-            'lexical_resource'   => 5.0,
-            'grammar'            => 5.0,
-            'overall_band'       => 5.0,
+            'lexical_resource' => 5.0,
+            'grammar' => 5.0,
+            'overall_band' => 5.0,
         ];
         $original = $scoring;
         $this->call('applyBiasCorrection', [&$scoring, [
@@ -161,10 +162,10 @@ class ScoringLogicTest extends TestCase
     public function test_under_length_task2_caps_ta_lr_gra_for_very_short_essay()
     {
         $scoring = [
-            'task_achievement'   => 7.0,
+            'task_achievement' => 7.0,
             'coherence_cohesion' => 7.0,
-            'lexical_resource'   => 7.0,
-            'grammar'            => 7.0,
+            'lexical_resource' => 7.0,
+            'grammar' => 7.0,
         ];
         $this->call('enforceLengthCaps', [&$scoring, 80, true]);
         $this->assertSame(4.0, $scoring['task_achievement']);
@@ -177,10 +178,10 @@ class ScoringLogicTest extends TestCase
     public function test_under_length_task2_caps_tr_only_when_just_under_minimum()
     {
         $scoring = [
-            'task_achievement'   => 7.0,
+            'task_achievement' => 7.0,
             'coherence_cohesion' => 7.0,
-            'lexical_resource'   => 7.0,
-            'grammar'            => 7.0,
+            'lexical_resource' => 7.0,
+            'grammar' => 7.0,
         ];
         $this->call('enforceLengthCaps', [&$scoring, 240, true]);
         $this->assertSame(6.0, $scoring['task_achievement']);
@@ -191,10 +192,10 @@ class ScoringLogicTest extends TestCase
     public function test_length_caps_do_not_engage_when_essay_is_long_enough()
     {
         $scoring = [
-            'task_achievement'   => 8.0,
+            'task_achievement' => 8.0,
             'coherence_cohesion' => 8.0,
-            'lexical_resource'   => 8.0,
-            'grammar'            => 8.0,
+            'lexical_resource' => 8.0,
+            'grammar' => 8.0,
         ];
         $original = $scoring;
         $this->call('enforceLengthCaps', [&$scoring, 320, true]);
@@ -207,7 +208,7 @@ class ScoringLogicTest extends TestCase
         $scoring = [
             'task_achievement' => 3.0,
             'lexical_resource' => 4.0,
-            'grammar'          => 4.0,
+            'grammar' => 4.0,
             'coherence_cohesion' => 4.0,
         ];
         $this->call('enforceLengthCaps', [&$scoring, 80, true]);
@@ -225,7 +226,7 @@ class ScoringLogicTest extends TestCase
                 ['part' => 'Is it positive or negative?', 'addressed' => false],
             ],
         ];
-        $this->call('enforceQuestionPartCoverage', [&$scoring, (object)[]]);
+        $this->call('enforceQuestionPartCoverage', [&$scoring, (object) []]);
         $this->assertSame(5.5, $scoring['task_achievement']);
     }
 
@@ -239,7 +240,7 @@ class ScoringLogicTest extends TestCase
                 ['part' => 'Your opinion', 'addressed' => false],
             ],
         ];
-        $this->call('enforceQuestionPartCoverage', [&$scoring, (object)[]]);
+        $this->call('enforceQuestionPartCoverage', [&$scoring, (object) []]);
         $this->assertSame(4.5, $scoring['task_achievement']);
     }
 
@@ -247,9 +248,9 @@ class ScoringLogicTest extends TestCase
     {
         $scoring = [
             'task_achievement' => 7.5,
-            'question_parts'   => [['part' => 'just one', 'addressed' => false]],
+            'question_parts' => [['part' => 'just one', 'addressed' => false]],
         ];
-        $this->call('enforceQuestionPartCoverage', [&$scoring, (object)[]]);
+        $this->call('enforceQuestionPartCoverage', [&$scoring, (object) []]);
         $this->assertSame(7.5, $scoring['task_achievement']);
     }
 
@@ -257,12 +258,12 @@ class ScoringLogicTest extends TestCase
     {
         $scoring = [
             'task_achievement' => 7.5,
-            'question_parts'   => [
+            'question_parts' => [
                 ['part' => 'p1', 'addressed' => true],
                 ['part' => 'p2', 'addressed' => true],
             ],
         ];
-        $this->call('enforceQuestionPartCoverage', [&$scoring, (object)[]]);
+        $this->call('enforceQuestionPartCoverage', [&$scoring, (object) []]);
         $this->assertSame(7.5, $scoring['task_achievement']);
     }
 
@@ -292,7 +293,7 @@ class ScoringLogicTest extends TestCase
             'category' => 'writing_academic_task1',
             'metadata' => json_encode([
                 'chart_type' => 'line',
-                'units'      => 'percentage',
+                'units' => 'percentage',
             ]),
         ]);
 

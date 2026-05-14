@@ -37,8 +37,8 @@ return new class extends Migration
                 ->slice(1)
                 ->values();
             DB::table('payments')->whereIn('id', $ids)->update([
-                'proof_id'   => null,
-                'admin_note' => DB::raw("CONCAT(COALESCE(admin_note,''), '\nDUP_UTR_MIGRATION: original proof_id=" . addslashes($utr) . " (cleared by 2026_05_13_230500)')"),
+                'proof_id' => null,
+                'admin_note' => DB::raw("CONCAT(COALESCE(admin_note,''), '\nDUP_UTR_MIGRATION: original proof_id=".addslashes($utr)." (cleared by 2026_05_13_230500)')"),
             ]);
         }
 

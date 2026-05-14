@@ -32,7 +32,7 @@ return [
     // only if you want partial-beta states (e.g. show banner but accept
     // payments).
     'hide_pay_cta' => filter_var(env('BETA_HIDE_PAY_CTA', env('BETA_MODE', false)), FILTER_VALIDATE_BOOLEAN),
-    'track_ref'    => filter_var(env('BETA_TRACK_REF', env('BETA_MODE', false)), FILTER_VALIDATE_BOOLEAN),
+    'track_ref' => filter_var(env('BETA_TRACK_REF', env('BETA_MODE', false)), FILTER_VALIDATE_BOOLEAN),
 
     // Shown in place of the pay button when hide_pay_cta is true.
     'pay_replacement_text' => env('BETA_PAY_REPLACEMENT', 'Pro plans launching soon — leave feedback to get early access'),

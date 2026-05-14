@@ -13,12 +13,12 @@ class Subscription extends Model
         'starts_at',
         'ends_at',
         'payment_id',
-        'razorpay_subscription_id'
+        'razorpay_subscription_id',
     ];
 
     protected $casts = [
         'starts_at' => 'datetime',
-        'ends_at' => 'datetime'
+        'ends_at' => 'datetime',
     ];
 
     public function user()

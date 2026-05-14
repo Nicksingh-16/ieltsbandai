@@ -37,6 +37,7 @@ class EvalBenchmark extends Command
 
         if ($essays->isEmpty()) {
             $this->error('No holdout writing essays found. Run db:seed --class=CalibratedEssaySeeder first.');
+
             return self::FAILURE;
         }
 
@@ -79,6 +80,7 @@ class EvalBenchmark extends Command
             if ($result === null) {
                 $errors[] = $essay->external_id;
                 $bar->advance();
+
                 continue;
             }
 
@@ -121,9 +123,9 @@ class EvalBenchmark extends Command
             File::makeDirectory($dir, 0755, true);
         }
 
-        $path = $dir . '/' . now()->format('Y-m-d_His') . '.json';
+        $path = $dir.'/'.now()->format('Y-m-d_His').'.json';
         File::put($path, json_encode($output, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-        $this->info('Written: ' . $path);
+        $this->info('Written: '.$path);
 
         return $this->meetsAcceptance($metrics) ? self::SUCCESS : self::FAILURE;
     }
@@ -137,9 +139,9 @@ class EvalBenchmark extends Command
     {
         $category = match ($essay->task_type) {
             'writing_task_1_academic' => 'academic_task1',
-            'writing_task_1_general'  => 'general_task1',
-            'writing_task_2'          => 'academic_task2',
-            default                   => 'academic_task2',
+            'writing_task_1_general' => 'general_task1',
+            'writing_task_2' => 'academic_task2',
+            default => 'academic_task2',
         };
 
         return (object) [

@@ -2,12 +2,12 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class WritingScoringService
 {
     protected $apiKey;
+
     protected $baseUrl;
 
     public function __construct()
@@ -18,92 +18,95 @@ class WritingScoringService
 
     /**
      * Score IELTS writing using OpenAI API
-     * 
-     * @param string $answer User's written response
-     * @param object $question Question object with type and content
+     *
+     * @param  string  $answer  User's written response
+     * @param  object  $question  Question object with type and content
      * @return array|null Scoring data or null on failure
      */
-   public function scoreWriting(string $answer, $question): ?array
-{
-    try {
-        $prompt = $this->buildWritingScoringPrompt($answer, $question);
+    public function scoreWriting(string $answer, $question): ?array
+    {
+        try {
+            $prompt = $this->buildWritingScoringPrompt($answer, $question);
 
-        // Route through LLMRouter (Groq → Gemini fallback chain) so the demo
-        // flow keeps working when OPENAI_API_KEY is a Gemini-shaped key.
-        $body = app(\App\Services\LLMRouter::class)
-            ->withContext(\Illuminate\Support\Facades\Auth::id(), null, 'demo_scoring')
-            ->chatCompletion([
-                'temperature' => 0.2,
-                'max_tokens'  => 3000,
-                'messages'    => [
-                    ['role' => 'system', 'content' => 'You are an IELTS examiner. Return JSON only. No markdown. No code blocks.'],
-                    ['role' => 'user',   'content' => $prompt],
-                ],
-            ]);
+            // Route through LLMRouter (Groq → Gemini fallback chain) so the demo
+            // flow keeps working when OPENAI_API_KEY is a Gemini-shaped key.
+            $body = app(\App\Services\LLMRouter::class)
+                ->withContext(\Illuminate\Support\Facades\Auth::id(), null, 'demo_scoring')
+                ->chatCompletion([
+                    'temperature' => 0.2,
+                    'max_tokens' => 3000,
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'You are an IELTS examiner. Return JSON only. No markdown. No code blocks.'],
+                        ['role' => 'user',   'content' => $prompt],
+                    ],
+                ]);
 
-        $content = $body['choices'][0]['message']['content'] ?? null;
-        if (!$content) {
-            Log::error('Demo scoring empty response');
+            $content = $body['choices'][0]['message']['content'] ?? null;
+            if (! $content) {
+                Log::error('Demo scoring empty response');
+
+                return null;
+            }
+            // Strip optional code fences some providers add.
+            $content = preg_replace('/^```(?:json)?\s*|\s*```$/m', '', trim($content));
+
+            if (env('IELTS_DEBUG')) {
+                Log::debug('🧠 GPT raw response', ['content' => $content]);
+            }
+
+            $scoring = json_decode($content, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                Log::error('Invalid GPT JSON', ['raw' => $content]);
+
+                return null;
+            }
+
+            // Required fields
+            foreach (['task_achievement', 'coherence_cohesion', 'lexical_resource', 'grammar', 'feedback', 'errors'] as $f) {
+                if (! isset($scoring[$f])) {
+                    return null;
+                }
+            }
+
+            // Normalize scores
+            foreach (['task_achievement', 'coherence_cohesion', 'lexical_resource', 'grammar'] as $f) {
+                $scoring[$f] = round(((float) $scoring[$f]) * 2) / 2;
+            }
+
+            // Normalize errors
+            $errors = [];
+            foreach ($scoring['errors'] as $i => $e) {
+                $errors[] = [
+                    'id' => 'error_'.($i + 1),
+                    'text' => $e['text'] ?? '',
+                    'type' => $e['type'] ?? 'grammar',
+                    'category' => $e['category'] ?? ($e['type'] ?? 'grammar'),
+                    'severity' => $e['severity'] ?? 'medium',
+                    'correction' => $e['correction'] ?? '',
+                    'explanation' => $e['explanation'] ?? '',
+                ];
+            }
+
+            $scoring['errors'] = $errors;
+            $scoring['annotated_answer_html'] = null; // 🔒 NEVER from GPT
+
+            return $scoring;
+
+        } catch (\Throwable $e) {
+            Log::error('Writing scoring crashed', ['msg' => $e->getMessage()]);
+
             return null;
         }
-        // Strip optional code fences some providers add.
-        $content = preg_replace('/^```(?:json)?\s*|\s*```$/m', '', trim($content));
-
-        if (env('IELTS_DEBUG')) {
-            Log::debug('🧠 GPT raw response', ['content' => $content]);
-        }
-
-        $scoring = json_decode($content, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            Log::error('Invalid GPT JSON', ['raw' => $content]);
-            return null;
-        }
-
-        // Required fields
-        foreach (['task_achievement','coherence_cohesion','lexical_resource','grammar','feedback','errors'] as $f) {
-            if (!isset($scoring[$f])) return null;
-        }
-
-        // Normalize scores
-        foreach (['task_achievement','coherence_cohesion','lexical_resource','grammar'] as $f) {
-            $scoring[$f] = round(((float)$scoring[$f]) * 2) / 2;
-        }
-
-        // Normalize errors
-        $errors = [];
-        foreach ($scoring['errors'] as $i => $e) {
-            $errors[] = [
-                'id'          => 'error_' . ($i + 1),
-                'text'        => $e['text'] ?? '',
-                'type'        => $e['type'] ?? 'grammar',
-                'category'    => $e['category'] ?? ($e['type'] ?? 'grammar'),
-                'severity'    => $e['severity'] ?? 'medium',
-                'correction'  => $e['correction'] ?? '',
-                'explanation' => $e['explanation'] ?? '',
-            ];
-        }
-
-        $scoring['errors'] = $errors;
-        $scoring['annotated_answer_html'] = null; // 🔒 NEVER from GPT
-
-        return $scoring;
-
-    } catch (\Throwable $e) {
-        Log::error('Writing scoring crashed', ['msg' => $e->getMessage()]);
-        return null;
     }
-}
-
-
 
     // ... rest of the methods remain the same ...
 
-   protected function buildWritingScoringPrompt(string $answer, $question): string
-{
-    $questionContent = $question->content ?? '';
-    $taskType = $this->determineTaskType($question->category ?? '');
+    protected function buildWritingScoringPrompt(string $answer, $question): string
+    {
+        $questionContent = $question->content ?? '';
+        $taskType = $this->determineTaskType($question->category ?? '');
 
-    return <<<PROMPT
+        return <<<PROMPT
 You are a certified IELTS examiner. Score the candidate's writing and return ONLY valid JSON — no markdown, no code blocks.
 
 TASK TYPE: {$taskType}
@@ -156,8 +159,7 @@ Rules for errors array:
 - type and category must both be one of: grammar, vocabulary, cohesion, punctuation
 - severity must be: low, medium, or high
 PROMPT;
-}
-
+    }
 
     protected function determineTaskType($category): string
     {
@@ -170,14 +172,14 @@ PROMPT;
         } elseif (str_contains($category, 'general_task2')) {
             return 'General Training Task 2 (Essay)';
         }
-        
+
         return 'Unknown';
     }
 
     protected function getTaskSpecificCriteria($taskType): string
     {
         if (str_contains($taskType, 'Academic Task 1')) {
-            return <<<CRITERIA
+            return <<<'CRITERIA'
 TASK 1 SPECIFIC REQUIREMENTS:
 - Minimum 150 words
 - Describe visual information (graphs, charts, diagrams, tables, processes)
@@ -188,7 +190,7 @@ TASK 1 SPECIFIC REQUIREMENTS:
 - No personal opinion required
 CRITERIA;
         } elseif (str_contains($taskType, 'General Training Task 1')) {
-            return <<<CRITERIA
+            return <<<'CRITERIA'
 TASK 1 LETTER REQUIREMENTS:
 - Minimum 150 words
 - Address all bullet points in the question
@@ -198,7 +200,7 @@ TASK 1 LETTER REQUIREMENTS:
 - Logical organization of ideas
 CRITERIA;
         } else {
-            return <<<CRITERIA
+            return <<<'CRITERIA'
 TASK 2 ESSAY REQUIREMENTS:
 - Minimum 250 words
 - Clear position/opinion throughout

@@ -23,17 +23,18 @@ class InstituteController extends Controller
         if (Auth::user()->institute_id) {
             return redirect()->route('institute.dashboard');
         }
+
         return view('pages.institute.landing');
     }
 
     public function register(Request $request)
     {
         $request->validate([
-            'name'         => 'required|string|max:255',
-            'contact_email'=> 'required|email',
-            'phone'        => 'nullable|string|max:20',
-            'city'         => 'nullable|string|max:100',
-            'gst_number'   => 'nullable|string|max:20',
+            'name' => 'required|string|max:255',
+            'contact_email' => 'required|email',
+            'phone' => 'nullable|string|max:20',
+            'city' => 'nullable|string|max:100',
+            'gst_number' => 'nullable|string|max:20',
         ]);
 
         $user = Auth::user();
@@ -43,21 +44,21 @@ class InstituteController extends Controller
         }
 
         $institute = Institute::create([
-            'name'          => $request->name,
-            'owner_id'      => $user->id,
+            'name' => $request->name,
+            'owner_id' => $user->id,
             'contact_email' => $request->contact_email,
-            'phone'         => $request->phone,
-            'city'          => $request->city,
-            'gst_number'    => $request->gst_number,
-            'plan'          => 'free',
-            'seat_limit'    => 10,
-            'seats_used'    => 1,
+            'phone' => $request->phone,
+            'city' => $request->city,
+            'gst_number' => $request->gst_number,
+            'plan' => 'free',
+            'seat_limit' => 10,
+            'seats_used' => 1,
         ]);
 
         // institute_id and institute_role are deliberately not in User::$fillable
         // (privileged fields). This is trusted server-side code so we forceFill.
         $user->forceFill([
-            'institute_id'   => $institute->id,
+            'institute_id' => $institute->id,
             'institute_role' => 'owner',
         ])->save();
 
@@ -69,16 +70,16 @@ class InstituteController extends Controller
 
     public function dashboard()
     {
-        $user      = Auth::user();
+        $user = Auth::user();
         $institute = $user->institute()->with('batches')->firstOrFail();
 
-        if (!$user->isTeacher()) {
+        if (! $user->isTeacher()) {
             abort(403, 'Teachers and owners only.');
         }
 
-        $members    = User::where('institute_id', $institute->id)->with('tests')->get();
-        $batches    = $institute->batches()->withCount('students')->get();
-        $totalTests = $members->sum(fn($m) => $m->tests->count());
+        $members = User::where('institute_id', $institute->id)->with('tests')->get();
+        $batches = $institute->batches()->withCount('students')->get();
+        $totalTests = $members->sum(fn ($m) => $m->tests->count());
 
         return view('pages.institute.dashboard', compact('institute', 'members', 'batches', 'totalTests'));
     }
@@ -88,10 +89,10 @@ class InstituteController extends Controller
     public function batchCreate(Request $request)
     {
         $request->validate([
-            'name'        => 'required|string|max:255',
-            'test_type'   => 'required|in:academic,general',
+            'name' => 'required|string|max:255',
+            'test_type' => 'required|in:academic,general',
             'target_band' => 'nullable|numeric|min:1|max:9',
-            'exam_date'   => 'nullable|date|after:today',
+            'exam_date' => 'nullable|date|after:today',
             'description' => 'nullable|string|max:500',
         ]);
 
@@ -99,11 +100,11 @@ class InstituteController extends Controller
 
         Batch::create([
             'institute_id' => $institute->id,
-            'name'         => $request->name,
-            'test_type'    => $request->test_type,
-            'target_band'  => $request->target_band,
-            'exam_date'    => $request->exam_date,
-            'description'  => $request->description,
+            'name' => $request->name,
+            'test_type' => $request->test_type,
+            'target_band' => $request->target_band,
+            'exam_date' => $request->exam_date,
+            'description' => $request->description,
         ]);
 
         return redirect()->route('institute.dashboard')
@@ -115,10 +116,9 @@ class InstituteController extends Controller
         $this->authorizeInstitute($batch->institute_id);
         $batch->load('institute');
 
-        $students = $batch->students()->with(['tests' => fn($q) =>
-            $q->whereNotNull('overall_band')
-              ->where('status', 'completed')
-              ->orderBy('created_at')
+        $students = $batch->students()->with(['tests' => fn ($q) => $q->whereNotNull('overall_band')
+            ->where('status', 'completed')
+            ->orderBy('created_at'),
         ])->get();
 
         $modules = ['writing', 'speaking', 'listening', 'reading'];
@@ -128,16 +128,17 @@ class InstituteController extends Controller
             $row = ['student' => $s, 'bands' => [], 'trend' => null, 'total_tests' => $s->tests->count()];
             foreach ($modules as $m) {
                 $latest = $s->tests->where('type', $m)->sortByDesc('created_at')->first();
-                $prev   = $s->tests->where('type', $m)->sortByDesc('created_at')->skip(1)->first();
-                $band   = $latest?->overall_band;
+                $prev = $s->tests->where('type', $m)->sortByDesc('created_at')->skip(1)->first();
+                $band = $latest?->overall_band;
                 $row['bands'][$m] = [
-                    'band'  => $band,
+                    'band' => $band,
                     'delta' => ($band && $prev?->overall_band) ? round($band - $prev->overall_band, 1) : null,
                 ];
             }
             // Overall trend: average of all module bands
             $allBands = collect($row['bands'])->pluck('band')->filter();
             $row['avg_band'] = $allBands->isNotEmpty() ? round($allBands->avg() * 2) / 2 : null;
+
             return $row;
         });
 
@@ -151,12 +152,14 @@ class InstituteController extends Controller
         // Score distribution (band 4-9 bucket counts) across all modules
         $distribution = [];
         foreach ($modules as $m) {
-            $counts = array_fill_keys(['4','4.5','5','5.5','6','6.5','7','7.5','8','8.5','9'], 0);
+            $counts = array_fill_keys(['4', '4.5', '5', '5.5', '6', '6.5', '7', '7.5', '8', '8.5', '9'], 0);
             $students->each(function ($s) use ($m, &$counts) {
                 $b = $s->tests->where('type', $m)->sortByDesc('created_at')->first()?->overall_band;
                 if ($b) {
                     $key = (string) $b;
-                    if (isset($counts[$key])) $counts[$key]++;
+                    if (isset($counts[$key])) {
+                        $counts[$key]++;
+                    }
                 }
             });
             $distribution[$m] = $counts;
@@ -168,7 +171,7 @@ class InstituteController extends Controller
 
         // Assignment completion rates for this batch
         $assignments = \App\Models\AssignedTest::where('batch_id', $batch->id)
-            ->withCount(['studentRecords', 'studentRecords as completed_count' => fn($q) => $q->where('status', 'completed')])
+            ->withCount(['studentRecords', 'studentRecords as completed_count' => fn ($q) => $q->where('status', 'completed')])
             ->latest()->get();
 
         return view('pages.institute.batch-analytics', compact(
@@ -182,15 +185,16 @@ class InstituteController extends Controller
         $this->authorizeInstitute($batch->institute_id);
 
         $students = $batch->students()
-            ->with(['tests' => fn($q) => $q->whereNotNull('overall_band')->latest()->limit(4)])
+            ->with(['tests' => fn ($q) => $q->whereNotNull('overall_band')->latest()->limit(4)])
             ->get()
             ->map(function ($student) {
                 $latestTests = $student->tests;
+
                 return [
-                    'user'     => $student,
-                    'listening'=> optional($latestTests->firstWhere('type', 'listening_academic') ?? $latestTests->firstWhere('type', 'listening_general'))->overall_band,
-                    'reading'  => optional($latestTests->firstWhere('type', 'reading_academic') ?? $latestTests->firstWhere('type', 'reading_general'))->overall_band,
-                    'writing'  => optional($latestTests->firstWhere('type', 'writing_academic') ?? $latestTests->firstWhere('type', 'writing_general'))->overall_band,
+                    'user' => $student,
+                    'listening' => optional($latestTests->firstWhere('type', 'listening_academic') ?? $latestTests->firstWhere('type', 'listening_general'))->overall_band,
+                    'reading' => optional($latestTests->firstWhere('type', 'reading_academic') ?? $latestTests->firstWhere('type', 'reading_general'))->overall_band,
+                    'writing' => optional($latestTests->firstWhere('type', 'writing_academic') ?? $latestTests->firstWhere('type', 'writing_general'))->overall_band,
                     'speaking' => optional($latestTests->firstWhere('type', 'speaking'))->overall_band,
                 ];
             });
@@ -208,24 +212,24 @@ class InstituteController extends Controller
 
         $institute = Auth::user()->institute;
 
-        if (!$institute->hasSeatsAvailable()) {
+        if (! $institute->hasSeatsAvailable()) {
             return back()->with('error', 'Seat limit reached. Upgrade your plan to add more students.');
         }
 
         $student = User::where('email', $request->email)->first();
 
-        if (!$student) {
+        if (! $student) {
             // Create account with temp password and send invite
             $tempPassword = Str::random(12);
-            $student = new User();
+            $student = new User;
             $student->forceFill([
-                'name'               => explode('@', $request->email)[0],
-                'email'              => $request->email,
-                'password'           => Hash::make($tempPassword),
-                'email_verified_at'  => now(),
-                'institute_id'       => $institute->id,
-                'institute_role'     => 'student',
-                'test_credits'       => 3,
+                'name' => explode('@', $request->email)[0],
+                'email' => $request->email,
+                'password' => Hash::make($tempPassword),
+                'email_verified_at' => now(),
+                'institute_id' => $institute->id,
+                'institute_role' => 'student',
+                'test_credits' => 3,
             ])->save();
 
             // Send invite email
@@ -235,7 +239,7 @@ class InstituteController extends Controller
                 return back()->with('error', 'This student belongs to another institute.');
             }
             $student->forceFill([
-                'institute_id'   => $institute->id,
+                'institute_id' => $institute->id,
                 'institute_role' => 'student',
             ])->save();
         }
@@ -253,24 +257,27 @@ class InstituteController extends Controller
         $request->validate(['csv' => 'required|file|mimes:csv,txt|max:1024']);
 
         $institute = Auth::user()->institute;
-        $file      = $request->file('csv');
-        $rows      = array_map('str_getcsv', file($file->getRealPath()));
-        $imported  = 0;
-        $errors    = [];
+        $file = $request->file('csv');
+        $rows = array_map('str_getcsv', file($file->getRealPath()));
+        $imported = 0;
+        $errors = [];
 
         foreach ($rows as $i => $row) {
-            if ($i === 0) continue; // skip header
+            if ($i === 0) {
+                continue;
+            } // skip header
 
             $email = trim($row[0] ?? '');
-            $name  = trim($row[1] ?? explode('@', $email)[0]);
+            $name = trim($row[1] ?? explode('@', $email)[0]);
 
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $errors[] = "Row " . ($i + 1) . ": Invalid email '{$email}'";
+            if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $errors[] = 'Row '.($i + 1).": Invalid email '{$email}'";
+
                 continue;
             }
 
-            if (!$institute->hasSeatsAvailable()) {
-                $errors[] = "Seat limit reached at row " . ($i + 1);
+            if (! $institute->hasSeatsAvailable()) {
+                $errors[] = 'Seat limit reached at row '.($i + 1);
                 break;
             }
 
@@ -278,15 +285,16 @@ class InstituteController extends Controller
             $student = User::firstOrCreate(
                 ['email' => $email],
                 [
-                    'name'              => $name,
-                    'password'          => Hash::make($tempPassword),
+                    'name' => $name,
+                    'password' => Hash::make($tempPassword),
                     'email_verified_at' => now(),
-                    'test_credits'      => 3,
+                    'test_credits' => 3,
                 ]
             );
 
-            if (!$student->wasRecentlyCreated && $student->institute_id && $student->institute_id !== $institute->id) {
-                $errors[] = "Row " . ($i + 1) . ": {$email} belongs to another institute.";
+            if (! $student->wasRecentlyCreated && $student->institute_id && $student->institute_id !== $institute->id) {
+                $errors[] = 'Row '.($i + 1).": {$email} belongs to another institute.";
+
                 continue;
             }
 
@@ -302,7 +310,9 @@ class InstituteController extends Controller
         }
 
         $msg = "{$imported} students imported.";
-        if ($errors) $msg .= ' ' . count($errors) . ' skipped.';
+        if ($errors) {
+            $msg .= ' '.count($errors).' skipped.';
+        }
 
         return back()->with('success', $msg)->with('import_errors', $errors);
     }
@@ -320,7 +330,7 @@ class InstituteController extends Controller
         }
 
         $questions = $query->paginate(30)->withQueryString();
-        $types     = ['writing', 'speaking', 'listening', 'reading'];
+        $types = ['writing', 'speaking', 'listening', 'reading'];
 
         return view('pages.institute.questions.index', compact('institute', 'questions', 'types'));
     }
@@ -329,6 +339,7 @@ class InstituteController extends Controller
     {
         $institute = $this->getInstituteOrFail();
         $this->authorizeTeacherRole();
+
         return view('pages.institute.questions.create', compact('institute'));
     }
 
@@ -338,18 +349,18 @@ class InstituteController extends Controller
         $this->authorizeTeacherRole();
 
         $data = $request->validate([
-            'type'       => 'required|in:speaking,writing,listening,reading',
-            'category'   => 'required|string',
-            'title'      => 'required|string|max:500',
-            'content'    => 'required|string',
-            'media_url'  => 'nullable|url|max:500',
+            'type' => 'required|in:speaking,writing,listening,reading',
+            'category' => 'required|string',
+            'title' => 'required|string|max:500',
+            'content' => 'required|string',
+            'media_url' => 'nullable|url|max:500',
             'time_limit' => 'nullable|integer|min:1',
-            'min_words'  => 'nullable|integer|min:1',
+            'min_words' => 'nullable|integer|min:1',
             'difficulty' => 'nullable|in:easy,medium,hard',
         ]);
 
         $metadata = [];
-        if (!empty($data['difficulty'])) {
+        if (! empty($data['difficulty'])) {
             $metadata['difficulty'] = $data['difficulty'];
         }
         unset($data['difficulty']);
@@ -364,6 +375,7 @@ class InstituteController extends Controller
         $institute = $this->getInstituteOrFail();
         $this->authorizeTeacherRole();
         abort_if($question->institute_id !== $institute->id, 403);
+
         return view('pages.institute.questions.edit', compact('question', 'institute'));
     }
 
@@ -374,19 +386,19 @@ class InstituteController extends Controller
         abort_if($question->institute_id !== $institute->id, 403);
 
         $data = $request->validate([
-            'type'       => 'required|in:speaking,writing,listening,reading',
-            'category'   => 'required|string',
-            'title'      => 'required|string|max:500',
-            'content'    => 'required|string',
-            'media_url'  => 'nullable|url|max:500',
+            'type' => 'required|in:speaking,writing,listening,reading',
+            'category' => 'required|string',
+            'title' => 'required|string|max:500',
+            'content' => 'required|string',
+            'media_url' => 'nullable|url|max:500',
             'time_limit' => 'nullable|integer|min:1',
-            'min_words'  => 'nullable|integer|min:1',
+            'min_words' => 'nullable|integer|min:1',
             'difficulty' => 'nullable|in:easy,medium,hard',
-            'active'     => 'boolean',
+            'active' => 'boolean',
         ]);
 
         $metadata = $question->metadata ?? [];
-        if (!empty($data['difficulty'])) {
+        if (! empty($data['difficulty'])) {
             $metadata['difficulty'] = $data['difficulty'];
         }
         unset($data['difficulty']);
@@ -402,6 +414,7 @@ class InstituteController extends Controller
         $this->authorizeTeacherRole();
         abort_if($question->institute_id !== $institute->id, 403);
         $question->delete();
+
         return redirect()->route('institute.questions.index')->with('success', 'Question deleted.');
     }
 
@@ -412,6 +425,7 @@ class InstituteController extends Controller
         $institute = $this->getInstituteOrFail();
         $sets = TestTemplate::where('institute_id', $institute->id)
             ->withCount('questions')->latest()->paginate(20);
+
         return view('pages.institute.question-sets.index', compact('institute', 'sets'));
     }
 
@@ -419,6 +433,7 @@ class InstituteController extends Controller
     {
         $institute = $this->getInstituteOrFail();
         $this->authorizeTeacherRole();
+
         return view('pages.institute.question-sets.create', compact('institute'));
     }
 
@@ -428,17 +443,17 @@ class InstituteController extends Controller
         $this->authorizeTeacherRole();
 
         $data = $request->validate([
-            'name'             => 'required|string|max:255',
-            'description'      => 'nullable|string|max:1000',
-            'type'             => 'required|in:writing,speaking,listening,reading,full_mock',
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string|max:1000',
+            'type' => 'required|in:writing,speaking,listening,reading,full_mock',
             'duration_minutes' => 'required|integer|min:1|max:480',
         ]);
 
         $set = TestTemplate::create($data + [
             'institute_id' => $institute->id,
-            'created_by'   => auth()->id(),
-            'is_public'    => false,
-            'is_active'    => true,
+            'created_by' => auth()->id(),
+            'is_public' => false,
+            'is_active' => true,
         ]);
 
         return redirect()->route('institute.question-sets.show', $set)
@@ -479,6 +494,7 @@ class InstituteController extends Controller
         abort_if($set->institute_id !== $institute->id, 403);
         $this->authorizeTeacherRole();
         $set->questions()->detach($question->id);
+
         return back()->with('success', 'Question removed.');
     }
 
@@ -488,6 +504,7 @@ class InstituteController extends Controller
         abort_if($set->institute_id !== $institute->id, 403);
         $this->authorizeTeacherRole();
         $set->delete();
+
         return redirect()->route('institute.question-sets.index')->with('success', 'Question set deleted.');
     }
 
@@ -496,13 +513,14 @@ class InstituteController extends Controller
     private function getInstituteOrFail(): Institute
     {
         $institute = Auth::user()->institute;
-        abort_if(!$institute, 403, 'You do not belong to any institute.');
+        abort_if(! $institute, 403, 'You do not belong to any institute.');
+
         return $institute;
     }
 
     private function authorizeTeacherRole(): void
     {
-        if (!Auth::user()->isTeacher()) {
+        if (! Auth::user()->isTeacher()) {
             abort(403, 'Teachers and owners only.');
         }
     }
@@ -510,7 +528,7 @@ class InstituteController extends Controller
     private function authorizeInstitute(int $instituteId): void
     {
         $user = Auth::user();
-        if (!$user->isTeacher() || $user->institute_id !== $instituteId) {
+        if (! $user->isTeacher() || $user->institute_id !== $instituteId) {
             abort(403);
         }
     }

@@ -3,10 +3,9 @@
 namespace App\Jobs;
 
 use App\Models\Test;
-use App\Models\AudioFile;
 use App\Models\TestScore;
-use App\Services\TranscriptionService;
 use App\Services\ScoringService;
+use App\Services\TranscriptionService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -18,8 +17,10 @@ class SpeakingEvaluationJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $tries   = 3;
+    public $tries = 3;
+
     public $timeout = 360; // 6 minutes max (3 audio files × ~90s each + scoring)
+
     public $backoff = [30, 60]; // retry after 30s, then 60s
 
     protected $testId;
@@ -48,6 +49,7 @@ class SpeakingEvaluationJob implements ShouldQueue
                     'type' => $test->type,
                 ]);
                 $this->markTestAsFailed($test, 'Invalid test type');
+
                 return;
             }
 
@@ -59,6 +61,7 @@ class SpeakingEvaluationJob implements ShouldQueue
                     'count' => $audioFiles->count(),
                 ]);
                 $this->markTestAsFailed($test, 'Insufficient audio files');
+
                 return;
             }
 
@@ -67,7 +70,7 @@ class SpeakingEvaluationJob implements ShouldQueue
 
             // Step 1: Transcribe all audio files
             $transcripts = [];
-            $allWords    = [];
+            $allWords = [];
             foreach ($audioFiles as $index => $audioFile) {
                 Log::info('Transcribing audio file', [
                     'test_id' => $this->testId,
@@ -77,25 +80,26 @@ class SpeakingEvaluationJob implements ShouldQueue
 
                 $result = $transcriptionService->transcribeWithWords($audioFile->file_url);
 
-                if (!$result || empty($result['text'])) {
+                if (! $result || empty($result['text'])) {
                     Log::error('Transcription failed for audio file', [
                         'test_id' => $this->testId,
                         'audio_file_id' => $audioFile->id,
                     ]);
                     $this->markTestAsFailed($test, 'Transcription failed');
+
                     return;
                 }
 
                 $transcript = $result['text'];
-                $words      = $result['words'] ?? [];
+                $words = $result['words'] ?? [];
 
                 // Save transcript + word timings to audio file
                 $audioFile->update([
-                    'transcript'       => $transcript,
+                    'transcript' => $transcript,
                     'transcript_words' => $words,
                 ]);
                 $transcripts[] = $transcript;
-                $allWords      = array_merge($allWords, $words);
+                $allWords = array_merge($allWords, $words);
             }
 
             // Step 2: Concatenate transcripts with part labels
@@ -106,9 +110,10 @@ class SpeakingEvaluationJob implements ShouldQueue
 
             $scoring = $scoringService->scoreSpeaking($combinedTranscript, $test->user_id, $test->id, $allWords);
 
-            if (!$scoring) {
+            if (! $scoring) {
                 Log::error('AI scoring failed', ['test_id' => $this->testId]);
                 $this->markTestAsFailed($test, 'AI scoring failed');
+
                 return;
             }
 
@@ -136,7 +141,7 @@ class SpeakingEvaluationJob implements ShouldQueue
 
             $test = Test::find($this->testId);
             if ($test) {
-                $this->markTestAsFailed($test, 'Evaluation job failed: ' . $e->getMessage());
+                $this->markTestAsFailed($test, 'Evaluation job failed: '.$e->getMessage());
             }
         }
     }
@@ -147,12 +152,12 @@ class SpeakingEvaluationJob implements ShouldQueue
     protected function buildCombinedTranscript(array $transcripts, $testQuestions): string
     {
         $parts = [];
-        
+
         foreach ($transcripts as $index => $transcript) {
             $partNumber = $index + 1;
             $question = $testQuestions->where('part', $partNumber)->first();
             $questionText = $question ? $question->question->title : "Part {$partNumber}";
-            
+
             $parts[] = "=== Part {$partNumber}: {$questionText} ===\n{$transcript}";
         }
 
@@ -196,7 +201,7 @@ class SpeakingEvaluationJob implements ShouldQueue
             'metadata' => json_encode(array_merge(
                 json_decode($test->metadata, true) ?? [],
                 [
-                    'band_confidence_range' => $scoring['band_confidence_range'] ?? (($overallBand - 0.5) . ' - ' . ($overallBand + 0.5)),
+                    'band_confidence_range' => $scoring['band_confidence_range'] ?? (($overallBand - 0.5).' - '.($overallBand + 0.5)),
                     'fillers_detected' => $scoring['metadata']['fillers_detected'] ?? 0,
                     'repetition_flags' => $scoring['metadata']['repetition_flags'] ?? false,
                     'pronunciation_notes' => $scoring['metadata']['pronunciation_notes'] ?? [],
@@ -253,26 +258,26 @@ class SpeakingEvaluationJob implements ShouldQueue
     protected function analyzeRepetitions(string $transcript): array
     {
         // Common stop words to exclude
-        $stopWords = ['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 
-                      'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'be', 
-                      'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 
-                      'would', 'should', 'could', 'may', 'might', 'must', 'can', 'i', 'you', 
-                      'he', 'she', 'it', 'we', 'they', 'this', 'that', 'these', 'those'];
+        $stopWords = ['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+            'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'be',
+            'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will',
+            'would', 'should', 'could', 'may', 'might', 'must', 'can', 'i', 'you',
+            'he', 'she', 'it', 'we', 'they', 'this', 'that', 'these', 'those'];
 
         // Extract words
         preg_match_all('/\b\w+\b/', strtolower($transcript), $matches);
         $words = $matches[0];
 
         // Filter out stop words and short words
-        $contentWords = array_filter($words, function($word) use ($stopWords) {
-            return !in_array($word, $stopWords) && strlen($word) > 3;
+        $contentWords = array_filter($words, function ($word) use ($stopWords) {
+            return ! in_array($word, $stopWords) && strlen($word) > 3;
         });
 
         // Count frequencies
         $wordCounts = array_count_values($contentWords);
-        
+
         // Filter words used more than 3 times
-        $overusedWords = array_filter($wordCounts, function($count) {
+        $overusedWords = array_filter($wordCounts, function ($count) {
             return $count > 3;
         });
 
@@ -296,8 +301,7 @@ class SpeakingEvaluationJob implements ShouldQueue
     {
         $test->update([
             'status' => 'failed',
-            'feedback' => 'Evaluation failed: ' . $reason,
+            'feedback' => 'Evaluation failed: '.$reason,
         ]);
     }
 }
-

@@ -32,36 +32,41 @@ class IngestVoaListening extends Command
     public function handle(): int
     {
         $path = $this->argument('path');
-        if (!str_starts_with($path, '/') && !preg_match('#^[A-Z]:#', $path)) {
+        if (! str_starts_with($path, '/') && ! preg_match('#^[A-Z]:#', $path)) {
             $path = base_path($path);
         }
 
-        if (!file_exists($path)) {
+        if (! file_exists($path)) {
             $this->error("Spec not found: {$path}");
+
             return self::FAILURE;
         }
 
         $spec = json_decode(file_get_contents($path), true);
-        if (!$spec) {
-            $this->error('Invalid JSON: ' . json_last_error_msg());
+        if (! $spec) {
+            $this->error('Invalid JSON: '.json_last_error_msg());
+
             return self::FAILURE;
         }
 
         foreach (['title', 'category', 'section_audios', 'questions'] as $required) {
             if (empty($spec[$required])) {
                 $this->error("Spec missing required key: {$required}");
+
                 return self::FAILURE;
             }
         }
 
-        if (!is_array($spec['section_audios']) || count($spec['section_audios']) !== 4) {
+        if (! is_array($spec['section_audios']) || count($spec['section_audios']) !== 4) {
             $this->error('section_audios must be exactly 4 mp3 URLs (one per section).');
+
             return self::FAILURE;
         }
 
         $existing = Question::where('title', $spec['title'])->first();
-        if ($existing && !$this->option('force')) {
+        if ($existing && ! $this->option('force')) {
             $this->warn("Question already exists with title '{$spec['title']}' (id={$existing->id}). Use --force to overwrite.");
+
             return self::FAILURE;
         }
 
@@ -70,20 +75,20 @@ class IngestVoaListening extends Command
         // legacy tests keep playing, and section_audios = [4 mp3s] which the
         // updated view will prefer when present.
         $metadata = [
-            'audio_url'      => $spec['section_audios'][0],
+            'audio_url' => $spec['section_audios'][0],
             'section_audios' => $spec['section_audios'],
-            'attribution'    => $spec['attribution'] ?? null,
-            'source'         => $spec['source'] ?? 'VOA Learning English',
-            'license'        => $spec['license'] ?? 'public domain',
-            'questions'      => $spec['questions'],
+            'attribution' => $spec['attribution'] ?? null,
+            'source' => $spec['source'] ?? 'VOA Learning English',
+            'license' => $spec['license'] ?? 'public domain',
+            'questions' => $spec['questions'],
         ];
 
         $payload = [
-            'type'     => 'listening',
+            'type' => 'listening',
             'category' => $spec['category'],
-            'title'    => $spec['title'],
-            'content'  => $spec['content'] ?? 'IELTS listening test sourced from VOA Learning English.',
-            'active'   => true,
+            'title' => $spec['title'],
+            'content' => $spec['content'] ?? 'IELTS listening test sourced from VOA Learning English.',
+            'active' => true,
             'metadata' => json_encode($metadata),
         ];
 
@@ -96,9 +101,9 @@ class IngestVoaListening extends Command
         }
 
         $totalQs = $this->countAtomicQuestions($spec['questions']);
-        $this->line("  Sections: 4");
+        $this->line('  Sections: 4');
         $this->line("  Atomic questions: {$totalQs}");
-        $this->line("  Audio: " . count($spec['section_audios']) . ' mp3 URLs');
+        $this->line('  Audio: '.count($spec['section_audios']).' mp3 URLs');
 
         return self::SUCCESS;
     }
@@ -118,6 +123,7 @@ class IngestVoaListening extends Command
                 $count++;
             }
         }
+
         return $count;
     }
 }

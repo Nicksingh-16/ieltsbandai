@@ -12,7 +12,7 @@
 
 return [
 
-    'currency'        => 'INR',
+    'currency' => 'INR',
     'currency_symbol' => '₹',
 
     /*
@@ -28,48 +28,48 @@ return [
     */
     'one_time' => [
         'single_writing' => [
-            'label'        => 'Writing Practice',
-            'subtitle'     => '1 Writing test with full AI evaluation',
-            'price'        => 9,
-            'credits'      => 1,
-            'duration_days'=> null,
-            'tier'         => 'standard',
-            'features'     => [
+            'label' => 'Writing Practice',
+            'subtitle' => '1 Writing test with full AI evaluation',
+            'price' => 9,
+            'credits' => 1,
+            'duration_days' => null,
+            'tier' => 'standard',
+            'features' => [
                 'Detailed band score (TA, CC, LR, GRA)',
                 'Error highlighting + Band-9 model rewrite',
                 'Calibrated against Cambridge IELTS',
             ],
-            'badge'        => null,
+            'badge' => null,
         ],
 
         'single_speaking' => [
-            'label'        => 'Speaking Practice',
-            'subtitle'     => '1 Speaking test (Parts 1–3) with transcript',
-            'price'        => 14,
-            'credits'      => 1,
-            'duration_days'=> null,
-            'tier'         => 'standard',
-            'features'     => [
+            'label' => 'Speaking Practice',
+            'subtitle' => '1 Speaking test (Parts 1–3) with transcript',
+            'price' => 14,
+            'credits' => 1,
+            'duration_days' => null,
+            'tier' => 'standard',
+            'features' => [
                 'Full Parts 1, 2, 3 simulation',
                 'Fluency + pronunciation + lexical analysis',
                 'Word-level transcript with pause/filler counts',
             ],
-            'badge'        => null,
+            'badge' => null,
         ],
 
         'single_full' => [
-            'label'        => 'Full Mock Test',
-            'subtitle'     => 'Writing + Speaking + Listening + Reading',
-            'price'        => 20,
-            'credits'      => 4,
-            'duration_days'=> null,
-            'tier'         => 'standard',
-            'features'     => [
+            'label' => 'Full Mock Test',
+            'subtitle' => 'Writing + Speaking + Listening + Reading',
+            'price' => 20,
+            'credits' => 4,
+            'duration_days' => null,
+            'tier' => 'standard',
+            'features' => [
                 'All four IELTS modules in one session',
                 'Combined band-score report',
                 'Saves ₹21 vs buying individually (₹41 → ₹20)',
             ],
-            'badge'        => 'Save 51%',
+            'badge' => 'Save 51%',
         ],
 
         // Self-evaluation pack — for users who want to evaluate their own
@@ -77,19 +77,19 @@ return [
         // (separate pool from test_credits). Cheap because the only AI cost
         // is one writing evaluation pass.
         'self_eval_single' => [
-            'label'        => 'Essay Evaluation',
-            'subtitle'     => 'Evaluate one Task 2 essay you wrote elsewhere',
-            'price'        => 10,
-            'credits'      => 1,
+            'label' => 'Essay Evaluation',
+            'subtitle' => 'Evaluate one Task 2 essay you wrote elsewhere',
+            'price' => 10,
+            'credits' => 1,
             'credits_pool' => 'self_eval',
-            'duration_days'=> null,
-            'tier'         => 'standard',
-            'features'     => [
+            'duration_days' => null,
+            'tier' => 'standard',
+            'features' => [
                 'Full IELTS-style band-score breakdown',
                 'Error highlighting + corrections',
                 'Band-9 model rewrite of your prompt',
             ],
-            'badge'        => null,
+            'badge' => null,
         ],
     ],
 
@@ -108,40 +108,40 @@ return [
     */
     'subscription' => [
         'monthly_basic' => [
-            'label'        => 'Pro Monthly',
-            'subtitle'     => 'Unlimited tests for 30 days',
-            'price'        => 99,
-            'credits'      => null,           // unlimited via subscription
-            'duration_days'=> 30,
-            'tier'         => 'standard',
-            'model_tier'   => 'standard',     // gpt-4o-mini scoring
-            'features'     => [
+            'label' => 'Pro Monthly',
+            'subtitle' => 'Unlimited tests for 30 days',
+            'price' => 99,
+            'credits' => null,           // unlimited via subscription
+            'duration_days' => 30,
+            'tier' => 'standard',
+            'model_tier' => 'standard',     // gpt-4o-mini scoring
+            'features' => [
                 'Unlimited Writing + Speaking + Listening + Reading',
                 'Full AI feedback on every test',
                 'Cancel anytime — no auto-renewal in beta',
                 'Beta price — locks in for first 100 users',
             ],
-            'badge'        => 'Most Popular',
-            'anchor_text'  => 'vs ₹9–20 per test',
+            'badge' => 'Most Popular',
+            'anchor_text' => 'vs ₹9–20 per test',
         ],
 
         'monthly_premium' => [
-            'label'        => 'Pro Plus Monthly',
-            'subtitle'     => 'Unlimited + premium AI accuracy',
-            'price'        => 199,
-            'credits'      => null,
-            'duration_days'=> 30,
-            'tier'         => 'premium',
-            'model_tier'   => 'premium',       // gpt-4o full scoring (~17x cost, ~2x accuracy on Band 7+)
-            'features'     => [
+            'label' => 'Pro Plus Monthly',
+            'subtitle' => 'Unlimited + premium AI accuracy',
+            'price' => 199,
+            'credits' => null,
+            'duration_days' => 30,
+            'tier' => 'premium',
+            'model_tier' => 'premium',       // gpt-4o full scoring (~17x cost, ~2x accuracy on Band 7+)
+            'features' => [
                 'Everything in Pro Monthly',
                 'Premium AI model (GPT-4o full, not mini)',
                 'Higher accuracy on Band 7+ writing',
                 'Priority queue for evaluations',
                 'Beta price — locks in for first 100 users',
             ],
-            'badge'        => 'Best Accuracy',
-            'anchor_text'  => 'For serious 7+ aspirants',
+            'badge' => 'Best Accuracy',
+            'anchor_text' => 'For serious 7+ aspirants',
         ],
     ],
 
@@ -155,15 +155,15 @@ return [
     |
     */
     'beta' => [
-        'cap_users'       => 100,                    // "First 100 users get..."
-        'price_locks_in'  => true,
-        'social_proof'    => [
+        'cap_users' => 100,                    // "First 100 users get..."
+        'price_locks_in' => true,
+        'social_proof' => [
             // Updated weekly. Beta-honest: use the actual number from User::count()
             // when comfortable, hardcode here while early.
             'users_joined' => 80,
-            'tests_taken'  => 240,
+            'tests_taken' => 240,
         ],
-        'guarantee_days'  => 7,
+        'guarantee_days' => 7,
     ],
 
 ];

@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\ReferralController;
-use App\Models\User;
 use App\Mail\WelcomeMail;
+use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -48,14 +48,14 @@ class RegisteredUserController extends Controller
             ? config('beta.signup_credits')
             : config('packages.free.credits', 3);
 
-        $user = new User();
+        $user = new User;
         $user->forceFill([
-            'name'              => $request->name,
-            'email'             => $request->email,
-            'password'          => Hash::make($request->password),
-            'test_credits'      => $signupCredits,
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'test_credits' => $signupCredits,
             'self_eval_credits' => 1,        // separate pool for the /evaluate page
-            'ref_source'        => $request->session()->pull('ref_source'),
+            'ref_source' => $request->session()->pull('ref_source'),
         ])->save();
 
         event(new Registered($user));
@@ -67,9 +67,9 @@ class RegisteredUserController extends Controller
 
         // First-party analytics — track signup with attribution.
         app(\App\Services\EventTracker::class)->track('user_signed_up', [
-            'ref_source'  => $user->ref_source,
+            'ref_source' => $user->ref_source,
             'referred_by' => $user->referred_by,
-            'beta'        => (bool) config('beta.enabled'),
+            'beta' => (bool) config('beta.enabled'),
         ], $user);
 
         // Send welcome email (best-effort — never let mail failure break signup).
@@ -80,7 +80,7 @@ class RegisteredUserController extends Controller
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning('Welcome mail failed (non-fatal)', [
                 'user_id' => $user->id,
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
 

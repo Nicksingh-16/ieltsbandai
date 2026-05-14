@@ -12,11 +12,11 @@ class WritingCheckerController extends Controller
     public function analyze(Request $request)
     {
         $request->validate([
-            'essay'     => 'required|string|min:50|max:1000',
+            'essay' => 'required|string|min:50|max:1000',
             'task_type' => 'required|in:task1,task2',
         ]);
 
-        $essay    = $request->essay;
+        $essay = $request->essay;
         $taskType = $request->task_type;
         $wordCount = str_word_count($essay);
 
@@ -48,9 +48,9 @@ Essay:
             $body = app(LLMRouter::class)
                 ->withContext(auth()->id(), null, 'writing_checker_seo')
                 ->chatCompletion([
-                    'max_tokens'  => 400,
+                    'max_tokens' => 400,
                     'temperature' => 0.1,
-                    'messages'    => [
+                    'messages' => [
                         ['role' => 'system', 'content' => $systemPrompt],
                         ['role' => 'user',   'content' => $userPrompt],
                     ],
@@ -65,19 +65,20 @@ Essay:
             $data = json_decode($content, true) ?: [];
 
             return response()->json([
-                'success'              => true,
-                'word_count'           => $wordCount,
-                'task_response_band'   => $data['task_response_band'] ?? null,
-                'lexical_band'         => $data['lexical_resource_band'] ?? null,
-                'task_comment'         => $data['task_response_comment'] ?? null,
-                'lexical_comment'      => $data['lexical_comment'] ?? null,
-                'top_improvement'      => $data['top_improvement'] ?? null,
-                'word_count_ok'        => $data['word_count_ok'] ?? false,
-                'requires_signup'      => !auth()->check(), // full feedback requires account
+                'success' => true,
+                'word_count' => $wordCount,
+                'task_response_band' => $data['task_response_band'] ?? null,
+                'lexical_band' => $data['lexical_resource_band'] ?? null,
+                'task_comment' => $data['task_response_comment'] ?? null,
+                'lexical_comment' => $data['lexical_comment'] ?? null,
+                'top_improvement' => $data['top_improvement'] ?? null,
+                'word_count_ok' => $data['word_count_ok'] ?? false,
+                'requires_signup' => ! auth()->check(), // full feedback requires account
             ]);
 
         } catch (\Throwable $e) {
             Log::error('WritingChecker failed', ['error' => $e->getMessage()]);
+
             return response()->json(['success' => false, 'message' => 'Analysis failed. Please try again.'], 500);
         }
     }

@@ -205,10 +205,10 @@ class WritingQuestionSeeder extends Seeder
             Question::updateOrCreate(
                 ['title' => $q['title'], 'category' => 'writing_academic_task1'],
                 [
-                    'type'      => 'writing',
-                    'content'   => $q['content'],
-                    'metadata'  => json_encode($q['metadata']),
-                    'active'    => true,
+                    'type' => 'writing',
+                    'content' => $q['content'],
+                    'metadata' => json_encode($q['metadata']),
+                    'active' => true,
                     'min_words' => 150,
                 ]
             );
@@ -267,10 +267,10 @@ class WritingQuestionSeeder extends Seeder
             Question::updateOrCreate(
                 ['title' => $q['title'], 'category' => 'writing_general_task1'],
                 [
-                    'type'      => 'writing',
-                    'content'   => $q['content'],
-                    'metadata'  => json_encode($q['metadata']),
-                    'active'    => true,
+                    'type' => 'writing',
+                    'content' => $q['content'],
+                    'metadata' => json_encode($q['metadata']),
+                    'active' => true,
                     'min_words' => 150,
                 ]
             );
@@ -285,69 +285,69 @@ class WritingQuestionSeeder extends Seeder
         $questions = [
             // Education
             [
-                'title'   => 'Online vs Traditional Education',
+                'title' => 'Online vs Traditional Education',
                 'content' => "In recent years, online education has become increasingly popular. Some people argue that online learning will eventually replace traditional classroom-based education.\n\nTo what extent do you agree or disagree with this view?\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
             [
-                'title'   => 'Children Learning Foreign Languages',
+                'title' => 'Children Learning Foreign Languages',
                 'content' => "Some experts believe that it is better for children to begin learning a foreign language at primary school rather than secondary school.\n\nDo the advantages of introducing foreign languages at an early age outweigh the disadvantages?\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
             [
-                'title'   => 'Tuition Fees and University Access',
+                'title' => 'Tuition Fees and University Access',
                 'content' => "In many countries, university tuition fees have been rising significantly. Some people argue that higher education should be free for all students, while others believe that students should pay for their own education.\n\nDiscuss both views and give your own opinion.\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
 
             // Environment
             [
-                'title'   => 'Individual Action vs Government Policy on Climate Change',
+                'title' => 'Individual Action vs Government Policy on Climate Change',
                 'content' => "Some people think that individuals can do very little to address climate change and that it is mainly the responsibility of governments and large corporations.\n\nTo what extent do you agree or disagree?\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
             [
-                'title'   => 'Plastic Pollution Solutions',
+                'title' => 'Plastic Pollution Solutions',
                 'content' => "The amount of plastic waste in the world's oceans is causing serious environmental problems. Many scientists argue that restricting the production of single-use plastic items is the most effective solution.\n\nDo you agree or disagree with this statement?\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
             [
-                'title'   => 'Ecotourism: Benefits and Drawbacks',
+                'title' => 'Ecotourism: Benefits and Drawbacks',
                 'content' => "Ecotourism is becoming increasingly popular as a way for people to experience natural environments. Proponents argue that it protects fragile ecosystems and supports local communities, while critics claim that any form of tourism is ultimately damaging to the natural environment.\n\nDiscuss both views and give your own opinion.\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
 
             // Technology & Society
             [
-                'title'   => 'Artificial Intelligence and the Future of Work',
+                'title' => 'Artificial Intelligence and the Future of Work',
                 'content' => "Artificial intelligence and automation are increasingly replacing human workers in many industries. Some people see this as a positive development, while others believe it will cause widespread unemployment and social instability.\n\nDiscuss both views and give your own opinion.\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
             [
-                'title'   => 'Social Media and Young People\'s Mental Health',
+                'title' => 'Social Media and Young People\'s Mental Health',
                 'content' => "Research suggests that heavy use of social media platforms is having a negative impact on the mental health of young people.\n\nWhat do you think are the causes of this problem? What measures can be taken to address it?\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
 
             // Health
             [
-                'title'   => 'Government Responsibility for Public Health',
+                'title' => 'Government Responsibility for Public Health',
                 'content' => "Some people believe that governments have a responsibility to ensure the health of their citizens by regulating unhealthy foods, taxing sugary drinks, and funding health education programmes. Others argue that individuals should be free to make their own lifestyle choices.\n\nDiscuss both views and give your own opinion.\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
             [
-                'title'   => 'Preventive Healthcare vs Treatment',
+                'title' => 'Preventive Healthcare vs Treatment',
                 'content' => "It is argued that governments should invest more money in preventive healthcare rather than in treating diseases. \n\nDo you agree or disagree with this view?\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
 
             // Society & Culture
             [
-                'title'   => 'Ageing Populations and Social Challenges',
+                'title' => 'Ageing Populations and Social Challenges',
                 'content' => "Many developed countries are experiencing an ageing population, which is creating significant social and economic challenges.\n\nWhat are the main causes of this trend? What are the most serious problems that an ageing population creates, and what measures can be taken to deal with them?\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
             [
-                'title'   => 'Cultural Homogenisation and Globalisation',
+                'title' => 'Cultural Homogenisation and Globalisation',
                 'content' => "Some people argue that globalisation is leading to a loss of cultural diversity, as local traditions and languages are being replaced by a dominant global culture.\n\nDo you think this is a positive or negative development?\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
 
             // Work & Economics
             [
-                'title'   => 'Remote Working: Productivity and Community',
+                'title' => 'Remote Working: Productivity and Community',
                 'content' => "The rise of remote working has been celebrated as a positive shift in working life. However, some employers and sociologists argue that it is damaging workplace culture and reducing productivity.\n\nDiscuss both views and give your own opinion.\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
             [
-                'title'   => 'Equal Pay for Men and Women',
+                'title' => 'Equal Pay for Men and Women',
                 'content' => "Despite legislation in many countries, a significant pay gap between men and women in the same profession still exists.\n\nWhy does this problem persist? What measures could governments and employers take to ensure equal pay?\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
         ];
@@ -356,10 +356,10 @@ class WritingQuestionSeeder extends Seeder
             Question::updateOrCreate(
                 ['title' => $q['title'], 'category' => 'writing_academic_task2'],
                 [
-                    'type'      => 'writing',
-                    'content'   => $q['content'],
-                    'metadata'  => json_encode(['question_type' => $this->classifyTaskType($q['content'])]),
-                    'active'    => true,
+                    'type' => 'writing',
+                    'content' => $q['content'],
+                    'metadata' => json_encode(['question_type' => $this->classifyTaskType($q['content'])]),
+                    'active' => true,
                     'min_words' => 250,
                 ]
             );
@@ -373,35 +373,35 @@ class WritingQuestionSeeder extends Seeder
     {
         $questions = [
             [
-                'title'   => 'Benefits of Living Abroad',
+                'title' => 'Benefits of Living Abroad',
                 'content' => "An increasing number of people choose to live and work in a foreign country for a period of time.\n\nWhat are the advantages and disadvantages of living and working abroad?\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
             [
-                'title'   => 'Advertising and Consumer Behaviour',
+                'title' => 'Advertising and Consumer Behaviour',
                 'content' => "Advertising encourages people to buy things they do not need and creates a society where material possessions are overvalued.\n\nTo what extent do you agree or disagree with this view?\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
             [
-                'title'   => 'Community Service as Part of Education',
+                'title' => 'Community Service as Part of Education',
                 'content' => "Some people think that young people should be required to do a period of community service — such as working in a hospital or helping elderly people in their neighbourhood — as part of their school curriculum.\n\nDo you agree or disagree with this proposal?\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
             [
-                'title'   => 'Public Transport Investment',
+                'title' => 'Public Transport Investment',
                 'content' => "Governments should invest more money in improving public transport systems rather than building new roads.\n\nTo what extent do you agree or disagree?\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
             [
-                'title'   => 'The Role of Grandparents in Raising Children',
+                'title' => 'The Role of Grandparents in Raising Children',
                 'content' => "In many countries, grandparents play an important role in raising children while the parents are at work.\n\nDo you think this is a positive or negative trend for the family and for society?\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
             [
-                'title'   => 'Crime and Punishment: Prison vs Community Service',
+                'title' => 'Crime and Punishment: Prison vs Community Service',
                 'content' => "Some people believe that long prison sentences are the most effective way to deter criminals. Others believe that community service and rehabilitation programmes are more effective alternatives.\n\nDiscuss both views and give your own opinion.\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
             [
-                'title'   => 'The Importance of Sleep',
+                'title' => 'The Importance of Sleep',
                 'content' => "Some research suggests that people in many countries are sleeping less than they did in the past, and this is having a negative impact on health and productivity.\n\nWhat do you think are the causes of this trend? What measures can individuals and governments take to address it?\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
             [
-                'title'   => 'Zoos: Conservation or Cruelty?',
+                'title' => 'Zoos: Conservation or Cruelty?',
                 'content' => "Some people argue that zoos serve an important role in protecting endangered species and educating the public. Others believe that keeping animals in captivity is cruel and that zoos should be abolished.\n\nDiscuss both views and give your own opinion.\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience.\n\nWrite at least 250 words.",
             ],
         ];
@@ -410,10 +410,10 @@ class WritingQuestionSeeder extends Seeder
             Question::updateOrCreate(
                 ['title' => $q['title'], 'category' => 'writing_general_task2'],
                 [
-                    'type'      => 'writing',
-                    'content'   => $q['content'],
-                    'metadata'  => json_encode(['question_type' => $this->classifyTaskType($q['content'])]),
-                    'active'    => true,
+                    'type' => 'writing',
+                    'content' => $q['content'],
+                    'metadata' => json_encode(['question_type' => $this->classifyTaskType($q['content'])]),
+                    'active' => true,
                     'min_words' => 250,
                 ]
             );
@@ -444,6 +444,7 @@ class WritingQuestionSeeder extends Seeder
         if (str_contains($c, 'advantages and disadvantages')) {
             return 'advantages_disadvantages';
         }
+
         return 'essay';
     }
 }

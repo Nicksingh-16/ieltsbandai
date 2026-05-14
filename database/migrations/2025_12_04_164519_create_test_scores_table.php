@@ -11,21 +11,21 @@ return new class extends Migration
      */
     public function up(): void
     {
-       Schema::create('test_scores', function (Blueprint $table) {
-    $table->id();
-    $table->foreignId('test_id')->constrained()->cascadeOnDelete();
-    $table->enum('criteria', [
-        'fluency_coherence',
-        'lexical_resource',
-        'grammatical_range_accuracy',
-        'pronunciation',
-        'task_achievement',
-        'coherence_cohesion'
-    ]);
-    $table->decimal('band_score', 3, 1);
-    $table->longText('comments')->nullable();
-    $table->timestamps();
-});
+        Schema::create('test_scores', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('test_id')->constrained()->cascadeOnDelete();
+            $table->enum('criteria', [
+                'fluency_coherence',
+                'lexical_resource',
+                'grammatical_range_accuracy',
+                'pronunciation',
+                'task_achievement',
+                'coherence_cohesion',
+            ]);
+            $table->decimal('band_score', 3, 1);
+            $table->longText('comments')->nullable();
+            $table->timestamps();
+        });
 
     }
 

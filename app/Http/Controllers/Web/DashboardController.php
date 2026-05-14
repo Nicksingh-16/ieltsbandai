@@ -15,13 +15,13 @@ class DashboardController extends Controller
     public function index()
     {
         $userId = Auth::id();
-        $tests  = $this->testRepository->getUserTestHistory($userId, paginate: true);
+        $tests = $this->testRepository->getUserTestHistory($userId, paginate: true);
 
         $moduleTypes = [
             'listening' => ['listening_academic', 'listening_general'],
-            'reading'   => ['reading_academic', 'reading_general'],
-            'writing'   => ['writing_academic', 'writing_general'],
-            'speaking'  => ['speaking'],
+            'reading' => ['reading_academic', 'reading_general'],
+            'writing' => ['writing_academic', 'writing_general'],
+            'speaking' => ['speaking'],
         ];
 
         // Last 10 completed tests per module for progress charts
@@ -36,13 +36,13 @@ class DashboardController extends Controller
                 ->get(['id', 'overall_band', 'created_at']);
 
             $chartData[$label] = [
-                'labels' => $rows->map(fn($t) => $t->created_at->format('d M'))->values()->toArray(),
-                'scores' => $rows->map(fn($t) => (float) $t->overall_band)->values()->toArray(),
+                'labels' => $rows->map(fn ($t) => $t->created_at->format('d M'))->values()->toArray(),
+                'scores' => $rows->map(fn ($t) => (float) $t->overall_band)->values()->toArray(),
             ];
         }
 
         // Latest band per module + improvement delta (current vs previous)
-        $latestBands  = [];
+        $latestBands = [];
         $improvementDeltas = [];
         foreach ($moduleTypes as $label => $types) {
             $last2 = Test::where('user_id', $userId)
@@ -86,7 +86,7 @@ class DashboardController extends Controller
         $pendingAssignments = Auth::user()->institute_id
             ? AssignedTestStudent::where('user_id', $userId)
                 ->whereIn('status', ['pending', 'started'])
-                ->whereHas('assignment', fn($q) => $q->where('status', 'active'))
+                ->whereHas('assignment', fn ($q) => $q->where('status', 'active'))
                 ->with('assignment.template')
                 ->get()
             : collect();

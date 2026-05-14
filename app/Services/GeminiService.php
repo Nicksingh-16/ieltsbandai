@@ -9,8 +9,10 @@ use Illuminate\Support\Facades\Log;
 class GeminiService
 {
     const CACHE_KEY = 'gemini_key_index';
-    const BASE_URL  = 'https://generativelanguage.googleapis.com/v1beta/models';
-    const MODEL     = 'gemini-1.5-flash';
+
+    const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+    const MODEL = 'gemini-1.5-flash';
 
     /** @var string[] */
     private array $keys;
@@ -33,8 +35,9 @@ class GeminiService
     {
         $total = count($this->keys);
         $index = (int) Cache::get(self::CACHE_KEY, 0);
-        $key   = $this->keys[$index % $total];
+        $key = $this->keys[$index % $total];
         Cache::put(self::CACHE_KEY, ($index + 1) % $total, now()->addDays(1));
+
         return $key;
     }
 
@@ -43,13 +46,14 @@ class GeminiService
      */
     public function generate(string $prompt, float $temperature = 0.4, int $maxTokens = 800): ?string
     {
-        if (!$this->isAvailable()) {
+        if (! $this->isAvailable()) {
             Log::warning('GeminiService: no API keys configured.');
+
             return null;
         }
 
         $apiKey = $this->nextKey();
-        $url    = self::BASE_URL . '/' . self::MODEL . ':generateContent?key=' . $apiKey;
+        $url = self::BASE_URL.'/'.self::MODEL.':generateContent?key='.$apiKey;
 
         try {
             $response = Http::timeout(45)->post($url, [
@@ -57,24 +61,26 @@ class GeminiService
                     ['parts' => [['text' => $prompt]]],
                 ],
                 'generationConfig' => [
-                    'temperature'     => $temperature,
+                    'temperature' => $temperature,
                     'maxOutputTokens' => $maxTokens,
                 ],
             ]);
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 Log::error('GeminiService API error', [
                     'status' => $response->status(),
-                    'body'   => $response->body(),
+                    'body' => $response->body(),
                     'key_index' => array_search($apiKey, $this->keys),
                 ]);
+
                 return null;
             }
 
             return $response->json('candidates.0.content.parts.0.text');
 
         } catch (\Throwable $e) {
-            Log::error('GeminiService exception: ' . $e->getMessage());
+            Log::error('GeminiService exception: '.$e->getMessage());
+
             return null;
         }
     }
@@ -84,10 +90,12 @@ class GeminiService
      */
     public function generateJson(string $prompt, float $temperature = 0.2, int $maxTokens = 1500): ?array
     {
-        $jsonPrompt = $prompt . "\n\nReturn ONLY valid JSON. No markdown. No code blocks.";
+        $jsonPrompt = $prompt."\n\nReturn ONLY valid JSON. No markdown. No code blocks.";
         $text = $this->generate($jsonPrompt, $temperature, $maxTokens);
 
-        if (!$text) return null;
+        if (! $text) {
+            return null;
+        }
 
         // Strip markdown code blocks if present
         $text = preg_replace('/^```(?:json)?\s*/i', '', trim($text));
@@ -97,6 +105,7 @@ class GeminiService
 
         if (json_last_error() !== JSON_ERROR_NONE) {
             Log::warning('GeminiService: invalid JSON response', ['raw' => $text]);
+
             return null;
         }
 

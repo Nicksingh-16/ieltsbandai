@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('plan'); // monthly, yearly
             $table->string('status')->default('active'); // active, cancelled, expired
             $table->timestamp('starts_at');
-           $table->timestamp('ends_at')->nullable();
+            $table->timestamp('ends_at')->nullable();
             $table->foreignId('payment_id')->nullable()->constrained();
             $table->string('razorpay_subscription_id')->nullable();
             $table->timestamps();

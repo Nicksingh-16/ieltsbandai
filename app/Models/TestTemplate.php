@@ -13,16 +13,16 @@ class TestTemplate extends Model
     ];
 
     protected $casts = [
-        'is_active'  => 'boolean',
-        'is_public'  => 'boolean',
-        'metadata'   => 'array',
+        'is_active' => 'boolean',
+        'is_public' => 'boolean',
+        'metadata' => 'array',
     ];
 
     public static function booted(): void
     {
         static::creating(function (self $t) {
             if (empty($t->slug)) {
-                $t->slug = Str::slug($t->name) . '-' . Str::random(5);
+                $t->slug = Str::slug($t->name).'-'.Str::random(5);
             }
         });
     }
@@ -42,8 +42,8 @@ class TestTemplate extends Model
     public function questions()
     {
         return $this->belongsToMany(Question::class, 'template_questions')
-                    ->withPivot('order', 'config')
-                    ->orderByPivot('order');
+            ->withPivot('order', 'config')
+            ->orderByPivot('order');
     }
 
     public function templateQuestions()

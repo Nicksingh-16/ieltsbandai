@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
 class AudioFile extends Model
 {
@@ -21,7 +21,7 @@ class AudioFile extends Model
 
     protected $casts = [
         'transcript_words' => 'array',
-        'grammar_matches'  => 'array',
+        'grammar_matches' => 'array',
     ];
 
     public function test()
@@ -52,7 +52,7 @@ class AudioFile extends Model
     public function getRichTranscriptSegments(float $pauseThresholdSec = 1.5): array
     {
         $words = $this->transcript_words ?? [];
-        if (empty($words) || !is_array($words)) {
+        if (empty($words) || ! is_array($words)) {
             return [];
         }
 
@@ -60,15 +60,15 @@ class AudioFile extends Model
         // 'like' / 'actually' / 'basically' are often used legitimately;
         // we'd rather under-flag than over-flag and erode user trust.
         $hesitation = ['um', 'umm', 'ummm', 'uh', 'uhh', 'uhhh', 'er', 'erm', 'ah'];
-        $softeners  = ['like', 'actually', 'basically', 'literally'];
+        $softeners = ['like', 'actually', 'basically', 'literally'];
 
         $segments = [];
-        $prevEnd  = null;
+        $prevEnd = null;
 
         foreach ($words as $w) {
-            $text  = (string)($w['text'] ?? '');
+            $text = (string) ($w['text'] ?? '');
             $start = $w['start'] ?? null;
-            $end   = $w['end']   ?? null;
+            $end = $w['end'] ?? null;
 
             if ($text === '') {
                 continue;
@@ -76,10 +76,10 @@ class AudioFile extends Model
 
             // Long pause between previous word and this one
             if ($prevEnd !== null && $start !== null) {
-                $gap = (float)$start - (float)$prevEnd;
+                $gap = (float) $start - (float) $prevEnd;
                 if ($gap >= $pauseThresholdSec) {
                     $segments[] = [
-                        'type'     => 'pause',
+                        'type' => 'pause',
                         'duration' => round($gap, 1),
                     ];
                 }
@@ -93,9 +93,9 @@ class AudioFile extends Model
                 $segments[] = ['type' => 'filler', 'text' => $text, 'category' => 'softener'];
             } else {
                 $segments[] = [
-                    'type'       => 'word',
-                    'text'       => $text,
-                    'confidence' => isset($w['confidence']) ? (float)$w['confidence'] : null,
+                    'type' => 'word',
+                    'text' => $text,
+                    'confidence' => isset($w['confidence']) ? (float) $w['confidence'] : null,
                 ];
             }
 

@@ -42,7 +42,7 @@ return [
         ],
 
         'tenant' => [
-            'driver'   => 'session',
+            'driver' => 'session',
             'provider' => 'tenant_users',
         ],
     ],
@@ -98,15 +98,15 @@ return [
     'passwords' => [
         'users' => [
             'provider' => 'users',
-            'table'    => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
-            'expire'   => 60,
+            'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
+            'expire' => 60,
             'throttle' => 60,
         ],
 
         'tenant_users' => [
             'provider' => 'tenant_users',
-            'table'    => 'password_reset_tokens',
-            'expire'   => 60,
+            'table' => 'password_reset_tokens',
+            'expire' => 60,
             'throttle' => 60,
         ],
     ],

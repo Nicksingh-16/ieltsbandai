@@ -14,6 +14,7 @@ class CalibratedEssaySeeder extends Seeder
         if (! file_exists($jsonPath)) {
             $this->command->error("Master JSON not found at: {$jsonPath}");
             $this->command->info('Place the consolidated calibration JSON there before seeding.');
+
             return;
         }
 
@@ -21,6 +22,7 @@ class CalibratedEssaySeeder extends Seeder
 
         if (! is_array($data) || ! isset($data['essays'])) {
             $this->command->error('Invalid JSON structure. Expected: {"essays": [...]}');
+
             return;
         }
 

@@ -10,7 +10,6 @@ use App\Models\Payment;
 use App\Models\Question;
 use App\Models\Test;
 use App\Models\TestTemplate;
-use App\Models\TemplateQuestion;
 use App\Models\User;
 use App\Models\UserEvent;
 use App\Services\CreditService;
@@ -24,17 +23,17 @@ class AdminController extends Controller
     public function dashboard()
     {
         $stats = [
-            'total_users'      => User::count(),
-            'active_users'     => User::where('created_at', '>=', now()->subDays(30))->count(),
-            'pro_users'        => User::where('is_pro', true)->count(),
-            'total_tests'      => Test::count(),
-            'tests_today'      => Test::whereDate('created_at', today())->count(),
-            'total_revenue'    => Payment::where('status', 'completed')->sum('amount'),
-            'revenue_month'    => Payment::where('status', 'completed')
-                                    ->whereMonth('created_at', now()->month)
-                                    ->sum('amount'),
+            'total_users' => User::count(),
+            'active_users' => User::where('created_at', '>=', now()->subDays(30))->count(),
+            'pro_users' => User::where('is_pro', true)->count(),
+            'total_tests' => Test::count(),
+            'tests_today' => Test::whereDate('created_at', today())->count(),
+            'total_revenue' => Payment::where('status', 'completed')->sum('amount'),
+            'revenue_month' => Payment::where('status', 'completed')
+                ->whereMonth('created_at', now()->month)
+                ->sum('amount'),
             'total_institutes' => Institute::count(),
-            'total_questions'  => Question::count(),
+            'total_questions' => Question::count(),
         ];
 
         // Daily registrations last 14 days
@@ -62,14 +61,14 @@ class AdminController extends Controller
         $query = User::with('subscription')->latest();
 
         if ($search = $request->get('search')) {
-            $query->where(fn($q) => $q->where('name', 'like', "%{$search}%")
+            $query->where(fn ($q) => $q->where('name', 'like', "%{$search}%")
                 ->orWhere('email', 'like', "%{$search}%"));
         }
 
         if ($filter = $request->get('filter')) {
             match ($filter) {
-                'pro'   => $query->where('is_pro', true),
-                'free'  => $query->where('is_pro', false),
+                'pro' => $query->where('is_pro', true),
+                'free' => $query->where('is_pro', false),
                 'admin' => $query->where('is_admin', true),
                 default => null,
             };
@@ -84,6 +83,7 @@ class AdminController extends Controller
     {
         $user->load('tests', 'subscription', 'payments', 'institute');
         $recentTests = $user->tests()->latest()->limit(10)->get();
+
         return view('admin.users.show', compact('user', 'recentTests'));
     }
 
@@ -91,12 +91,14 @@ class AdminController extends Controller
     {
         $request->validate(['credits' => 'required|integer|min:1|max:500']);
         app(CreditService::class)->addCredits($user, $request->credits);
+
         return back()->with('success', "Added {$request->credits} credits to {$user->name}.");
     }
 
     public function userSuspend(User $user)
     {
         $user->update(['email_verified_at' => null]);
+
         return back()->with('success', "User {$user->name} suspended.");
     }
 
@@ -105,8 +107,9 @@ class AdminController extends Controller
         // is_admin is intentionally NOT mass-assignable on User — use forceFill
         // inside this admin-gated path. AdminMiddleware already enforces the
         // caller is itself an admin.
-        $user->forceFill(['is_admin' => !$user->is_admin])->save();
+        $user->forceFill(['is_admin' => ! $user->is_admin])->save();
         $action = $user->is_admin ? 'granted' : 'revoked';
+
         return back()->with('success', "Admin access {$action} for {$user->name}.");
     }
 
@@ -124,8 +127,8 @@ class AdminController extends Controller
             $query->whereJsonContains('metadata->difficulty', $difficulty);
         }
 
-        $questions  = $query->paginate(30)->withQueryString();
-        $types      = Question::distinct()->pluck('type');
+        $questions = $query->paginate(30)->withQueryString();
+        $types = Question::distinct()->pluck('type');
 
         return view('admin.questions.index', compact('questions', 'types'));
     }
@@ -138,18 +141,18 @@ class AdminController extends Controller
     public function questionStore(Request $request)
     {
         $data = $request->validate([
-            'type'         => 'required|in:speaking,writing,listening,reading',
-            'category'     => 'required|string',
-            'title'        => 'required|string|max:500',
-            'content'      => 'required|string',
-            'media_url'    => 'nullable|url|max:500',
-            'time_limit'   => 'nullable|integer|min:1',
-            'min_words'    => 'nullable|integer|min:1',
-            'difficulty'   => 'nullable|in:easy,medium,hard',
+            'type' => 'required|in:speaking,writing,listening,reading',
+            'category' => 'required|string',
+            'title' => 'required|string|max:500',
+            'content' => 'required|string',
+            'media_url' => 'nullable|url|max:500',
+            'time_limit' => 'nullable|integer|min:1',
+            'min_words' => 'nullable|integer|min:1',
+            'difficulty' => 'nullable|in:easy,medium,hard',
         ]);
 
         $metadata = [];
-        if (!empty($data['difficulty'])) {
+        if (! empty($data['difficulty'])) {
             $metadata['difficulty'] = $data['difficulty'];
         }
         unset($data['difficulty']);
@@ -167,19 +170,19 @@ class AdminController extends Controller
     public function questionUpdate(Request $request, Question $question)
     {
         $data = $request->validate([
-            'type'         => 'required|in:speaking,writing,listening,reading',
-            'category'     => 'required|string',
-            'title'        => 'required|string|max:500',
-            'content'      => 'required|string',
-            'media_url'    => 'nullable|url|max:500',
-            'time_limit'   => 'nullable|integer|min:1',
-            'min_words'    => 'nullable|integer|min:1',
-            'difficulty'   => 'nullable|in:easy,medium,hard',
-            'active'       => 'boolean',
+            'type' => 'required|in:speaking,writing,listening,reading',
+            'category' => 'required|string',
+            'title' => 'required|string|max:500',
+            'content' => 'required|string',
+            'media_url' => 'nullable|url|max:500',
+            'time_limit' => 'nullable|integer|min:1',
+            'min_words' => 'nullable|integer|min:1',
+            'difficulty' => 'nullable|in:easy,medium,hard',
+            'active' => 'boolean',
         ]);
 
         $metadata = $question->metadata ?? [];
-        if (!empty($data['difficulty'])) {
+        if (! empty($data['difficulty'])) {
             $metadata['difficulty'] = $data['difficulty'];
         }
         unset($data['difficulty']);
@@ -192,6 +195,7 @@ class AdminController extends Controller
     public function questionDestroy(Question $question)
     {
         $question->delete();
+
         return back()->with('success', 'Question deleted.');
     }
 
@@ -206,6 +210,7 @@ class AdminController extends Controller
         }
 
         $sets = $query->paginate(20)->withQueryString();
+
         return view('admin.question-sets.index', compact('sets'));
     }
 
@@ -217,19 +222,19 @@ class AdminController extends Controller
     public function questionSetStore(Request $request)
     {
         $data = $request->validate([
-            'name'             => 'required|string|max:255',
-            'description'      => 'nullable|string|max:1000',
-            'type'             => 'required|in:writing,speaking,listening,reading,full_mock',
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string|max:1000',
+            'type' => 'required|in:writing,speaking,listening,reading,full_mock',
             'duration_minutes' => 'required|integer|min:1|max:480',
-            'is_public'        => 'boolean',
-            'is_active'        => 'boolean',
+            'is_public' => 'boolean',
+            'is_active' => 'boolean',
         ]);
 
         $set = TestTemplate::create($data + [
             'institute_id' => null,
-            'created_by'   => auth()->id(),
-            'is_public'    => $request->boolean('is_public', true),
-            'is_active'    => $request->boolean('is_active', true),
+            'created_by' => auth()->id(),
+            'is_public' => $request->boolean('is_public', true),
+            'is_active' => $request->boolean('is_active', true),
         ]);
 
         return redirect()->route('admin.question-sets.show', $set)
@@ -268,6 +273,7 @@ class AdminController extends Controller
     {
         abort_if($set->institute_id !== null, 404);
         $set->questions()->detach($question->id);
+
         return back()->with('success', 'Question removed.');
     }
 
@@ -275,6 +281,7 @@ class AdminController extends Controller
     {
         abort_if($set->institute_id !== null, 404);
         $set->delete();
+
         return redirect()->route('admin.question-sets.index')->with('success', 'Question set deleted.');
     }
 
@@ -288,8 +295,8 @@ class AdminController extends Controller
             $query->where('status', $status);
         }
 
-        $payments      = $query->paginate(25)->withQueryString();
-        $totalRevenue  = Payment::where('status', 'completed')->sum('amount');
+        $payments = $query->paginate(25)->withQueryString();
+        $totalRevenue = Payment::where('status', 'completed')->sum('amount');
 
         // Manual UPI activity at a glance — the most common admin task during
         // beta is verifying these UTRs against the bank statement.
@@ -312,6 +319,7 @@ class AdminController extends Controller
         }
         $note = (string) $request->input('note', '');
         app(\App\Services\ManualPaymentService::class)->verify($payment, $request->user(), $note ?: null);
+
         return back()->with('success', "Payment {$payment->order_id} verified.");
     }
 
@@ -326,6 +334,7 @@ class AdminController extends Controller
             return back()->with('error', 'Only manual UPI payments can be revoked here.');
         }
         app(\App\Services\ManualPaymentService::class)->revoke($payment, $request->user(), $request->input('reason'));
+
         return back()->with('success', "Payment {$payment->order_id} revoked.");
     }
 
@@ -334,22 +343,25 @@ class AdminController extends Controller
     public function institutes()
     {
         $institutes = Institute::with('owner')->withCount('members')->latest()->paginate(20);
+
         return view('admin.institutes.index', compact('institutes'));
     }
 
     public function instituteShow(Institute $institute)
     {
         $institute->load('owner', 'batches');
-        $members      = $institute->members()->with('tests')->get();
+        $members = $institute->members()->with('tests')->get();
         $questionSets = TestTemplate::where('institute_id', $institute->id)->withCount('questions')->get();
-        $totalTests   = $members->sum(fn($m) => $m->tests->count());
+        $totalTests = $members->sum(fn ($m) => $m->tests->count());
+
         return view('admin.institutes.show', compact('institute', 'members', 'questionSets', 'totalTests'));
     }
 
     public function instituteToggle(Institute $institute)
     {
-        $institute->update(['is_active' => !$institute->is_active]);
+        $institute->update(['is_active' => ! $institute->is_active]);
         $status = $institute->is_active ? 'activated' : 'suspended';
+
         return back()->with('success', "Institute {$status}.");
     }
 
@@ -368,10 +380,10 @@ class AdminController extends Controller
 
         $feedbacks = $query->paginate(25)->withQueryString();
         $counts = [
-            'new'       => Feedback::where('status', 'new')->count(),
+            'new' => Feedback::where('status', 'new')->count(),
             'reviewing' => Feedback::where('status', 'reviewing')->count(),
-            'resolved'  => Feedback::where('status', 'resolved')->count(),
-            'total'     => Feedback::count(),
+            'resolved' => Feedback::where('status', 'resolved')->count(),
+            'total' => Feedback::count(),
         ];
 
         return view('admin.feedback.index', compact('feedbacks', 'counts'));
@@ -381,6 +393,7 @@ class AdminController extends Controller
     {
         $request->validate(['status' => 'required|in:new,reviewing,resolved,dismissed']);
         $feedback->update(['status' => $request->status]);
+
         return back()->with('success', 'Feedback updated.');
     }
 
@@ -393,11 +406,11 @@ class AdminController extends Controller
         $since = now()->subDays($days);
 
         $totals = [
-            'calls_total'    => LlmCallLog::where('created_at', '>=', $since)->count(),
-            'calls_ok'       => LlmCallLog::where('created_at', '>=', $since)->where('ok', true)->count(),
-            'tokens_in'      => (int) LlmCallLog::where('created_at', '>=', $since)->sum('input_tokens'),
-            'tokens_out'     => (int) LlmCallLog::where('created_at', '>=', $since)->sum('output_tokens'),
-            'cost_usd'       => (float) LlmCallLog::where('created_at', '>=', $since)->sum('cost_usd'),
+            'calls_total' => LlmCallLog::where('created_at', '>=', $since)->count(),
+            'calls_ok' => LlmCallLog::where('created_at', '>=', $since)->where('ok', true)->count(),
+            'tokens_in' => (int) LlmCallLog::where('created_at', '>=', $since)->sum('input_tokens'),
+            'tokens_out' => (int) LlmCallLog::where('created_at', '>=', $since)->sum('output_tokens'),
+            'cost_usd' => (float) LlmCallLog::where('created_at', '>=', $since)->sum('cost_usd'),
             'avg_latency_ms' => (int) LlmCallLog::where('created_at', '>=', $since)->where('ok', true)->avg('latency_ms'),
         ];
 
@@ -464,10 +477,10 @@ class AdminController extends Controller
             ->pluck('c', 'type');
 
         $funnel = [
-            'signups'         => User::where('created_at', '>=', $since)->count(),
-            'started_test'    => Test::where('created_at', '>=', $since)->distinct('user_id')->count('user_id'),
-            'completed_test'  => Test::where('created_at', '>=', $since)->where('status', 'completed')->distinct('user_id')->count('user_id'),
-            'submitted_fb'    => Feedback::where('created_at', '>=', $since)->whereNotNull('user_id')->distinct('user_id')->count('user_id'),
+            'signups' => User::where('created_at', '>=', $since)->count(),
+            'started_test' => Test::where('created_at', '>=', $since)->distinct('user_id')->count('user_id'),
+            'completed_test' => Test::where('created_at', '>=', $since)->where('status', 'completed')->distinct('user_id')->count('user_id'),
+            'submitted_fb' => Feedback::where('created_at', '>=', $since)->whereNotNull('user_id')->distinct('user_id')->count('user_id'),
         ];
 
         return view('admin.analytics.index', compact('days', 'eventCounts', 'signupsBySource', 'testsByType', 'funnel'));
@@ -476,12 +489,12 @@ class AdminController extends Controller
     public function instituteUpdatePlan(Request $request, Institute $institute)
     {
         $request->validate([
-            'plan'       => 'required|in:free,basic,pro,enterprise',
+            'plan' => 'required|in:free,basic,pro,enterprise',
             'seat_limit' => 'required|integer|min:1|max:10000',
         ]);
 
         $institute->update([
-            'plan'       => $request->plan,
+            'plan' => $request->plan,
             'seat_limit' => $request->seat_limit,
         ]);
 

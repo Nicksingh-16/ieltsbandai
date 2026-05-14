@@ -7,7 +7,6 @@ use App\Mail\PaymentReceiptMail;
 use App\Models\Institute;
 use App\Models\Payment;
 use App\Models\Subscription;
-use App\Services\CreditService;
 use App\Services\ManualPaymentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -40,53 +39,54 @@ class PaymentController extends Controller
     public function initiateInstitute(Request $request)
     {
         $request->validate([
-            'plan'   => 'required|string',
+            'plan' => 'required|string',
             'amount' => 'required|integer|min:100',
         ]);
 
-        $user      = Auth::user();
+        $user = Auth::user();
         $institute = $user->institute;
 
-        if (!$institute || !in_array($user->institute_role, ['owner', 'teacher'])) {
+        if (! $institute || ! in_array($user->institute_role, ['owner', 'teacher'])) {
             return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
         }
 
         try {
             $razorpayOrder = $this->api()->order->create([
-                'receipt'         => 'inst_' . $institute->id . '_' . uniqid(),
-                'amount'          => $request->amount,
-                'currency'        => 'INR',
+                'receipt' => 'inst_'.$institute->id.'_'.uniqid(),
+                'amount' => $request->amount,
+                'currency' => 'INR',
                 'payment_capture' => 1,
-                'notes'           => [
-                    'institute_id'   => $institute->id,
+                'notes' => [
+                    'institute_id' => $institute->id,
                     'institute_name' => $institute->name,
-                    'plan'           => $request->plan,
+                    'plan' => $request->plan,
                 ],
             ]);
 
             Payment::create([
-                'user_id'      => $user->id,
-                'order_id'     => $razorpayOrder['id'],
-                'amount'       => $request->amount / 100,
-                'currency'     => 'INR',
-                'status'       => 'pending',
-                'plan'         => 'institute_' . $request->plan,
-                'metadata'     => json_encode(['institute_id' => $institute->id]),
+                'user_id' => $user->id,
+                'order_id' => $razorpayOrder['id'],
+                'amount' => $request->amount / 100,
+                'currency' => 'INR',
+                'status' => 'pending',
+                'plan' => 'institute_'.$request->plan,
+                'metadata' => json_encode(['institute_id' => $institute->id]),
             ]);
 
             return response()->json([
-                'success'      => true,
-                'order_id'     => $razorpayOrder['id'],
-                'amount'       => $request->amount,
+                'success' => true,
+                'order_id' => $razorpayOrder['id'],
+                'amount' => $request->amount,
                 'razorpay_key' => config('services.razorpay.key'),
-                'prefill'      => [
-                    'name'  => $user->name,
+                'prefill' => [
+                    'name' => $user->name,
                     'email' => $user->email,
                 ],
             ]);
 
         } catch (\Exception $e) {
             Log::error('Institute payment initiation failed', ['error' => $e->getMessage(), 'institute_id' => $institute->id]);
+
             return response()->json(['success' => false, 'message' => 'Payment initiation failed. Please try again.'], 500);
         }
     }
@@ -97,9 +97,9 @@ class PaymentController extends Controller
     public function successInstitute(Request $request)
     {
         $paymentId = $request->get('payment_id');
-        $orderId   = $request->get('order_id');
+        $orderId = $request->get('order_id');
 
-        if (!$paymentId || !$orderId) {
+        if (! $paymentId || ! $orderId) {
             return redirect()->route('institute.pricing')->with('error', 'Invalid payment response.');
         }
 
@@ -123,7 +123,8 @@ class PaymentController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Institute payment success failed', ['error' => $e->getMessage()]);
-            return redirect()->route('institute.pricing')->with('error', 'Something went wrong. Contact support with ref: ' . $paymentId);
+
+            return redirect()->route('institute.pricing')->with('error', 'Something went wrong. Contact support with ref: '.$paymentId);
         }
     }
 
@@ -135,22 +136,28 @@ class PaymentController extends Controller
                 ->lockForUpdate()
                 ->first();
 
-            if (!$locked) return;
+            if (! $locked) {
+                return;
+            }
 
             $locked->update(['payment_id' => $paymentId, 'status' => 'completed']);
 
-            $metadata    = json_decode($locked->metadata ?? '{}', true);
+            $metadata = json_decode($locked->metadata ?? '{}', true);
             $instituteId = $metadata['institute_id'] ?? null;
-            if (!$instituteId) return;
+            if (! $instituteId) {
+                return;
+            }
 
             // Strip 'institute_' prefix to get the plan key
-            $planKey     = str_replace('institute_', '', $locked->plan);
-            $planConfig  = config("packages.institute.{$planKey}");
-            if (!$planConfig) return;
+            $planKey = str_replace('institute_', '', $locked->plan);
+            $planConfig = config("packages.institute.{$planKey}");
+            if (! $planConfig) {
+                return;
+            }
 
             Institute::where('id', $instituteId)->update([
-                'plan'       => $planKey,
-                'is_active'  => true,
+                'plan' => $planKey,
+                'is_active' => true,
                 'seat_limit' => $planConfig['seat_limit'],
             ]);
 
@@ -173,7 +180,7 @@ class PaymentController extends Controller
         $plan = config("plans.one_time.{$data['plan']}")
              ?? config("plans.subscription.{$data['plan']}");
 
-        if (!$plan) {
+        if (! $plan) {
             return response()->json(['success' => false, 'message' => 'Unknown plan.'], 422);
         }
 
@@ -184,42 +191,43 @@ class PaymentController extends Controller
 
         try {
             $razorpayOrder = $this->api()->order->create([
-                'receipt'         => 'order_' . uniqid(),
-                'amount'          => $amountPaise,
-                'currency'        => config('plans.currency', 'INR'),
+                'receipt' => 'order_'.uniqid(),
+                'amount' => $amountPaise,
+                'currency' => config('plans.currency', 'INR'),
                 'payment_capture' => 1,
-                'notes'           => [
+                'notes' => [
                     'user_id' => Auth::id(),
-                    'plan'    => $data['plan'],
+                    'plan' => $data['plan'],
                 ],
             ]);
 
             Payment::create([
-                'user_id'  => Auth::id(),
+                'user_id' => Auth::id(),
                 'order_id' => $razorpayOrder['id'],
-                'amount'   => $plan['price'],
+                'amount' => $plan['price'],
                 'currency' => config('plans.currency', 'INR'),
-                'status'   => 'pending',
-                'plan'     => $data['plan'],
-                'method'   => 'razorpay',
+                'status' => 'pending',
+                'plan' => $data['plan'],
+                'method' => 'razorpay',
             ]);
 
             return response()->json([
-                'success'      => true,
-                'order_id'     => $razorpayOrder['id'],
-                'amount'       => $amountPaise,
-                'currency'     => config('plans.currency', 'INR'),
+                'success' => true,
+                'order_id' => $razorpayOrder['id'],
+                'amount' => $amountPaise,
+                'currency' => config('plans.currency', 'INR'),
                 'razorpay_key' => config('services.razorpay.key'),
-                'name'         => config('app.name'),
-                'plan_label'   => $plan['label'] ?? $data['plan'],
-                'prefill'      => [
-                    'name'  => Auth::user()->name,
+                'name' => config('app.name'),
+                'plan_label' => $plan['label'] ?? $data['plan'],
+                'prefill' => [
+                    'name' => Auth::user()->name,
                     'email' => Auth::user()->email,
                 ],
             ]);
 
         } catch (\Exception $e) {
             Log::error('Payment initiation failed', ['error' => $e->getMessage(), 'user_id' => Auth::id()]);
+
             return response()->json(['success' => false, 'message' => 'Payment initiation failed. Please try again.'], 500);
         }
     }
@@ -234,8 +242,8 @@ class PaymentController extends Controller
     {
         $data = $request->validate([
             'razorpay_payment_id' => 'required|string',
-            'razorpay_order_id'   => 'required|string',
-            'razorpay_signature'  => 'required|string',
+            'razorpay_order_id' => 'required|string',
+            'razorpay_signature' => 'required|string',
         ]);
 
         try {
@@ -245,10 +253,11 @@ class PaymentController extends Controller
             $this->api()->utility->verifyPaymentSignature($data);
         } catch (SignatureVerificationError $e) {
             Log::warning('Razorpay signature mismatch', [
-                'order_id'   => $data['razorpay_order_id'],
+                'order_id' => $data['razorpay_order_id'],
                 'payment_id' => $data['razorpay_payment_id'],
-                'user_id'    => Auth::id(),
+                'user_id' => Auth::id(),
             ]);
+
             return response()->json(['success' => false, 'message' => 'Signature verification failed.'], 400);
         }
 
@@ -256,7 +265,7 @@ class PaymentController extends Controller
             ->where('user_id', Auth::id())
             ->first();
 
-        if (!$dbPayment) {
+        if (! $dbPayment) {
             return response()->json(['success' => false, 'message' => 'Order not found.'], 404);
         }
 
@@ -264,7 +273,7 @@ class PaymentController extends Controller
         // just confirm success without re-granting.
         if ($dbPayment->status !== 'pending') {
             return response()->json([
-                'success'     => true,
+                'success' => true,
                 'redirect_to' => route('paywall.receipt', ['ref' => $dbPayment->order_id]),
             ]);
         }
@@ -272,7 +281,7 @@ class PaymentController extends Controller
         $this->activatePlan($dbPayment, $data['razorpay_payment_id']);
 
         return response()->json([
-            'success'     => true,
+            'success' => true,
             'redirect_to' => route('paywall.receipt', ['ref' => $dbPayment->order_id]),
         ]);
     }
@@ -284,9 +293,9 @@ class PaymentController extends Controller
     public function success(Request $request)
     {
         $paymentId = $request->get('payment_id');
-        $orderId   = $request->get('order_id');
+        $orderId = $request->get('order_id');
 
-        if (!$paymentId || !$orderId) {
+        if (! $paymentId || ! $orderId) {
             return view('payment.failed', ['message' => 'Invalid payment response. Please contact support.']);
         }
 
@@ -301,7 +310,7 @@ class PaymentController extends Controller
                 ->where('status', 'pending') // only process once — prevents double-activation
                 ->first();
 
-            if (!$dbPayment) {
+            if (! $dbPayment) {
                 // Already processed (e.g., webhook beat us here) — just show success
                 return view('payment.success', [
                     'message' => 'Payment successful! Your subscription is now active.',
@@ -318,7 +327,8 @@ class PaymentController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Payment success handling failed', ['error' => $e->getMessage(), 'payment_id' => $paymentId]);
-            return view('payment.failed', ['message' => 'Something went wrong verifying your payment. Please contact support with reference: ' . $paymentId]);
+
+            return view('payment.failed', ['message' => 'Something went wrong verifying your payment. Please contact support with reference: '.$paymentId]);
         }
     }
 
@@ -328,32 +338,34 @@ class PaymentController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     public function webhook(Request $request)
     {
-        $webhookBody      = $request->getContent();
+        $webhookBody = $request->getContent();
         $webhookSignature = $request->header('X-Razorpay-Signature');
-        $webhookSecret    = config('services.razorpay.webhook_secret');
+        $webhookSecret = config('services.razorpay.webhook_secret');
 
         // Verify signature
         $expectedSignature = hash_hmac('sha256', $webhookBody, $webhookSecret);
-        if (!hash_equals($expectedSignature, (string) $webhookSignature)) {
+        if (! hash_equals($expectedSignature, (string) $webhookSignature)) {
             Log::warning('Razorpay webhook signature mismatch');
+
             return response()->json(['status' => 'invalid signature'], 400);
         }
 
         try {
             $payload = json_decode($webhookBody, true);
-            $event   = $payload['event'] ?? '';
+            $event = $payload['event'] ?? '';
 
             match ($event) {
-                'payment.captured'        => $this->webhookPaymentCaptured($payload),
-                'payment.failed'          => $this->webhookPaymentFailed($payload),
-                'subscription.cancelled'  => $this->webhookSubscriptionCancelled($payload),
-                default                   => null,
+                'payment.captured' => $this->webhookPaymentCaptured($payload),
+                'payment.failed' => $this->webhookPaymentFailed($payload),
+                'subscription.cancelled' => $this->webhookSubscriptionCancelled($payload),
+                default => null,
             };
 
             return response()->json(['status' => 'ok']);
 
         } catch (\Exception $e) {
             Log::error('Webhook processing failed', ['error' => $e->getMessage()]);
+
             return response()->json(['status' => 'error'], 500);
         }
     }
@@ -373,13 +385,13 @@ class PaymentController extends Controller
                 ->lockForUpdate()
                 ->first();
 
-            if (!$locked) {
+            if (! $locked) {
                 return; // Already activated by concurrent request
             }
 
             $locked->update([
-                'payment_id'  => $paymentId,
-                'status'      => 'completed',
+                'payment_id' => $paymentId,
+                'status' => 'completed',
                 'verified_at' => now(),
             ]);
 
@@ -390,8 +402,8 @@ class PaymentController extends Controller
             $user = $locked->user;
             if ($user) {
                 Log::info('Razorpay payment activated', [
-                    'user_id'    => $user->id,
-                    'plan'       => $locked->plan,
+                    'user_id' => $user->id,
+                    'plan' => $locked->plan,
                     'payment_id' => $paymentId,
                 ]);
 
@@ -400,7 +412,7 @@ class PaymentController extends Controller
                 } catch (\Throwable $e) {
                     Log::warning('Payment receipt mail failed (non-fatal)', [
                         'user_id' => $user->id,
-                        'error'   => $e->getMessage(),
+                        'error' => $e->getMessage(),
                     ]);
                 }
             }
@@ -413,10 +425,12 @@ class PaymentController extends Controller
     private function webhookPaymentCaptured(array $payload): void
     {
         $paymentData = $payload['payload']['payment']['entity'] ?? [];
-        $orderId     = $paymentData['order_id'] ?? null;
-        $paymentId   = $paymentData['id'] ?? null;
+        $orderId = $paymentData['order_id'] ?? null;
+        $paymentId = $paymentData['id'] ?? null;
 
-        if (!$orderId || !$paymentId) return;
+        if (! $orderId || ! $paymentId) {
+            return;
+        }
 
         $dbPayment = Payment::where('order_id', $orderId)->where('status', 'pending')->first();
         if ($dbPayment) {
@@ -427,7 +441,7 @@ class PaymentController extends Controller
     private function webhookPaymentFailed(array $payload): void
     {
         $paymentData = $payload['payload']['payment']['entity'] ?? [];
-        $orderId     = $paymentData['order_id'] ?? null;
+        $orderId = $paymentData['order_id'] ?? null;
 
         if ($orderId) {
             Payment::where('order_id', $orderId)->where('status', 'pending')->update(['status' => 'failed']);
@@ -437,9 +451,11 @@ class PaymentController extends Controller
     private function webhookSubscriptionCancelled(array $payload): void
     {
         $subscriptionData = $payload['payload']['subscription']['entity'] ?? [];
-        $rzSubId          = $subscriptionData['id'] ?? null;
+        $rzSubId = $subscriptionData['id'] ?? null;
 
-        if (!$rzSubId) return;
+        if (! $rzSubId) {
+            return;
+        }
 
         $sub = Subscription::where('razorpay_subscription_id', $rzSubId)->first();
         if ($sub) {

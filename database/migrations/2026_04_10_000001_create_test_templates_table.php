@@ -14,7 +14,7 @@ return new class extends Migration
             $table->string('slug')->unique();
             $table->text('description')->nullable();
             $table->enum('type', ['writing', 'speaking', 'listening', 'reading', 'full_mock'])
-                  ->default('writing');
+                ->default('writing');
             $table->unsignedInteger('duration_minutes')->default(60);
             $table->boolean('is_active')->default(true);
             $table->boolean('is_public')->default(true); // false = only assignable, not self-practice

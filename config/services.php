@@ -52,9 +52,9 @@ return [
     // Gemini key won't accidentally route real traffic here. Defaults point
     // at the real OpenAI endpoint; set OPENAI_API_KEY=sk-... in .env to enable.
     'openai' => [
-        'api_key'  => env('OPENAI_API_KEY'),
+        'api_key' => env('OPENAI_API_KEY'),
         'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com/v1/'),
-        'model'    => env('OPENAI_MODEL', 'gpt-4o-mini'),
+        'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
     ],
 
     // OpenRouter — paid passthrough to OpenAI/Anthropic/etc., paid via UPI.
@@ -62,9 +62,9 @@ return [
     // with 'sk-or-' to avoid accidental activation. Daily/total USD caps
     // give a second line of defence on top of OpenRouter's own per-key cap.
     'openrouter' => [
-        'api_key'  => env('OPENROUTER_API_KEY'),
+        'api_key' => env('OPENROUTER_API_KEY'),
         'base_url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1/'),
-        'model'    => env('OPENROUTER_MODEL', 'openai/gpt-4o-mini'),
+        'model' => env('OPENROUTER_MODEL', 'openai/gpt-4o-mini'),
         // Premium subscribers (Pro Plus / model_tier=premium) route here.
         // ~17x cost of mini, materially better Band 7+ accuracy.
         'premium_model' => env('OPENROUTER_PREMIUM_MODEL', 'openai/gpt-4o'),
@@ -86,9 +86,9 @@ return [
         // Primary (used first by the Gemini provider) and fallback (tried on
         // quota / rate-limit failure). Distinct by default so the "retry with
         // fallback model" branch in LLMRouter is meaningful out of the box.
-        'primary_model'  => env('GEMINI_PRIMARY_MODEL', 'gemini-2.5-pro'),
+        'primary_model' => env('GEMINI_PRIMARY_MODEL', 'gemini-2.5-pro'),
         'fallback_model' => env('GEMINI_FALLBACK_MODEL', 'gemini-2.5-flash'),
-        'base_url'       => env('OPENAI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/openai/'),
+        'base_url' => env('OPENAI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/openai/'),
 
         // Legacy single-key var (comma-separated) — preserved so existing
         // GeminiService.php helpers that still read it keep working.
@@ -100,9 +100,9 @@ return [
     // LLMRouter tries Groq first, then falls back to Gemini Flash on quota
     // exhaustion or any non-2xx that isn't a true content failure.
     'groq' => [
-        'api_key'  => env('GROQ_API_KEY'),
+        'api_key' => env('GROQ_API_KEY'),
         'base_url' => env('GROQ_BASE_URL', 'https://api.groq.com/openai/v1/'),
-        'model'    => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+        'model' => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
     ],
 
     'calibration' => [
@@ -121,14 +121,14 @@ return [
     ],
 
     'google' => [
-        'client_id'     => env('GOOGLE_CLIENT_ID'),
+        'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
-        'redirect'      => env('GOOGLE_REDIRECT_URI'),
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
     ],
 
     'razorpay' => [
-        'key'            => env('RAZORPAY_KEY'),
-        'secret'         => env('RAZORPAY_SECRET'),
+        'key' => env('RAZORPAY_KEY'),
+        'secret' => env('RAZORPAY_SECRET'),
         'webhook_secret' => env('RAZORPAY_WEBHOOK_SECRET'),
     ],
 
@@ -137,8 +137,8 @@ return [
     // VPA; users pay, submit their UTR, we grant credits/sub immediately and
     // verify the UTR against the bank statement out-of-band.
     'upi' => [
-        'vpa'      => env('UPI_VPA', 'ronnie@ybl'),
-        'name'     => env('UPI_NAME', 'IELTS Band AI'),
+        'vpa' => env('UPI_VPA', 'ronnie@ybl'),
+        'name' => env('UPI_NAME', 'IELTS Band AI'),
         // Optional: notification email when a new manual payment lands.
         'notify_email' => env('UPI_NOTIFY_EMAIL'),
     ],

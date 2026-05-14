@@ -6,9 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Test;
 use Illuminate\Support\Facades\Auth;
 
-
-
-
 class TestResultController extends Controller
 {
     public function show(Test $test)
@@ -21,12 +18,12 @@ class TestResultController extends Controller
         // Load relationships
         $test->load([
             'testScores',
-            'audioFiles' => function($query) {
+            'audioFiles' => function ($query) {
                 $query->orderBy('created_at');
             },
-            'testQuestions' => function($query) {
+            'testQuestions' => function ($query) {
                 $query->orderBy('part')->with('question');
-            }
+            },
         ]);
 
         // Prepare scores array for the view
@@ -35,7 +32,7 @@ class TestResultController extends Controller
             $result = is_string($test->result)
                 ? (json_decode($test->result, true) ?: [])
                 : (is_array($test->result) ? $test->result : []);
-            
+
             $scores = [
                 'task_achievement' => $result['task_achievement'] ?? 0,
                 'coherence_cohesion' => $result['coherence_cohesion'] ?? 0,
@@ -43,7 +40,7 @@ class TestResultController extends Controller
                 'grammar' => $result['grammar'] ?? 0,
                 'overall_band' => $result['overall_band'] ?? $test->overall_band ?? 0,
             ];
-            
+
             $feedback = $result['feedback'] ?? '';
             $strengths = $result['strengths'] ?? [];
             $improvements = $result['improvements'] ?? [];
@@ -54,10 +51,10 @@ class TestResultController extends Controller
             $summary = $result['summary'] ?? null;
             $originalAnswer = $result['original_answer'] ?? '';
             $highlightedEssay = $result['highlightedEssay'] ?? htmlspecialchars($originalAnswer);
-            
+
             // Generate task info
             $task_info = $this->getTaskInfo($test->category ?? '');
-            
+
         } else {
             // For speaking tests — dedicated view
             $scores = ['overall_band' => $test->overall_band ?? 0];
@@ -65,13 +62,13 @@ class TestResultController extends Controller
                 $scores[$testScore->criteria] = $testScore->band_score;
             }
 
-            $metadata       = is_string($test->metadata)
+            $metadata = is_string($test->metadata)
                 ? (json_decode($test->metadata, true) ?: [])
                 : (is_array($test->metadata) ? $test->metadata : []);
-            $fillerAnalysis = $metadata['filler_analysis']    ?? [];
+            $fillerAnalysis = $metadata['filler_analysis'] ?? [];
             $repetitionData = $metadata['repetition_analysis'] ?? [];
             $examinerComments = $metadata['examiner_comments'] ?? [];
-            $confidenceRange  = $metadata['band_confidence_range'] ?? null;
+            $confidenceRange = $metadata['band_confidence_range'] ?? null;
 
             return view('pages.speaking.result', compact(
                 'test',
@@ -152,5 +149,4 @@ class TestResultController extends Controller
 
         return $info;
     }
-
 }

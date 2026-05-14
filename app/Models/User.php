@@ -47,10 +47,10 @@ class User extends Authenticatable implements MustVerifyEmail
     protected function casts(): array
     {
         return [
-            'email_verified_at'    => 'datetime',
+            'email_verified_at' => 'datetime',
             'referral_credited_at' => 'datetime',
-            'password'             => 'hashed',
-            'is_admin'             => 'boolean',
+            'password' => 'hashed',
+            'is_admin' => 'boolean',
         ];
     }
 
@@ -98,13 +98,13 @@ class User extends Authenticatable implements MustVerifyEmail
     public function hasActiveSubscription()
     {
         $subscription = $this->subscription;
-        
-        if (!$subscription) {
+
+        if (! $subscription) {
             return false;
         }
 
-        return $subscription->status === 'active' 
-            && $subscription->ends_at 
+        return $subscription->status === 'active'
+            && $subscription->ends_at
             && $subscription->ends_at->isFuture();
     }
 
@@ -138,7 +138,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function isFree()
     {
-        return !$this->hasActiveSubscription();
+        return ! $this->hasActiveSubscription();
     }
 
     /**
@@ -200,6 +200,6 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->assignedTestRecords()
             ->whereIn('status', ['pending', 'started'])
-            ->whereHas('assignment', fn($q) => $q->where('status', 'active'));
+            ->whereHas('assignment', fn ($q) => $q->where('status', 'active'));
     }
 }

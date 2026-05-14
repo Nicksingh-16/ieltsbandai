@@ -94,6 +94,7 @@ class LinguisticAnalyzer
         if ($total === 0) {
             return 0.0;
         }
+
         return round(count(array_unique($tokens)) / $total, 3);
     }
 
@@ -101,7 +102,7 @@ class LinguisticAnalyzer
      * Returns percentage distribution across A1, A2, B1, B2, C1, C2.
      * Tokens not in any wordlist are bucketed as C2 (rare/sophisticated/unknown).
      *
-     * @param array<int,string>|string $input
+     * @param  array<int,string>|string  $input
      * @return array<string,float> Percentages summing to ~100.0
      */
     public function computeCEFRDistribution($input): array
@@ -132,17 +133,18 @@ class LinguisticAnalyzer
      */
     public function countCohesionMarkers(string $essay): array
     {
-        $lower = ' ' . strtolower($essay) . ' ';
+        $lower = ' '.strtolower($essay).' ';
         $found = [];
         foreach (self::COHESION_MARKERS as $marker) {
             // Bound by spaces / punctuation to avoid matching substrings (e.g.
             // "as" inside "always"). Allow comma/period/space at boundaries.
-            $pattern = '/(^|\W)' . preg_quote($marker, '/') . '(\W|$)/i';
+            $pattern = '/(^|\W)'.preg_quote($marker, '/').'(\W|$)/i';
             $count = preg_match_all($pattern, $essay, $_);
             if ($count > 0) {
                 $found[] = $marker;
             }
         }
+
         return [
             'count' => count($found),
             'found' => $found,
@@ -151,6 +153,7 @@ class LinguisticAnalyzer
 
     /**
      * Lowercase, strip punctuation, split on whitespace. Drops empty tokens.
+     *
      * @return array<int,string>
      */
     private function tokenize(string $text): array
@@ -159,6 +162,7 @@ class LinguisticAnalyzer
         // Keep apostrophes inside words (don't, it's), strip everything else.
         $text = preg_replace("/[^a-z'\\s]/", ' ', $text) ?? '';
         $tokens = preg_split('/\s+/', trim($text)) ?: [];
+
         return array_values(array_filter($tokens, fn ($t) => $t !== '' && strlen($t) >= 1));
     }
 
@@ -179,8 +183,8 @@ class LinguisticAnalyzer
         $index = [];
 
         foreach ($files as $level => $file) {
-            $path = $dir . DIRECTORY_SEPARATOR . $file;
-            if (!is_file($path)) {
+            $path = $dir.DIRECTORY_SEPARATOR.$file;
+            if (! is_file($path)) {
                 continue;
             }
             foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $word) {
@@ -193,6 +197,7 @@ class LinguisticAnalyzer
         }
 
         self::$cefrIndex = $index;
+
         return $index;
     }
 }

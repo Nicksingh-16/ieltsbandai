@@ -10,8 +10,8 @@ class WritingRepository
 {
     /**
      * Get a random writing question by exact category
-     * 
-     * @param string $category e.g., 'writing_academic_task1'
+     *
+     * @param  string  $category  e.g., 'writing_academic_task1'
      * @return Question|null
      */
     public function getWritingQuestionByCategory($category, ?int $userId = null)
@@ -37,7 +37,7 @@ class WritingRepository
         $question = $query->inRandomOrder()->first();
 
         // Fallback: if all questions have been seen, ignore deduplication
-        if (!$question && $userId) {
+        if (! $question && $userId) {
             $question = Question::where('type', 'writing')
                 ->where('category', $category)
                 ->where('active', true)
@@ -50,8 +50,8 @@ class WritingRepository
 
     /**
      * Get all writing questions by test type
-     * 
-     * @param string $testType 'academic' or 'general'
+     *
+     * @param  string  $testType  'academic' or 'general'
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public function getWritingQuestionsByType($testType)
@@ -64,15 +64,15 @@ class WritingRepository
 
     /**
      * Get all writing questions by test type and task
-     * 
-     * @param string $testType 'academic' or 'general'
-     * @param string $task 'task1' or 'task2'
+     *
+     * @param  string  $testType  'academic' or 'general'
+     * @param  string  $task  'task1' or 'task2'
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public function getWritingQuestionsByTypeAndTask($testType, $task)
     {
         $category = "writing_{$testType}_{$task}";
-        
+
         return Question::where('type', 'writing')
             ->where('category', $category)
             ->where('active', true)
@@ -81,8 +81,8 @@ class WritingRepository
 
     /**
      * Get question by ID
-     * 
-     * @param int $questionId
+     *
+     * @param  int  $questionId
      * @return Question|null
      */
     public function getQuestionById($questionId)
@@ -92,9 +92,9 @@ class WritingRepository
 
     /**
      * Get user's writing test history
-     * 
-     * @param int $userId
-     * @param int $limit
+     *
+     * @param  int  $userId
+     * @param  int  $limit
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public function getUserWritingTests($userId, $limit = 10)
@@ -108,8 +108,8 @@ class WritingRepository
 
     /**
      * Get user's writing statistics
-     * 
-     * @param int $userId
+     *
+     * @param  int  $userId
      * @return array
      */
     public function getUserWritingStats($userId)
@@ -142,7 +142,7 @@ class WritingRepository
 
         $testsByType = $tests->groupBy('category');
         $scores = $tests->pluck('score')->filter();
-        
+
         // Calculate average scores by criteria
         $criteriaScores = [
             'task_achievement' => [],
@@ -164,7 +164,7 @@ class WritingRepository
 
         $averageByCriteria = [];
         foreach ($criteriaScores as $key => $values) {
-            $averageByCriteria[$key] = count($values) > 0 
+            $averageByCriteria[$key] = count($values) > 0
                 ? round(array_sum($values) / count($values), 1)
                 : 0;
         }
@@ -187,8 +187,8 @@ class WritingRepository
 
     /**
      * Calculate progress trend from recent tests
-     * 
-     * @param \Illuminate\Database\Eloquent\Collection $tests
+     *
+     * @param  \Illuminate\Database\Eloquent\Collection  $tests
      * @return string 'improving', 'stable', 'declining', or 'insufficient_data'
      */
     protected function calculateProgressTrend($tests)
@@ -225,9 +225,9 @@ class WritingRepository
 
     /**
      * Get sample questions for practice (without creating a test)
-     * 
-     * @param string $category
-     * @param int $limit
+     *
+     * @param  string  $category
+     * @param  int  $limit
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public function getSampleQuestions($category = null, $limit = 5)
@@ -246,8 +246,8 @@ class WritingRepository
 
     /**
      * Check if user has any incomplete writing tests
-     * 
-     * @param int $userId
+     *
+     * @param  int  $userId
      * @return Test|null
      */
     public function getUserIncompleteTest($userId)

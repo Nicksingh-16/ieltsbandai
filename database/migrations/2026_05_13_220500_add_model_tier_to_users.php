@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\Schema;
  * Set by ManualPaymentService::grant when a subscription is activated; reset
  * to 'standard' by revoke() or by the existing CreditService::isPro sync path.
  */
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {

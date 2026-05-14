@@ -10,9 +10,9 @@ return new class extends Migration
     {
         Schema::table('test_templates', function (Blueprint $table) {
             $table->foreignId('institute_id')->nullable()->after('id')
-                  ->constrained()->nullOnDelete();
+                ->constrained()->nullOnDelete();
             $table->foreignId('created_by')->nullable()->after('institute_id')
-                  ->constrained('users')->nullOnDelete();
+                ->constrained('users')->nullOnDelete();
         });
     }
 

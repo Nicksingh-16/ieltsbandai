@@ -32,9 +32,13 @@ class LLMRouter
      * attributable to the user/test/feature that triggered the call.
      */
     private ?int $ctxUserId = null;
+
     private ?int $ctxTestId = null;
+
     private ?string $ctxPurpose = null;
+
     private ?string $ctxPromptVersion = null;
+
     private ?string $ctxModelTier = null;
 
     public function withContext(?int $userId = null, ?int $testId = null, ?string $purpose = null, ?string $promptVersion = null): self
@@ -57,6 +61,7 @@ class LLMRouter
                 $this->ctxModelTier = 'standard';
             }
         }
+
         return $this;
     }
 
@@ -70,6 +75,7 @@ class LLMRouter
         if ($this->ctxModelTier === 'premium') {
             return (string) config('services.openrouter.premium_model', 'openai/gpt-4o');
         }
+
         return $defaultModel;
     }
 
@@ -77,9 +83,9 @@ class LLMRouter
      * Send a chat-completions payload. Returns the decoded JSON response from
      * the first 2xx call across the provider chain.
      *
-     * @param array $payload Chat-completions request body (without 'model' —
-     *                       set by the router based on which tier is being
-     *                       tried).
+     * @param  array  $payload  Chat-completions request body (without 'model' —
+     *                          set by the router based on which tier is being
+     *                          tried).
      * @return array Decoded JSON response body. Throws on total exhaustion.
      */
     public function chatCompletion(array $payload): array
@@ -89,8 +95,8 @@ class LLMRouter
         // here. Pre-flight budget check skips this tier (falling through
         // to free Groq/Gemini) once the configured daily or total USD cap
         // is reached.
-        $orKey   = (string) config('services.openrouter.api_key', '');
-        $orBase  = (string) config('services.openrouter.base_url', '');
+        $orKey = (string) config('services.openrouter.api_key', '');
+        $orBase = (string) config('services.openrouter.base_url', '');
         $orModel = (string) config('services.openrouter.model', '');
         if (str_starts_with($orKey, 'sk-or-') && $orBase && $orModel) {
             if ($this->openRouterBudgetExceeded()) {
@@ -103,12 +109,13 @@ class LLMRouter
                 $resp = $this->httpCall($orBase, $orKey, $payload, 'openrouter', $orModel);
                 if ($this->isHardSuccess($resp)) {
                     Log::info('LLM ok', ['provider' => 'openrouter', 'model' => $orModel, 'status' => $resp['status']]);
+
                     return $resp['body'] ?? [];
                 }
                 if ($this->isHardError($resp)) {
                     throw new \RuntimeException(
-                        'OpenRouter call failed: status=' . $resp['status'] .
-                        ' body=' . substr(json_encode($resp['body']), 0, 500)
+                        'OpenRouter call failed: status='.$resp['status'].
+                        ' body='.substr(json_encode($resp['body']), 0, 500)
                     );
                 }
                 Log::warning('OpenRouter 429/network — falling back', ['status' => $resp['status']]);
@@ -119,20 +126,21 @@ class LLMRouter
         // 'sk-or-' OpenRouter keys are excluded (handled in tier 1 above).
         // Gemini keys ('AIza...') and placeholders ('PUT_...') skip this
         // tier so dev/free-tier setups keep using Groq + Gemini.
-        $openaiKey   = (string) config('services.openai.api_key', '');
-        $openaiBase  = (string) config('services.openai.base_url', '');
+        $openaiKey = (string) config('services.openai.api_key', '');
+        $openaiBase = (string) config('services.openai.base_url', '');
         $openaiModel = (string) config('services.openai.model', '');
-        if (str_starts_with($openaiKey, 'sk-') && !str_starts_with($openaiKey, 'sk-or-') && $openaiBase && $openaiModel) {
+        if (str_starts_with($openaiKey, 'sk-') && ! str_starts_with($openaiKey, 'sk-or-') && $openaiBase && $openaiModel) {
             $payload['model'] = $openaiModel;
             $resp = $this->httpCall($openaiBase, $openaiKey, $payload, 'openai', $openaiModel);
             if ($this->isHardSuccess($resp)) {
                 Log::info('LLM ok', ['provider' => 'openai', 'model' => $openaiModel, 'status' => $resp['status']]);
+
                 return $resp['body'] ?? [];
             }
             if ($this->isHardError($resp)) {
                 throw new \RuntimeException(
-                    'OpenAI call failed: status=' . $resp['status'] .
-                    ' body=' . substr(json_encode($resp['body']), 0, 500)
+                    'OpenAI call failed: status='.$resp['status'].
+                    ' body='.substr(json_encode($resp['body']), 0, 500)
                 );
             }
             Log::warning('OpenAI 429/network — falling back to Groq', [
@@ -141,20 +149,21 @@ class LLMRouter
         }
 
         // 2. Try Groq (Llama 3.3 70B) — single key, secondary tier.
-        $groqKey   = config('services.groq.api_key');
-        $groqBase  = config('services.groq.base_url');
+        $groqKey = config('services.groq.api_key');
+        $groqBase = config('services.groq.base_url');
         $groqModel = config('services.groq.model');
         if ($groqKey) {
             $payload['model'] = $groqModel;
             $resp = $this->httpCall($groqBase, $groqKey, $payload, 'groq', $groqModel);
             if ($this->isHardSuccess($resp)) {
                 Log::info('LLM ok', ['provider' => 'groq', 'model' => $groqModel, 'status' => $resp['status']]);
+
                 return $resp['body'] ?? [];
             }
             if ($this->isHardError($resp)) {
                 throw new \RuntimeException(
-                    'Groq call failed: status=' . $resp['status'] .
-                    ' body=' . substr(json_encode($resp['body']), 0, 500)
+                    'Groq call failed: status='.$resp['status'].
+                    ' body='.substr(json_encode($resp['body']), 0, 500)
                 );
             }
             Log::warning('Groq 429/network — falling back to Gemini', [
@@ -163,9 +172,9 @@ class LLMRouter
         }
 
         // 2. Fall back to Gemini Flash pool, round-robin across all keys.
-        $keys     = config('services.gemini.keys', []);
-        $baseUrl  = config('services.gemini.base_url');
-        $primary  = config('services.gemini.primary_model');
+        $keys = config('services.gemini.keys', []);
+        $baseUrl = config('services.gemini.base_url');
+        $primary = config('services.gemini.primary_model');
         $fallback = config('services.gemini.fallback_model');
 
         if (empty($keys)) {
@@ -174,7 +183,7 @@ class LLMRouter
             );
         }
 
-        $offset  = (int) Cache::increment(self::CACHE_KEY_RR);
+        $offset = (int) Cache::increment(self::CACHE_KEY_RR);
         $rotated = $this->rotate($keys, $offset % count($keys));
 
         foreach ($rotated as $i => $key) {
@@ -182,13 +191,14 @@ class LLMRouter
             $resp = $this->httpCall($baseUrl, $key, $payload, 'gemini', $primary);
             if ($this->isHardSuccess($resp)) {
                 Log::info('LLM fallback ok', ['provider' => 'gemini', 'model' => $primary, 'key_index' => $i, 'status' => $resp['status']]);
+
                 return $resp['body'] ?? [];
             }
             if ($this->isHardError($resp)) {
                 throw new \RuntimeException(
-                    'Gemini call failed: status=' . $resp['status'] .
-                    ' model=' . $primary .
-                    ' body=' . substr(json_encode($resp['body']), 0, 500)
+                    'Gemini call failed: status='.$resp['status'].
+                    ' model='.$primary.
+                    ' body='.substr(json_encode($resp['body']), 0, 500)
                 );
             }
             Log::warning('Gemini 429/network', ['model' => $primary, 'key_index' => $i]);
@@ -202,19 +212,20 @@ class LLMRouter
                 $resp = $this->httpCall($baseUrl, $key, $payload, 'gemini', $fallback);
                 if ($this->isHardSuccess($resp)) {
                     Log::info('LLM fallback-2 ok', ['provider' => 'gemini', 'model' => $fallback, 'key_index' => $i]);
+
                     return $resp['body'] ?? [];
                 }
                 if ($this->isHardError($resp)) {
                     throw new \RuntimeException(
-                        'Gemini fallback failed: status=' . $resp['status'] .
-                        ' body=' . substr(json_encode($resp['body']), 0, 500)
+                        'Gemini fallback failed: status='.$resp['status'].
+                        ' body='.substr(json_encode($resp['body']), 0, 500)
                     );
                 }
             }
         }
 
         throw new \RuntimeException(
-            'All providers exhausted (Groq + Gemini ' . count($keys) . ' keys). ' .
+            'All providers exhausted (Groq + Gemini '.count($keys).' keys). '.
             'Daily quota resets at UTC midnight.'
         );
     }
@@ -235,7 +246,7 @@ class LLMRouter
         if ($dailyCap === null && $totalCap === null) {
             return false;
         }
-        if (!\Illuminate\Support\Facades\Schema::hasTable('llm_call_logs')) {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('llm_call_logs')) {
             return false;
         }
 
@@ -245,6 +256,7 @@ class LLMRouter
                 60,
                 function () {
                     $q = \App\Models\LlmCallLog::where('provider', 'openrouter')->where('ok', true);
+
                     return [
                         (float) (clone $q)->whereDate('created_at', now()->toDateString())->sum('cost_usd'),
                         (float) $q->sum('cost_usd'),
@@ -254,15 +266,19 @@ class LLMRouter
 
             if ($dailyCap !== null && $dailySpend >= (float) $dailyCap) {
                 Log::warning('OpenRouter daily cap hit', ['spent' => $dailySpend, 'cap' => $dailyCap]);
+
                 return true;
             }
             if ($totalCap !== null && $totalSpend >= (float) $totalCap) {
                 Log::warning('OpenRouter total cap hit', ['spent' => $totalSpend, 'cap' => $totalCap]);
+
                 return true;
             }
+
             return false;
         } catch (\Throwable $e) {
-            Log::warning('OpenRouter budget check failed: ' . $e->getMessage());
+            Log::warning('OpenRouter budget check failed: '.$e->getMessage());
+
             return false;
         }
     }
@@ -290,6 +306,7 @@ class LLMRouter
         if ($offset === 0) {
             return $arr;
         }
+
         return array_merge(array_slice($arr, $offset), array_slice($arr, 0, $offset));
     }
 
@@ -309,23 +326,25 @@ class LLMRouter
         try {
             $resp = Http::timeout(120)
                 ->withHeaders([
-                    'Authorization' => 'Bearer ' . $key,
-                    'Content-Type'  => 'application/json',
+                    'Authorization' => 'Bearer '.$key,
+                    'Content-Type' => 'application/json',
                 ])
-                ->post(rtrim($baseUrl, '/') . '/chat/completions', $payload);
+                ->post(rtrim($baseUrl, '/').'/chat/completions', $payload);
 
             $status = $resp->status();
             $body = $resp->json();
+
             return ['status' => $status, 'body' => $body];
         } catch (\Throwable $e) {
-            Log::error('LLM transport error: ' . $e->getMessage());
+            Log::error('LLM transport error: '.$e->getMessage());
+
             return ['status' => 0, 'body' => null];
         } finally {
             // Best-effort cost logging — never let it break the request flow.
             try {
                 $this->logCall($provider, $model, $body, $status, (int) round((microtime(true) - $start) * 1000));
             } catch (\Throwable $logErr) {
-                Log::warning('LLM call logging failed: ' . $logErr->getMessage());
+                Log::warning('LLM call logging failed: '.$logErr->getMessage());
             }
         }
     }
@@ -338,34 +357,34 @@ class LLMRouter
     private function logCall(string $provider, string $model, ?array $body, int $status, int $latencyMs): void
     {
         // Skip if logging table doesn't exist yet (e.g. before migration ran).
-        if (!\Illuminate\Support\Facades\Schema::hasTable('llm_call_logs')) {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('llm_call_logs')) {
             return;
         }
 
         $usage = $body['usage'] ?? [];
-        $in    = (int) ($usage['prompt_tokens']     ?? 0);
-        $out   = (int) ($usage['completion_tokens'] ?? 0);
+        $in = (int) ($usage['prompt_tokens'] ?? 0);
+        $out = (int) ($usage['completion_tokens'] ?? 0);
 
-        $pricing  = config("llm_pricing.{$provider}.{$model}")
+        $pricing = config("llm_pricing.{$provider}.{$model}")
                  ?? config("llm_pricing.{$provider}._default")
                  ?? ['input' => 0.0, 'output' => 0.0];
-        $costUsd  = ($in / 1_000_000) * $pricing['input'] + ($out / 1_000_000) * $pricing['output'];
-        $costUsd  = round($costUsd, 6);
+        $costUsd = ($in / 1_000_000) * $pricing['input'] + ($out / 1_000_000) * $pricing['output'];
+        $costUsd = round($costUsd, 6);
 
         \App\Models\LlmCallLog::create([
-            'user_id'        => $this->ctxUserId,
-            'test_id'        => $this->ctxTestId,
-            'provider'       => $provider,
-            'model'          => substr($model, 0, 64),
-            'purpose'        => $this->ctxPurpose,
+            'user_id' => $this->ctxUserId,
+            'test_id' => $this->ctxTestId,
+            'provider' => $provider,
+            'model' => substr($model, 0, 64),
+            'purpose' => $this->ctxPurpose,
             'prompt_version' => $this->ctxPromptVersion,
-            'input_tokens'   => $in,
-            'output_tokens'  => $out,
-            'cost_usd'       => $costUsd,
-            'http_status'    => $status,
-            'latency_ms'     => $latencyMs,
-            'ok'             => $status >= 200 && $status < 300,
-            'created_at'     => now(),
+            'input_tokens' => $in,
+            'output_tokens' => $out,
+            'cost_usd' => $costUsd,
+            'http_status' => $status,
+            'latency_ms' => $latencyMs,
+            'ok' => $status >= 200 && $status < 300,
+            'created_at' => now(),
         ]);
     }
 }

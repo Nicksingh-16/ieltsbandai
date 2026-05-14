@@ -12,9 +12,9 @@ class AssignedTest extends Model
     ];
 
     protected $casts = [
-        'due_date'     => 'datetime',
+        'due_date' => 'datetime',
         'is_mandatory' => 'boolean',
-        'allows_retake'=> 'boolean',
+        'allows_retake' => 'boolean',
     ];
 
     // ─── Relationships ────────────────────────────────────────────────────────
@@ -54,8 +54,11 @@ class AssignedTest extends Model
     public function completionRate(): float
     {
         $total = $this->studentRecords()->count();
-        if ($total === 0) return 0;
+        if ($total === 0) {
+            return 0;
+        }
         $done = $this->studentRecords()->where('status', 'completed')->count();
+
         return round(($done / $total) * 100);
     }
 
@@ -65,7 +68,7 @@ class AssignedTest extends Model
         $batch->students->each(function (User $student) {
             AssignedTestStudent::firstOrCreate([
                 'assigned_test_id' => $this->id,
-                'user_id'          => $student->id,
+                'user_id' => $student->id,
             ], ['status' => 'pending']);
         });
     }

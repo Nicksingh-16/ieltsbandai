@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class IELTSQuestionSeeder extends Seeder
@@ -16,7 +15,7 @@ class IELTSQuestionSeeder extends Seeder
         \App\Models\Question::whereIn('id', [4, 5, 6, 7, 8])->delete();
 
         // 2. Insert Standardized Speaking Questions
-        
+
         // --- Speaking Part 1 ---
         $speakingPart1 = [
             ['title' => 'Hometown', 'content' => "1. Where is your hometown?\n2. What do you like most about your hometown?\n3. Is there anything you don't like about it?\n4. Do you think you will continue to live there for a long time?"],
@@ -76,7 +75,7 @@ class IELTSQuestionSeeder extends Seeder
         }
 
         // 3. Insert Standardized Writing Questions
-        
+
         // --- Writing Task 1 Academic (with Metadata + Chart Data) ---
         $writingAcademicTask1 = [
             [
@@ -86,13 +85,13 @@ class IELTSQuestionSeeder extends Seeder
                     'chart_type' => 'line',
                     'chart_title' => 'Urban vs Rural Population (%) — 1950 to 2010',
                     'y_label' => 'Population (%)',
-                    'labels' => ['1950','1960','1970','1980','1990','2000','2010'],
+                    'labels' => ['1950', '1960', '1970', '1980', '1990', '2000', '2010'],
                     'datasets' => [
                         ['label' => 'Urban', 'data' => [20, 28, 38, 48, 55, 60, 65], 'color' => '#06b6d4'],
                         ['label' => 'Rural', 'data' => [80, 72, 62, 52, 45, 40, 35], 'color' => '#f97316'],
                     ],
                     'key_features' => 'Urban population rose steadily from 20% to 65%. Rural declined from 80% to 35%. Lines crossed around 1985 at ~50% each.',
-                ]
+                ],
             ],
             [
                 'title' => 'Household Expenditure on Different Categories (2000 vs 2020)',
@@ -101,13 +100,13 @@ class IELTSQuestionSeeder extends Seeder
                     'chart_type' => 'bar',
                     'chart_title' => 'Household Expenditure by Category (%) — 2000 and 2020',
                     'y_label' => 'Expenditure (%)',
-                    'labels' => ['Housing','Food','Transport','Healthcare','Entertainment'],
+                    'labels' => ['Housing', 'Food', 'Transport', 'Healthcare', 'Entertainment'],
                     'datasets' => [
                         ['label' => '2000', 'data' => [30, 25, 18, 10, 17], 'color' => '#8b5cf6'],
                         ['label' => '2020', 'data' => [35, 18, 15, 17, 15], 'color' => '#06b6d4'],
                     ],
                     'key_features' => 'Housing increased by 5%. Food spending fell sharply from 25% to 18%. Healthcare rose 7% — largest proportional increase.',
-                ]
+                ],
             ],
             [
                 'title' => 'Electricity Production by Source (2020)',
@@ -115,12 +114,12 @@ class IELTSQuestionSeeder extends Seeder
                 'metadata' => [
                     'chart_type' => 'pie',
                     'chart_title' => 'Electricity Generation by Source (%) — 2020',
-                    'labels' => ['Coal','Natural Gas','Nuclear','Solar','Wind','Hydro'],
+                    'labels' => ['Coal', 'Natural Gas', 'Nuclear', 'Solar', 'Wind', 'Hydro'],
                     'datasets' => [
                         ['label' => 'Share', 'data' => [35, 28, 15, 8, 9, 5], 'color' => null],
                     ],
                     'key_features' => 'Coal dominates at 35%. Fossil fuels combined (coal + gas) account for 63%. Renewables (solar + wind + hydro) total 22%.',
-                ]
+                ],
             ],
             [
                 'title' => 'Coffee Production Process',
@@ -139,7 +138,7 @@ class IELTSQuestionSeeder extends Seeder
                         ['icon' => '🛒', 'label' => 'Distribution', 'detail' => 'Shipped to retailers worldwide'],
                     ],
                     'key_features' => 'An 8-stage linear process from seed to shelf. Key transformation occurs at roasting stage. Process takes several months in total.',
-                ]
+                ],
             ],
         ];
 
@@ -147,11 +146,11 @@ class IELTSQuestionSeeder extends Seeder
             \App\Models\Question::updateOrCreate(
                 ['title' => $q['title'], 'category' => 'writing_academic_task1'],
                 [
-                    'type' => 'writing', 
-                    'content' => $q['content'], 
-                    'metadata' => json_encode($q['metadata']), 
+                    'type' => 'writing',
+                    'content' => $q['content'],
+                    'metadata' => json_encode($q['metadata']),
                     'active' => true,
-                    'min_words' => 150
+                    'min_words' => 150,
                 ]
             );
         }
@@ -161,12 +160,12 @@ class IELTSQuestionSeeder extends Seeder
             [
                 'title' => 'Complaint Letter to Landlord',
                 'content' => "You are having some trouble with the heating system in your rented apartment. Write a letter to your landlord.\n\nIn your letter:\n- Explain the problem with the heating\n- Describe how this is affecting you\n- Say what you want the landlord to do about it",
-                'metadata' => ['tone' => 'formal', 'type' => 'complaint']
+                'metadata' => ['tone' => 'formal', 'type' => 'complaint'],
             ],
             [
                 'title' => 'Apology to a Friend',
                 'content' => "You were supposed to meet a friend last week but you could not go. You did not call to tell them.\n\nWrite a letter to your friend. In your letter:\n- Apologize for missing the meeting\n- Explain why you could not go and why you did not call\n- Suggest a time and place to meet again",
-                'metadata' => ['tone' => 'informal', 'type' => 'apology']
+                'metadata' => ['tone' => 'informal', 'type' => 'apology'],
             ],
         ];
 
@@ -174,11 +173,11 @@ class IELTSQuestionSeeder extends Seeder
             \App\Models\Question::updateOrCreate(
                 ['title' => $q['title'], 'category' => 'writing_general_task1'],
                 [
-                    'type' => 'writing', 
-                    'content' => $q['content'], 
-                    'metadata' => json_encode($q['metadata']), 
+                    'type' => 'writing',
+                    'content' => $q['content'],
+                    'metadata' => json_encode($q['metadata']),
                     'active' => true,
-                    'min_words' => 150
+                    'min_words' => 150,
                 ]
             );
         }
@@ -188,17 +187,17 @@ class IELTSQuestionSeeder extends Seeder
             [
                 'title' => 'Technology and Social Interaction',
                 'content' => "Some people think that the increasing use of technology in everyday life is making us less social. Others, however, disagree.\n\nDiscuss both these views and give your own opinion.",
-                'category' => 'writing_academic_task2'
+                'category' => 'writing_academic_task2',
             ],
             [
                 'title' => 'Work-Life Balance',
                 'content' => "In many countries, people are working longer hours than ever before. This has a negative effect on their health and family life.\n\nWhat are the causes of this trend? What measures can be taken to solve this problem?",
-                'category' => 'writing_general_task2'
+                'category' => 'writing_general_task2',
             ],
             [
                 'title' => 'Education and Success',
                 'content' => "Some people believe that a university education is the best way to guarantee a good job. Others think that work experience is more important.\n\nTo what extent do you agree or disagree?",
-                'category' => 'writing_academic_task2'
+                'category' => 'writing_academic_task2',
             ],
         ];
 
@@ -206,10 +205,10 @@ class IELTSQuestionSeeder extends Seeder
             \App\Models\Question::updateOrCreate(
                 ['title' => $q['title'], 'category' => $q['category']],
                 [
-                    'type' => 'writing', 
-                    'content' => $q['content'], 
+                    'type' => 'writing',
+                    'content' => $q['content'],
                     'active' => true,
-                    'min_words' => 250
+                    'min_words' => 250,
                 ]
             );
         }

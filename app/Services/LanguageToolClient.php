@@ -20,8 +20,8 @@ class LanguageToolClient
     /**
      * Run a text through LanguageTool's check endpoint.
      *
-     * @param string $text   The essay/transcript to lint.
-     * @param string $lang   Language code (default en-US for IELTS).
+     * @param  string  $text  The essay/transcript to lint.
+     * @param  string  $lang  Language code (default en-US for IELTS).
      * @return array{available: bool, grammar_errors: int|null, spelling_errors: int|null, total: int|null, raw: array|null}
      */
     public function check(string $text, string $lang = 'en-US'): array
@@ -29,27 +29,28 @@ class LanguageToolClient
         // Render's fromService.hostport resolver returns a bare "host:port"
         // string without a scheme — prepend one so Http::post doesn't reject it.
         $base = (string) config('services.languagetool.base_url', 'http://localhost:8010');
-        if ($base !== '' && !preg_match('#^https?://#i', $base)) {
-            $base = 'http://' . $base;
+        if ($base !== '' && ! preg_match('#^https?://#i', $base)) {
+            $base = 'http://'.$base;
         }
-        $url = rtrim($base, '/') . '/v2/check';
+        $url = rtrim($base, '/').'/v2/check';
 
         try {
             $resp = Http::asForm()
                 ->timeout(30)
                 ->post($url, [
                     'language' => $lang,
-                    'text'     => $text,
+                    'text' => $text,
                     // Skip suggestions to keep the response small — we only
                     // need counts, not corrections (the LLM still does that).
                     'enabledOnly' => 'false',
                 ]);
 
-            if (!$resp->successful()) {
+            if (! $resp->successful()) {
                 Log::warning('LanguageTool non-2xx response', [
                     'status' => $resp->status(),
                     'body' => substr($resp->body(), 0, 200),
                 ]);
+
                 return $this->unavailable();
             }
 
@@ -77,7 +78,8 @@ class LanguageToolClient
         } catch (\Throwable $e) {
             // Connection refused / timeout / DNS: Docker probably not running.
             // Don't break scoring — let the caller note "n/a" in the prompt.
-            Log::info('LanguageTool unavailable: ' . $e->getMessage());
+            Log::info('LanguageTool unavailable: '.$e->getMessage());
+
             return $this->unavailable();
         }
     }

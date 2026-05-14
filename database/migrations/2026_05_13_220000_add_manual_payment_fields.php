@@ -12,7 +12,8 @@ use Illuminate\Support\Facades\Schema;
  * pending_verification. An admin later confirms against the bank statement
  * and stamps verified_at, or flags fraud and revokes via admin_note.
  */
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         Schema::table('payments', function (Blueprint $table) {

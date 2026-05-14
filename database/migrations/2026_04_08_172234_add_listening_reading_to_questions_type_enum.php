@@ -19,10 +19,10 @@ return new class extends Migration
                 'reading_academic', 'reading_general'
             ) NOT NULL");
         } else {
-            DB::statement("ALTER TABLE questions DROP CONSTRAINT IF EXISTS questions_type_check");
+            DB::statement('ALTER TABLE questions DROP CONSTRAINT IF EXISTS questions_type_check');
             DB::statement("ALTER TABLE questions ADD CONSTRAINT questions_type_check CHECK (type IN ('speaking', 'writing', 'listening', 'reading'))");
 
-            DB::statement("ALTER TABLE questions DROP CONSTRAINT IF EXISTS questions_category_check");
+            DB::statement('ALTER TABLE questions DROP CONSTRAINT IF EXISTS questions_category_check');
             DB::statement("ALTER TABLE questions ADD CONSTRAINT questions_category_check CHECK (category IN (
                 'speaking_part1', 'speaking_part2', 'speaking_part3',
                 'writing_academic_task1', 'writing_academic_task2',
@@ -45,10 +45,10 @@ return new class extends Migration
                 'writing_general_task1', 'writing_general_task2'
             ) NOT NULL");
         } else {
-            DB::statement("ALTER TABLE questions DROP CONSTRAINT IF EXISTS questions_type_check");
+            DB::statement('ALTER TABLE questions DROP CONSTRAINT IF EXISTS questions_type_check');
             DB::statement("ALTER TABLE questions ADD CONSTRAINT questions_type_check CHECK (type IN ('speaking', 'writing'))");
 
-            DB::statement("ALTER TABLE questions DROP CONSTRAINT IF EXISTS questions_category_check");
+            DB::statement('ALTER TABLE questions DROP CONSTRAINT IF EXISTS questions_category_check');
             DB::statement("ALTER TABLE questions ADD CONSTRAINT questions_category_check CHECK (category IN (
                 'speaking_part1', 'speaking_part2', 'speaking_part3',
                 'writing_academic_task1', 'writing_academic_task2',

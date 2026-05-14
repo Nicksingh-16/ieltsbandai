@@ -12,21 +12,21 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('questions', function (Blueprint $table) {
-    $table->id();
-    $table->enum('type', ['speaking', 'writing']);
-    $table->enum('category', [
-        'speaking_part1', 'speaking_part2', 'speaking_part3',
-        'writing_academic_task1', 'writing_academic_task2',
-        'writing_general_task1', 'writing_general_task2'
-    ]);
-    $table->string('title');
-    $table->longText('content');
-    $table->string('media_url')->nullable();
-    $table->integer('time_limit')->nullable();
-    $table->integer('min_words')->nullable();
-    $table->boolean('active')->default(true);
-    $table->timestamps();
-});
+            $table->id();
+            $table->enum('type', ['speaking', 'writing']);
+            $table->enum('category', [
+                'speaking_part1', 'speaking_part2', 'speaking_part3',
+                'writing_academic_task1', 'writing_academic_task2',
+                'writing_general_task1', 'writing_general_task2',
+            ]);
+            $table->string('title');
+            $table->longText('content');
+            $table->string('media_url')->nullable();
+            $table->integer('time_limit')->nullable();
+            $table->integer('min_words')->nullable();
+            $table->boolean('active')->default(true);
+            $table->timestamps();
+        });
 
     }
 

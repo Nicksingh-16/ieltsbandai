@@ -15,13 +15,13 @@ class LlmCallLog extends Model
     ];
 
     protected $casts = [
-        'input_tokens'  => 'integer',
+        'input_tokens' => 'integer',
         'output_tokens' => 'integer',
-        'cost_usd'      => 'float',
-        'http_status'   => 'integer',
-        'latency_ms'    => 'integer',
-        'ok'            => 'boolean',
-        'created_at'    => 'datetime',
+        'cost_usd' => 'float',
+        'http_status' => 'integer',
+        'latency_ms' => 'integer',
+        'ok' => 'boolean',
+        'created_at' => 'datetime',
     ];
 
     public function user()

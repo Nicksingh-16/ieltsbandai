@@ -43,10 +43,11 @@ class DownloadVoaAudio extends Command
         $ids = $this->resolveQuestionIds();
         if (empty($ids)) {
             $this->error('No matching listening questions found.');
+
             return self::FAILURE;
         }
 
-        $this->info('Processing ' . count($ids) . ' question(s)' . ($this->option('dry-run') ? ' (dry-run)' : ''));
+        $this->info('Processing '.count($ids).' question(s)'.($this->option('dry-run') ? ' (dry-run)' : ''));
         $this->newLine();
 
         $okCount = 0;
@@ -59,13 +60,14 @@ class DownloadVoaAudio extends Command
                     $failCount++;
                 }
             } catch (\Throwable $e) {
-                $this->error("Question {$id} failed: " . $e->getMessage());
+                $this->error("Question {$id} failed: ".$e->getMessage());
                 $failCount++;
             }
             $this->newLine();
         }
 
         $this->line(sprintf('Done. %d ok, %d failed.', $okCount, $failCount));
+
         return $failCount > 0 ? self::FAILURE : self::SUCCESS;
     }
 
@@ -79,30 +81,35 @@ class DownloadVoaAudio extends Command
         }
 
         $id = $this->argument('question_id');
-        if (!$id) {
+        if (! $id) {
             $this->error('Provide a question_id argument or use --all.');
+
             return [];
         }
+
         return [(int) $id];
     }
 
     private function processOne(int $questionId): bool
     {
         $q = Question::find($questionId);
-        if (!$q) {
+        if (! $q) {
             $this->error("Question #{$questionId} not found.");
+
             return false;
         }
 
         $meta = json_decode($q->metadata, true);
-        if (!is_array($meta)) {
+        if (! is_array($meta)) {
             $this->warn("Question #{$questionId} has no/invalid metadata. Skipping.");
+
             return false;
         }
 
         $audios = $meta['section_audios'] ?? null;
-        if (!is_array($audios) || count($audios) === 0) {
+        if (! is_array($audios) || count($audios) === 0) {
             $this->warn("Question #{$questionId} has no section_audios. Skipping.");
+
             return false;
         }
 
@@ -111,7 +118,7 @@ class DownloadVoaAudio extends Command
         $localDirRel = "listening/voa/{$questionId}";
         $publicDisk = Storage::disk('public');
 
-        if (!$this->option('dry-run')) {
+        if (! $this->option('dry-run')) {
             $publicDisk->makeDirectory($localDirRel);
         }
 
@@ -120,26 +127,29 @@ class DownloadVoaAudio extends Command
             $section = $idx + 1;
             $isRemote = $this->isRemote($url);
 
-            if (!$isRemote) {
+            if (! $isRemote) {
                 $this->line("  S{$section}: already local — {$url}");
                 $newAudios[] = $url;
+
                 continue;
             }
 
             $filename = "s{$section}.mp3";
-            $relPath  = "{$localDirRel}/{$filename}";
-            $publicUrl = '/storage/' . $relPath;
+            $relPath = "{$localDirRel}/{$filename}";
+            $publicUrl = '/storage/'.$relPath;
             $fullPath = $publicDisk->path($relPath);
 
-            if ($publicDisk->exists($relPath) && !$this->option('force')) {
-                $this->line("  S{$section}: exists, skip — {$publicUrl} (" . $this->humanSize($publicDisk->size($relPath)) . ')');
+            if ($publicDisk->exists($relPath) && ! $this->option('force')) {
+                $this->line("  S{$section}: exists, skip — {$publicUrl} (".$this->humanSize($publicDisk->size($relPath)).')');
                 $newAudios[] = $publicUrl;
+
                 continue;
             }
 
             if ($this->option('dry-run')) {
                 $this->line("  S{$section}: would download → {$publicUrl}");
                 $newAudios[] = $publicUrl;
+
                 continue;
             }
 
@@ -148,6 +158,7 @@ class DownloadVoaAudio extends Command
             if ($bytes === false) {
                 $this->error("  S{$section}: download failed, keeping remote URL");
                 $newAudios[] = $url;
+
                 continue;
             }
             $this->line("  S{$section}: saved {$this->humanSize($bytes)} → {$publicUrl}");
@@ -160,11 +171,13 @@ class DownloadVoaAudio extends Command
 
         if ($this->option('dry-run')) {
             $this->line('  (dry-run, metadata not written)');
+
             return true;
         }
 
         $q->update(['metadata' => json_encode($meta)]);
         $this->info("  ✓ Metadata updated for question #{$questionId}");
+
         return true;
     }
 
@@ -175,6 +188,7 @@ class DownloadVoaAudio extends Command
                 return true;
             }
         }
+
         return false;
     }
 
@@ -183,28 +197,36 @@ class DownloadVoaAudio extends Command
         try {
             // Stream the download so a 20MB mp3 doesn't sit in memory.
             $resp = Http::withOptions([
-                'sink'    => $localFullPath,
+                'sink' => $localFullPath,
                 'timeout' => 300,
             ])->withHeaders([
                 'User-Agent' => 'Mozilla/5.0 IELTS-BandAI/1.0',
             ])->get($url);
 
-            if (!$resp->successful()) {
+            if (! $resp->successful()) {
                 @unlink($localFullPath);
+
                 return false;
             }
+
             return filesize($localFullPath) ?: 0;
         } catch (\Throwable $e) {
             @unlink($localFullPath);
-            $this->error('    ' . $e->getMessage());
+            $this->error('    '.$e->getMessage());
+
             return false;
         }
     }
 
     private function humanSize(int $bytes): string
     {
-        if ($bytes < 1024) return $bytes . ' B';
-        if ($bytes < 1024 * 1024) return round($bytes / 1024, 1) . ' KB';
-        return round($bytes / 1024 / 1024, 1) . ' MB';
+        if ($bytes < 1024) {
+            return $bytes.' B';
+        }
+        if ($bytes < 1024 * 1024) {
+            return round($bytes / 1024, 1).' KB';
+        }
+
+        return round($bytes / 1024 / 1024, 1).' MB';
     }
 }

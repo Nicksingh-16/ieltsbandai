@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
 class Test extends Model
 {
@@ -32,8 +32,8 @@ class Test extends Model
         static::created(function (Test $test) {
             if ($test->user_id) {
                 app(\App\Services\EventTracker::class)->track('test_started', [
-                    'test_id'  => $test->id,
-                    'type'     => $test->type,
+                    'test_id' => $test->id,
+                    'type' => $test->type,
                     'category' => $test->category,
                 ], $test->user);
             }
@@ -46,25 +46,44 @@ class Test extends Model
             if ($test->wasChanged('status') && $test->status === 'completed' && $test->user) {
                 \App\Http\Controllers\Web\ReferralController::creditReferrer($test->user);
                 app(\App\Services\EventTracker::class)->track('test_completed', [
-                    'test_id'      => $test->id,
-                    'type'         => $test->type,
+                    'test_id' => $test->id,
+                    'type' => $test->type,
                     'overall_band' => $test->overall_band,
                 ], $test->user);
             }
             if ($test->wasChanged('status') && $test->status === 'failed') {
                 app(\App\Services\EventTracker::class)->track('test_failed', [
                     'test_id' => $test->id,
-                    'type'    => $test->type,
+                    'type' => $test->type,
                 ], $test->user);
             }
         });
     }
 
-    public function user()         { return $this->belongsTo(User::class); }
-    public function testScores()   { return $this->hasMany(TestScore::class); }
-    public function testQuestions(){ return $this->hasMany(TestQuestion::class); }
-    public function audioFiles()   { return $this->hasMany(AudioFile::class); }
-    public function questions()    { return $this->belongsToMany(Question::class, 'test_questions')->withPivot('part'); }
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function test_scores()
+    {
+        return $this->hasMany(TestScore::class);
+    }
+
+    public function test_questions()
+    {
+        return $this->hasMany(TestQuestion::class);
+    }
+
+    public function audioFiles()
+    {
+        return $this->hasMany(AudioFile::class);
+    }
+
+    public function questions()
+    {
+        return $this->belongsToMany(Question::class, 'test_questions')->withPivot('part');
+    }
 
     /** Universal band getter */
     public function getBandAttribute()
@@ -79,13 +98,11 @@ class Test extends Model
             return route('dashboard');
         }
 
-        return match($this->type) {
-            'writing'   => route('writing.result', $this->id),
+        return match ($this->type) {
+            'writing' => route('writing.result', $this->id),
             'listening' => route('listening.result', $this->id),
-            'reading'   => route('reading.result', $this->id),
-            default     => route('test.result', $this->id), // speaking uses TestResultController
+            'reading' => route('reading.result', $this->id),
+            default => route('test.result', $this->id), // speaking uses TestResultController
         };
     }
-
 }
-

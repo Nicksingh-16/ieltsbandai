@@ -38,12 +38,12 @@ class ReadingTestController extends Controller
         $question = Question::where('type', 'reading')
             ->where('category', $category)
             ->where('active', true)
-            ->when($seen->isNotEmpty(), fn($q) => $q->whereNotIn('id', $seen))
+            ->when($seen->isNotEmpty(), fn ($q) => $q->whereNotIn('id', $seen))
             ->inRandomOrder()
             ->first();
 
         // Fallback: all questions seen — ignore deduplication
-        if (!$question) {
+        if (! $question) {
             $question = Question::where('type', 'reading')
                 ->where('category', $category)
                 ->where('active', true)
@@ -51,26 +51,27 @@ class ReadingTestController extends Controller
                 ->first();
         }
 
-        if (!$question) {
+        if (! $question) {
             return back()->with('error', 'No reading passages available for this type. Please try again later.');
         }
 
         try {
             $test = DB::transaction(function () use ($question, $testType) {
                 $test = Test::create([
-                    'user_id'    => Auth::id(),
-                    'type'       => 'reading',
-                    'test_type'  => $testType,
-                    'category'   => "reading_{$testType}",
-                    'status'     => 'in_progress',
+                    'user_id' => Auth::id(),
+                    'type' => 'reading',
+                    'test_type' => $testType,
+                    'category' => "reading_{$testType}",
+                    'status' => 'in_progress',
                     'started_at' => now(),
                 ]);
                 $test->questions()->attach($question->id, ['part' => 1]);
                 app(CreditService::class)->chargeForTest(Auth::user(), $test);
+
                 return $test;
             });
         } catch (\RuntimeException $e) {
-            return back()->with('error', 'Could not start test: ' . $e->getMessage());
+            return back()->with('error', 'Could not start test: '.$e->getMessage());
         }
 
         $meta = is_string($question->metadata)
@@ -93,63 +94,70 @@ class ReadingTestController extends Controller
             return redirect()->route('reading.result', $test->id);
         }
 
-        $submitted  = $request->input('answers', []);
-        $question   = $test->questions()->first();
-        $meta       = is_string($question->metadata)
+        $submitted = $request->input('answers', []);
+        $question = $test->questions()->first();
+        $meta = is_string($question->metadata)
             ? (json_decode($question->metadata, true) ?: [])
             : (is_array($question->metadata) ? $question->metadata : []);
-        $allQs      = $meta['questions'] ?? [];
+        $allQs = $meta['questions'] ?? [];
 
         $correct = 0;
-        $total   = 0;
+        $total = 0;
 
         foreach ($allQs as $q) {
             $type = $q['type'] ?? 'fill';
 
             // ── Single-answer types ──────────────────────────────────────
             if (in_array($type, ['fill', 'sentence_completion', 'short_answer', 'mcq',
-                                  'note_completion', 'flow_chart', 'summary_completion',
-                                  'tfng', 'yngng',
-                                  'matching_item', 'heading_match', 'sentence_ending', 'feature_match'])) {
+                'note_completion', 'flow_chart', 'summary_completion',
+                'tfng', 'yngng',
+                'matching_item', 'heading_match', 'sentence_ending', 'feature_match'])) {
                 $total++;
-                $given  = trim(strtolower($submitted[$q['id']] ?? ''));
+                $given = trim(strtolower($submitted[$q['id']] ?? ''));
                 $answer = trim(strtolower($q['answer'] ?? ''));
-                if ($given !== '' && $given === $answer) $correct++;
+                if ($given !== '' && $given === $answer) {
+                    $correct++;
+                }
 
-            // ── MCQ multiple (choose 2 — all-or-nothing) ─────────────────
+                // ── MCQ multiple (choose 2 — all-or-nothing) ─────────────────
             } elseif ($type === 'mcq_multi') {
                 $total++;
-                $raw      = $submitted[$q['id']] ?? [];
+                $raw = $submitted[$q['id']] ?? [];
                 $selected = array_map('trim', array_map('strtolower', is_array($raw) ? $raw : [$raw]));
                 $expected = array_map('trim', array_map('strtolower', $q['answers'] ?? []));
-                sort($selected); sort($expected);
-                if ($selected === $expected) $correct++;
+                sort($selected);
+                sort($expected);
+                if ($selected === $expected) {
+                    $correct++;
+                }
 
-            // ── Diagram label — 1 mark per label ─────────────────────────
+                // ── Diagram label — 1 mark per label ─────────────────────────
             } elseif ($type === 'diagram_label') {
                 foreach ($q['labels'] ?? [] as $lbl) {
                     $total++;
-                    $given  = trim(strtolower($submitted[$lbl['key']] ?? ''));
+                    $given = trim(strtolower($submitted[$lbl['key']] ?? ''));
                     $answer = trim(strtolower($lbl['answer'] ?? ''));
-                    if ($given !== '' && $given === $answer) $correct++;
+                    if ($given !== '' && $given === $answer) {
+                        $correct++;
+                    }
                 }
             }
         }
 
         // Normalise raw score to 40-mark scale for band lookup
         $raw40 = $total > 0 ? (int) round($correct / $total * 40) : 0;
-        $band  = $this->rawToBand($raw40);
+        $band = $this->rawToBand($raw40);
 
         $test->update([
-            'status'       => 'completed',
-            'score'        => $band,
+            'status' => 'completed',
+            'score' => $band,
             'overall_band' => $band,
-            'answer'       => json_encode($submitted),
-            'result'       => json_encode([
-                'correct'    => $correct,
-                'total'      => $total,
+            'answer' => json_encode($submitted),
+            'result' => json_encode([
+                'correct' => $correct,
+                'total' => $total,
                 'percentage' => $total > 0 ? round($correct / $total * 100) : 0,
-                'answers'    => $submitted,
+                'answers' => $submitted,
             ]),
             'completed_at' => now(),
         ]);
@@ -164,13 +172,13 @@ class ReadingTestController extends Controller
             ->firstOrFail();
 
         $question = $test->questions()->first();
-        $meta     = is_string($question->metadata)
+        $meta = is_string($question->metadata)
             ? (json_decode($question->metadata, true) ?: [])
             : (is_array($question->metadata) ? $question->metadata : []);
-        $result   = is_string($test->result)
+        $result = is_string($test->result)
             ? (json_decode($test->result, true) ?: [])
             : (is_array($test->result) ? $test->result : []);
-        $answers  = $result['answers'] ?? [];
+        $answers = $result['answers'] ?? [];
 
         return view('pages.reading.result', compact('test', 'question', 'meta', 'result', 'answers'));
     }
@@ -185,7 +193,9 @@ class ReadingTestController extends Controller
         ];
 
         foreach ($scale as $threshold => $band) {
-            if ($raw >= $threshold) return $band;
+            if ($raw >= $threshold) {
+                return $band;
+            }
         }
 
         return 1.0;

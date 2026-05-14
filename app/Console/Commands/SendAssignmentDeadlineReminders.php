@@ -4,13 +4,13 @@ namespace App\Console\Commands;
 
 use App\Mail\AssignmentDeadlineReminderMail;
 use App\Models\AssignedTest;
-use App\Models\AssignedTestStudent;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Mail;
 
 class SendAssignmentDeadlineReminders extends Command
 {
-    protected $signature   = 'assignments:send-reminders';
+    protected $signature = 'assignments:send-reminders';
+
     protected $description = 'Send deadline reminder emails for assignments due within 24h or 1h';
 
     public function handle(): void
@@ -31,20 +31,24 @@ class SendAssignmentDeadlineReminders extends Command
             $hoursLeft = (int) ceil($now->diffInHours($assignment->due_date, false));
 
             // Only send at the ~24h and ~1h marks (within a 1h tolerance window)
-            $sendWindow = match(true) {
+            $sendWindow = match (true) {
                 $hoursLeft >= 23 && $hoursLeft <= 25 => 24,
-                $hoursLeft >= 1  && $hoursLeft <= 2  => 1,
+                $hoursLeft >= 1 && $hoursLeft <= 2 => 1,
                 default => null,
             };
 
-            if (!$sendWindow) continue;
+            if (! $sendWindow) {
+                continue;
+            }
 
             // Only students who haven't completed yet
             $pending = $assignment->studentRecords
                 ->whereNotIn('status', ['completed', 'skipped']);
 
             foreach ($pending as $record) {
-                if (!$record->user) continue;
+                if (! $record->user) {
+                    continue;
+                }
 
                 Mail::to($record->user->email)->queue(
                     new AssignmentDeadlineReminderMail($record->user, $assignment, $sendWindow)

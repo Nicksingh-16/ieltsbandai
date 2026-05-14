@@ -14,22 +14,42 @@ class MockTest extends Model
     ];
 
     protected $casts = [
-        'started_at'   => 'datetime',
+        'started_at' => 'datetime',
         'completed_at' => 'datetime',
     ];
 
     // Module order for sequential flow
     const MODULES = ['listening', 'reading', 'writing', 'speaking'];
 
-    public function user()       { return $this->belongsTo(User::class); }
-    public function listening()  { return $this->belongsTo(Test::class, 'listening_test_id'); }
-    public function reading()    { return $this->belongsTo(Test::class, 'reading_test_id'); }
-    public function writing()    { return $this->belongsTo(Test::class, 'writing_test_id'); }
-    public function speaking()   { return $this->belongsTo(Test::class, 'speaking_test_id'); }
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function listening()
+    {
+        return $this->belongsTo(Test::class, 'listening_test_id');
+    }
+
+    public function reading()
+    {
+        return $this->belongsTo(Test::class, 'reading_test_id');
+    }
+
+    public function writing()
+    {
+        return $this->belongsTo(Test::class, 'writing_test_id');
+    }
+
+    public function speaking()
+    {
+        return $this->belongsTo(Test::class, 'speaking_test_id');
+    }
 
     public function nextModule(): ?string
     {
         $idx = array_search($this->current_module, self::MODULES);
+
         return self::MODULES[$idx + 1] ?? null;
     }
 
@@ -48,27 +68,31 @@ class MockTest extends Model
             $this->speaking_band,
         ]);
 
-        if (empty($bands)) return 0;
+        if (empty($bands)) {
+            return 0;
+        }
 
         return round(array_sum($bands) / count($bands) * 2) / 2;
     }
 
     public function moduleTestId(string $module): ?int
     {
-        return $this->{$module . '_test_id'};
+        return $this->{$module.'_test_id'};
     }
 
     public function routeForModule(string $module): string
     {
         $testId = $this->moduleTestId($module);
-        if (!$testId) return '#';
+        if (! $testId) {
+            return '#';
+        }
 
-        return match($module) {
+        return match ($module) {
             'listening' => route('listening.result', $testId),   // after submit
-            'reading'   => route('reading.result', $testId),
-            'writing'   => route('writing.result', $testId),
-            'speaking'  => route('test.result', $testId),
-            default     => '#',
+            'reading' => route('reading.result', $testId),
+            'writing' => route('writing.result', $testId),
+            'speaking' => route('test.result', $testId),
+            default => '#',
         };
     }
 }

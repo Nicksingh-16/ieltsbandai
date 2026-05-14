@@ -22,12 +22,16 @@ class SpeakingAcousticAnalyzer
 {
     /** Pause threshold (sec) above which a gap counts as a pause at all. */
     private const PAUSE_MIN = 0.5;
+
     /** Long-pause threshold (sec) — IELTS Band 4 descriptor cue. */
     private const PAUSE_LONG = 2.0;
+
     /** Mid-utterance hesitation threshold (sec). */
     private const MID_UTT_HESITATION = 1.0;
+
     /** Per-word confidence threshold below which a word is "uncertain". */
     private const LOW_CONFIDENCE = 0.7;
+
     /** Rolling window size (sec) for speech-rate variance. */
     private const RATE_WINDOW_SEC = 10.0;
 
@@ -53,13 +57,13 @@ class SpeakingAcousticAnalyzer
     private const LIKE_VERB_PREDECESSORS = ['would', 'do', 'did', 'to', 'feel', 'feels', 'felt', 'looks', 'looked', 'looking', 'sounds', 'sounded', 'i', 'we', 'they', 'you', 'he', 'she', 'people', 'really'];
 
     /**
-     * @param array $words Normalised word array. Each entry:
-     *   [
-     *     'text'       => string,        // single word, may carry punctuation
-     *     'start'      => float seconds, // word start
-     *     'end'        => float seconds, // word end
-     *     'confidence' => float 0..1,    // per-word confidence (0 if absent)
-     *   ]
+     * @param  array  $words  Normalised word array. Each entry:
+     *                        [
+     *                        'text'       => string,        // single word, may carry punctuation
+     *                        'start'      => float seconds, // word start
+     *                        'end'        => float seconds, // word end
+     *                        'confidence' => float 0..1,    // per-word confidence (0 if absent)
+     *                        ]
      */
     public function analyze(array $words): array
     {
@@ -82,7 +86,7 @@ class SpeakingAcousticAnalyzer
 
         // Duration: from start of first word to end of last word.
         $firstStart = (float) $words[0]['start'];
-        $lastEnd    = (float) $words[$total - 1]['end'];
+        $lastEnd = (float) $words[$total - 1]['end'];
         $durationSec = max(0.0, $lastEnd - $firstStart);
         $durationMin = $durationSec > 0 ? $durationSec / 60.0 : 0.0;
 
@@ -115,7 +119,7 @@ class SpeakingAcousticAnalyzer
             if ($gap >= self::MID_UTT_HESITATION) {
                 $prevText = (string) $words[$i - 1]['text'];
                 $lastChar = substr(rtrim($prevText), -1);
-                if ($lastChar !== '' && !in_array($lastChar, ['.', '!', '?', ','], true)) {
+                if ($lastChar !== '' && ! in_array($lastChar, ['.', '!', '?', ','], true)) {
                     $midUttHesitations++;
                 }
             }
@@ -152,24 +156,24 @@ class SpeakingAcousticAnalyzer
         [$repetitions, $selfCorrections] = $this->countDisfluencies($words);
 
         return [
-            'total_words'              => $total,
-            'duration_seconds'         => round($durationSec, 2),
-            'wpm'                      => round($wpm, 1),
-            'pause_count'              => $pauseCount,
-            'avg_pause_seconds'        => round($avgPause, 2),
-            'long_pause_count'         => $longPauses,
-            'longest_pause_seconds'    => round($longestPause, 2),
+            'total_words' => $total,
+            'duration_seconds' => round($durationSec, 2),
+            'wpm' => round($wpm, 1),
+            'pause_count' => $pauseCount,
+            'avg_pause_seconds' => round($avgPause, 2),
+            'long_pause_count' => $longPauses,
+            'longest_pause_seconds' => round($longestPause, 2),
             'mid_utterance_hesitations' => $midUttHesitations,
-            'filler_total'             => $totalFillers,
-            'filler_per_100_words'     => round($fillerPer100, 2),
-            'filler_breakdown'         => array_filter($fillerCounts, fn($c) => $c > 0),
-            'mean_confidence'          => $meanConfidence !== null ? round($meanConfidence, 3) : null,
-            'low_confidence_words'     => $hasConfidence ? $lowConfWords : null,
-            'low_confidence_per_100'   => $lowConfPer100 !== null ? round($lowConfPer100, 2) : null,
-            'speech_rate_std_wpm'      => round($rateVariance, 1),
-            'repetition_count'         => $repetitions,
-            'self_correction_count'    => $selfCorrections,
-            'has_confidence_data'      => $hasConfidence,
+            'filler_total' => $totalFillers,
+            'filler_per_100_words' => round($fillerPer100, 2),
+            'filler_breakdown' => array_filter($fillerCounts, fn ($c) => $c > 0),
+            'mean_confidence' => $meanConfidence !== null ? round($meanConfidence, 3) : null,
+            'low_confidence_words' => $hasConfidence ? $lowConfWords : null,
+            'low_confidence_per_100' => $lowConfPer100 !== null ? round($lowConfPer100, 2) : null,
+            'speech_rate_std_wpm' => round($rateVariance, 1),
+            'repetition_count' => $repetitions,
+            'self_correction_count' => $selfCorrections,
+            'has_confidence_data' => $hasConfidence,
         ];
     }
 
@@ -195,12 +199,12 @@ class SpeakingAcousticAnalyzer
             $signals['filler_total'],
             $signals['filler_per_100_words']
         );
-        if (!empty($signals['filler_breakdown'])) {
+        if (! empty($signals['filler_breakdown'])) {
             $parts = [];
             foreach ($signals['filler_breakdown'] as $k => $v) {
                 $parts[] = "{$k}:{$v}";
             }
-            $fillerLine .= ' (' . implode(', ', $parts) . ')';
+            $fillerLine .= ' ('.implode(', ', $parts).')';
         }
         if ($signals['filler_per_100_words'] > 15) {
             $fillerLine .= ' — Rule-5 cue: FC <= 5.5';
@@ -272,24 +276,24 @@ SIG;
     private function emptySignals(): array
     {
         return [
-            'total_words'              => 0,
-            'duration_seconds'         => 0.0,
-            'wpm'                      => 0.0,
-            'pause_count'              => 0,
-            'avg_pause_seconds'        => 0.0,
-            'long_pause_count'         => 0,
-            'longest_pause_seconds'    => 0.0,
+            'total_words' => 0,
+            'duration_seconds' => 0.0,
+            'wpm' => 0.0,
+            'pause_count' => 0,
+            'avg_pause_seconds' => 0.0,
+            'long_pause_count' => 0,
+            'longest_pause_seconds' => 0.0,
             'mid_utterance_hesitations' => 0,
-            'filler_total'             => 0,
-            'filler_per_100_words'     => 0.0,
-            'filler_breakdown'         => [],
-            'mean_confidence'          => null,
-            'low_confidence_words'     => null,
-            'low_confidence_per_100'   => null,
-            'speech_rate_std_wpm'      => 0.0,
-            'repetition_count'         => 0,
-            'self_correction_count'    => 0,
-            'has_confidence_data'      => false,
+            'filler_total' => 0,
+            'filler_per_100_words' => 0.0,
+            'filler_breakdown' => [],
+            'mean_confidence' => null,
+            'low_confidence_words' => null,
+            'low_confidence_per_100' => null,
+            'speech_rate_std_wpm' => 0.0,
+            'repetition_count' => 0,
+            'self_correction_count' => 0,
+            'has_confidence_data' => false,
         ];
     }
 
@@ -300,6 +304,7 @@ SIG;
     private function cleanWord(string $text): string
     {
         $t = strtolower(trim($text));
+
         // Strip leading/trailing punctuation but keep internal apostrophes.
         return trim($t, " \t\n\r\0\x0B.,!?;:\"()[]{}");
     }
@@ -315,7 +320,7 @@ SIG;
             'kind of' => 0, 'i mean' => 0,
         ];
 
-        $cleaned = array_map(fn($w) => $this->cleanWord((string) $w['text']), $words);
+        $cleaned = array_map(fn ($w) => $this->cleanWord((string) $w['text']), $words);
 
         // Single-word fillers
         foreach ($cleaned as $i => $token) {
@@ -342,7 +347,7 @@ SIG;
         // Multi-word filler phrases — scan adjacent pairs.
         $n = count($cleaned);
         for ($i = 0; $i < $n - 1; $i++) {
-            $bigram = $cleaned[$i] . ' ' . $cleaned[$i + 1];
+            $bigram = $cleaned[$i].' '.$cleaned[$i + 1];
             if (in_array($bigram, self::FILLERS_PHRASE, true)) {
                 $counts[$bigram] = ($counts[$bigram] ?? 0) + 1;
             }
@@ -358,15 +363,26 @@ SIG;
         }
         if (in_array($token, self::FILLERS_SINGLE, true)) {
             // Normalise extended forms.
-            if (str_starts_with($token, 'um')) return 'um';
-            if (str_starts_with($token, 'uh')) return 'uh';
-            if (str_starts_with($token, 'er')) return 'er';
-            if (str_starts_with($token, 'ah')) return 'ah';
-            if ($token === 'erm') return 'um';
+            if (str_starts_with($token, 'um')) {
+                return 'um';
+            }
+            if (str_starts_with($token, 'uh')) {
+                return 'uh';
+            }
+            if (str_starts_with($token, 'er')) {
+                return 'er';
+            }
+            if (str_starts_with($token, 'ah')) {
+                return 'ah';
+            }
+            if ($token === 'erm') {
+                return 'um';
+            }
         }
         if ($token === 'like') {
             return 'like';
         }
+
         return null;
     }
 
@@ -407,6 +423,7 @@ SIG;
         foreach ($windowWpm as $v) {
             $sumSq += ($v - $mean) ** 2;
         }
+
         return sqrt($sumSq / $n);
     }
 
@@ -418,7 +435,7 @@ SIG;
      */
     private function countDisfluencies(array $words): array
     {
-        $cleaned = array_map(fn($w) => $this->cleanWord((string) $w['text']), $words);
+        $cleaned = array_map(fn ($w) => $this->cleanWord((string) $w['text']), $words);
 
         $repetitions = 0;
         $n = count($cleaned);
@@ -435,10 +452,11 @@ SIG;
             // Single-token markers
             if ($cleaned[$i] === 'sorry') {
                 $selfCorrections++;
+
                 continue;
             }
             if ($i < $n - 1) {
-                $bigram = $cleaned[$i] . ' ' . $cleaned[$i + 1];
+                $bigram = $cleaned[$i].' '.$cleaned[$i + 1];
                 if (in_array($bigram, $markers, true)) {
                     $selfCorrections++;
                     $i++; // skip the second token of the bigram

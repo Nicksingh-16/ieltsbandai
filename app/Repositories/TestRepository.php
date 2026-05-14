@@ -25,16 +25,13 @@ class TestRepository implements TestRepositoryInterface
     //         ->get();
     // }
 
+    public function getUserTestHistory($userId, bool $paginate = false)
+    {
+        $query = Test::where('user_id', $userId)
+            ->orderBy('created_at', 'desc');
 
- public function getUserTestHistory($userId, bool $paginate = false)
-{
-    $query = Test::where('user_id', $userId)
-        ->orderBy('created_at', 'desc');
-
-    return $paginate
-        ? $query->paginate(8)     // you can change 8 to any number
-        : $query->get();
-}
-
-
+        return $paginate
+            ? $query->paginate(8)     // you can change 8 to any number
+            : $query->get();
+    }
 }

@@ -4,21 +4,20 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Services\CreditService;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 class ReferralController extends Controller
 {
-    const REFERRER_REWARD  = 2; // credits given to referrer when referral completes first test
-    const REFEREE_BONUS    = 1; // extra credits given to new user on signup via referral
+    const REFERRER_REWARD = 2; // credits given to referrer when referral completes first test
+
+    const REFEREE_BONUS = 1; // extra credits given to new user on signup via referral
 
     public function show()
     {
         $user = Auth::user();
 
-        if (!$user->referral_code) {
+        if (! $user->referral_code) {
             $user->referral_code = strtoupper(Str::random(8));
             $user->save();
         }
@@ -38,7 +37,7 @@ class ReferralController extends Controller
     {
         $referrer = User::where('referral_code', $code)->first();
 
-        if ($referrer && (!Auth::check() || Auth::id() !== $referrer->id)) {
+        if ($referrer && (! Auth::check() || Auth::id() !== $referrer->id)) {
             session(['referral_code' => $code]);
         }
 
@@ -51,16 +50,21 @@ class ReferralController extends Controller
     public static function applyReferral(User $newUser): void
     {
         $code = session('referral_code');
-        if (!$code) return;
+        if (! $code) {
+            return;
+        }
 
         $referrer = User::where('referral_code', $code)->first();
-        if (!$referrer || $referrer->id === $newUser->id) return;
+        if (! $referrer || $referrer->id === $newUser->id) {
+            return;
+        }
 
         // Same email-domain detection: extra defence — block obvious farms
         // where attacker chains throwaway addresses on a single domain. Skip
         // bonus + reward entirely; user still registers.
         if (self::looksLikeSelfReferral($newUser, $referrer)) {
             session()->forget('referral_code');
+
             return;
         }
 
@@ -81,7 +85,7 @@ class ReferralController extends Controller
      */
     public static function creditReferrer(User $referee): void
     {
-        if (!$referee->referred_by || $referee->referral_credited_at) {
+        if (! $referee->referred_by || $referee->referral_credited_at) {
             return;
         }
 
@@ -89,13 +93,14 @@ class ReferralController extends Controller
             // Lock the referee row so two parallel test completions can't
             // both fire the reward.
             $locked = User::whereKey($referee->id)->lockForUpdate()->first();
-            if (!$locked || !$locked->referred_by || $locked->referral_credited_at) {
+            if (! $locked || ! $locked->referred_by || $locked->referral_credited_at) {
                 return;
             }
 
             $referrer = User::whereKey($locked->referred_by)->lockForUpdate()->first();
-            if (!$referrer) {
+            if (! $referrer) {
                 $locked->forceFill(['referral_credited_at' => now()])->save();
+
                 return;
             }
 
@@ -119,7 +124,8 @@ class ReferralController extends Controller
             [$local, $domain] = array_pad(explode('@', strtolower($email), 2), 2, '');
             $local = preg_replace('/\+.*$/', '', $local);
             $local = $domain === 'gmail.com' ? str_replace('.', '', $local) : $local;
-            return $local . '@' . $domain;
+
+            return $local.'@'.$domain;
         };
 
         return $normalize($newUser->email) === $normalize($referrer->email);

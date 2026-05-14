@@ -32,27 +32,28 @@ class VoaListeningSeeder extends Seeder
 
         $seeded = 0;
         $skipped = 0;
-        $failed  = 0;
+        $failed = 0;
 
         foreach ($specs as $spec) {
-            if (!file_exists(base_path($spec))) {
+            if (! file_exists(base_path($spec))) {
                 $this->command?->warn("VOA spec missing at {$spec} — skipping.");
                 $skipped++;
+
                 continue;
             }
 
             $exitCode = Artisan::call('ingest:voa-listening', [
-                'path'    => $spec,
+                'path' => $spec,
                 '--force' => true,
             ]);
 
             $output = Artisan::output();
             if ($exitCode === 0) {
                 $seeded++;
-                $this->command?->line('  ✓ ' . basename($spec));
+                $this->command?->line('  ✓ '.basename($spec));
             } else {
                 $failed++;
-                $this->command?->error('  ✗ ' . basename($spec) . " (exit {$exitCode})");
+                $this->command?->error('  ✗ '.basename($spec)." (exit {$exitCode})");
                 if ($output) {
                     $this->command?->line(trim($output));
                 }

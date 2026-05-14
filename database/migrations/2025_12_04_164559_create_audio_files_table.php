@@ -12,14 +12,14 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('audio_files', function (Blueprint $table) {
-    $table->id();
-    $table->foreignId('test_id')->constrained()->cascadeOnDelete();
-    $table->string('file_url');
-    $table->integer('duration_seconds')->nullable();
-    $table->integer('size_kb')->nullable();
-    $table->longText('transcript')->nullable();
-    $table->timestamps();
-});
+            $table->id();
+            $table->foreignId('test_id')->constrained()->cascadeOnDelete();
+            $table->string('file_url');
+            $table->integer('duration_seconds')->nullable();
+            $table->integer('size_kb')->nullable();
+            $table->longText('transcript')->nullable();
+            $table->timestamps();
+        });
 
     }
 

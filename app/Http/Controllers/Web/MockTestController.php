@@ -13,9 +13,9 @@ class MockTestController extends Controller
     // Module sequence and time limits (seconds)
     const MODULE_TIMES = [
         'listening' => 40 * 60,   // 30 min + 10 min transfer
-        'reading'   => 60 * 60,
-        'writing'   => 60 * 60,
-        'speaking'  => 14 * 60,
+        'reading' => 60 * 60,
+        'writing' => 60 * 60,
+        'speaking' => 14 * 60,
     ];
 
     // ─── Landing ──────────────────────────────────────────────────────────────
@@ -43,11 +43,11 @@ class MockTestController extends Controller
             ->update(['status' => 'abandoned']);
 
         $mock = MockTest::create([
-            'user_id'        => Auth::id(),
-            'test_type'      => $request->test_type,
-            'status'         => 'in_progress',
+            'user_id' => Auth::id(),
+            'test_type' => $request->test_type,
+            'status' => 'in_progress',
             'current_module' => 'listening',
-            'started_at'     => now(),
+            'started_at' => now(),
         ]);
 
         session(['mock_test_id' => $mock->id, 'mock_test_type' => $request->test_type]);
@@ -61,7 +61,9 @@ class MockTestController extends Controller
     {
         $this->authorizeMock($mock);
 
-        if (!in_array($module, MockTest::MODULES)) abort(404);
+        if (! in_array($module, MockTest::MODULES)) {
+            abort(404);
+        }
 
         // If this module is already completed, skip to result or next
         if ($mock->moduleTestId($module)) {
@@ -86,8 +88,8 @@ class MockTestController extends Controller
             ->firstOrFail();
 
         // Record this module's test and band
-        $bandField = $module . '_band';
-        $testField = $module . '_test_id';
+        $bandField = $module.'_band';
+        $testField = $module.'_test_id';
 
         $mock->update([
             $testField => $test->id,
@@ -98,6 +100,7 @@ class MockTestController extends Controller
 
         if ($next) {
             $mock->update(['current_module' => $next]);
+
             return redirect()->route('mock-test.module', ['mock' => $mock->id, 'module' => $next]);
         }
 
@@ -105,7 +108,7 @@ class MockTestController extends Controller
         $mock->refresh();
         $mock->update([
             'overall_band' => $mock->calculateOverall(),
-            'status'       => 'completed',
+            'status' => 'completed',
             'completed_at' => now(),
         ]);
 
@@ -149,6 +152,8 @@ class MockTestController extends Controller
 
     private function authorizeMock(MockTest $mock): void
     {
-        if ($mock->user_id !== Auth::id()) abort(403);
+        if ($mock->user_id !== Auth::id()) {
+            abort(403);
+        }
     }
 }

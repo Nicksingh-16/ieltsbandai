@@ -3,19 +3,19 @@
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Web\AssignedTestController;
-use App\Http\Controllers\Web\InstituteController;
-use App\Http\Controllers\Web\MockTestController;
-use App\Http\Controllers\Web\StudyPlanController;
-use App\Http\Controllers\Web\ReferralController;
-use App\Http\Controllers\Web\WritingTestController;
-use App\Http\Controllers\Web\ListeningTestController;
-use App\Http\Controllers\Web\ReadingTestController;
 use App\Http\Controllers\Web\ContactController;
 use App\Http\Controllers\Web\DemoController;
 use App\Http\Controllers\Web\FeedbackController;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Web\PricingController;
+use App\Http\Controllers\Web\InstituteController;
+use App\Http\Controllers\Web\ListeningTestController;
+use App\Http\Controllers\Web\MockTestController;
 use App\Http\Controllers\Web\PaymentController;
+use App\Http\Controllers\Web\PricingController;
+use App\Http\Controllers\Web\ReadingTestController;
+use App\Http\Controllers\Web\ReferralController;
+use App\Http\Controllers\Web\StudyPlanController;
+use App\Http\Controllers\Web\WritingTestController;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('pages.home');
@@ -128,12 +128,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->where('user_id', \Illuminate\Support\Facades\Auth::id())
             ->firstOrFail();
 
-        $audioFiles      = $test->audioFiles;
+        $audioFiles = $test->audioFiles;
         $transcribedCount = $audioFiles->whereNotNull('transcript')->where('transcript', '!=', '')->count();
 
         return response()->json([
-            'status'      => $test->status,
-            'band'        => $test->overall_band,
+            'status' => $test->status,
+            'band' => $test->overall_band,
             'transcribed' => $transcribedCount,
             'total_audio' => $audioFiles->count(),
         ]);
@@ -172,9 +172,9 @@ Route::get('/ielts-writing-checker', function () {
     return view('pages.tools.writing-checker');
 })->name('tools.writing-checker');
 
-Route::get('/ielts-writing-samples', fn() => view('pages.tools.writing-samples'))->name('tools.writing-samples');
-Route::get('/ielts-speaking-topics', fn() => view('pages.tools.speaking-topics'))->name('tools.speaking-topics');
-Route::get('/ielts-vocabulary-list', fn() => view('pages.tools.vocabulary-list'))->name('tools.vocabulary-list');
+Route::get('/ielts-writing-samples', fn () => view('pages.tools.writing-samples'))->name('tools.writing-samples');
+Route::get('/ielts-speaking-topics', fn () => view('pages.tools.speaking-topics'))->name('tools.speaking-topics');
+Route::get('/ielts-vocabulary-list', fn () => view('pages.tools.vocabulary-list'))->name('tools.vocabulary-list');
 
 Route::post('/ielts-writing-checker/analyze', [\App\Http\Controllers\Web\WritingCheckerController::class, 'analyze'])
     ->middleware('throttle:10,1')
@@ -270,7 +270,6 @@ Route::middleware(['auth', 'verified'])->prefix('institute')->name('institute.')
 
 require __DIR__.'/auth.php';
 
-
 // Pricing page
 // Route::get('/pricing', [PricingController::class, 'index'])->name('pricing');
 
@@ -278,11 +277,11 @@ require __DIR__.'/auth.php';
 // Throttles cap fraud blast radius: trust-then-grant means a malicious user
 // could spam fake UTRs to amass free credits otherwise.
 Route::middleware('auth')->group(function () {
-    Route::get('/get-credits',          [\App\Http\Controllers\Web\PaywallController::class, 'index'])->name('paywall.index');
-    Route::post('/get-credits/start',   [\App\Http\Controllers\Web\PaywallController::class, 'start'])
+    Route::get('/get-credits', [\App\Http\Controllers\Web\PaywallController::class, 'index'])->name('paywall.index');
+    Route::post('/get-credits/start', [\App\Http\Controllers\Web\PaywallController::class, 'start'])
         ->middleware('throttle:6,1440') // 6 new payment orders / user / day
         ->name('paywall.start');
-    Route::get('/get-credits/pay/{ref}',[\App\Http\Controllers\Web\PaywallController::class, 'pay'])->name('paywall.pay');
+    Route::get('/get-credits/pay/{ref}', [\App\Http\Controllers\Web\PaywallController::class, 'pay'])->name('paywall.pay');
     Route::post('/get-credits/pay/{ref}/utr', [\App\Http\Controllers\Web\PaywallController::class, 'submitUtr'])
         ->middleware('throttle:3,1440') // 3 UTR submissions / user / day (covers retries, blocks abuse)
         ->name('paywall.utr');
@@ -291,7 +290,7 @@ Route::middleware('auth')->group(function () {
 
 // ── Self-evaluation (paste-your-own-essay) ────────────────────────────────────
 Route::middleware('auth')->group(function () {
-    Route::get('/evaluate',  [\App\Http\Controllers\Web\SelfEvaluationController::class, 'index'])->name('self-eval.index');
+    Route::get('/evaluate', [\App\Http\Controllers\Web\SelfEvaluationController::class, 'index'])->name('self-eval.index');
     Route::post('/evaluate', [\App\Http\Controllers\Web\SelfEvaluationController::class, 'evaluate'])
         ->middleware('throttle:6,1')   // 6 submissions per minute — bounds abuse without hurting normal use
         ->name('self-eval.evaluate');
@@ -322,4 +321,3 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/payment/institute/initiate', [PaymentController::class, 'initiateInstitute'])->name('payment.institute.initiate');
     Route::get('/payment/institute/success', [PaymentController::class, 'successInstitute'])->name('payment.institute.success');
 });
-

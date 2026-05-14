@@ -28,9 +28,9 @@ class CalibrationService
     /**
      * Retrieve calibrated example essays for few-shot prompt injection.
      *
-     * @param  string      $essayText      Reserved for Phase 2 topic similarity; ignored in v1.
-     * @param  string      $taskType       Enum value: writing_task_1_academic|writing_task_1_general|writing_task_2|speaking_part_*
-     * @param  int         $count          Desired number of examples (default 3 — one per bucket).
+     * @param  string  $essayText  Reserved for Phase 2 topic similarity; ignored in v1.
+     * @param  string  $taskType  Enum value: writing_task_1_academic|writing_task_1_general|writing_task_2|speaking_part_*
+     * @param  int  $count  Desired number of examples (default 3 — one per bucket).
      * @param  float|null  $estimatedBand  Optional pre-estimate; biases the mid-bucket pick toward this band.
      * @return Collection<int, CalibratedEssay> Up to $count essays. Empty if no calibration data exists for $taskType.
      */
@@ -80,9 +80,9 @@ class CalibrationService
             // so they're guaranteed to appear as the top reference rather
             // than competing for slots inside a larger high bucket where the
             // deterministic hash routinely skipped them.
-            $low     = $pool->where('band_overall', '<=', 5.5)->values();
-            $mid     = $pool->whereBetween('band_overall', [6.0, 6.5])->values();
-            $high    = $pool->whereBetween('band_overall', [7.0, 7.5])->values();
+            $low = $pool->where('band_overall', '<=', 5.5)->values();
+            $mid = $pool->whereBetween('band_overall', [6.0, 6.5])->values();
+            $high = $pool->whereBetween('band_overall', [7.0, 7.5])->values();
             $ceiling = $pool->where('band_overall', '>=', 8.0)->values();
 
             // Bias the mid-bucket toward $estimatedBand if provided, falling back
@@ -101,17 +101,17 @@ class CalibrationService
             // so seeded shuffles compose unreliably across multiple buckets.
             // Instead, hash (taskType|bucket|estimatedBand) into a stable index
             // for each bucket — same inputs always pick the same essay.
-            $seedBase = $taskType . '|' . $count . '|' . ($estimatedBand ?? '');
+            $seedBase = $taskType.'|'.$count.'|'.($estimatedBand ?? '');
 
             $picks = collect();
             // Order matters: low → mid → ceiling → high so when count=3 and a
             // Band 8+ ceiling exists we keep [low, mid, ceiling] and the
             // student Band 7 anchor is only used as a fallback ceiling.
-            $this->drawOne($picks, $low,     $seedBase . '|low');
-            $this->drawOne($picks, $mid,     $seedBase . '|mid');
-            $this->drawOne($picks, $ceiling, $seedBase . '|ceiling');
+            $this->drawOne($picks, $low, $seedBase.'|low');
+            $this->drawOne($picks, $mid, $seedBase.'|mid');
+            $this->drawOne($picks, $ceiling, $seedBase.'|ceiling');
             if ($picks->count() < $count) {
-                $this->drawOne($picks, $high, $seedBase . '|high');
+                $this->drawOne($picks, $high, $seedBase.'|high');
             }
 
             // L5-v1: if BOTH high and ceiling buckets were empty for this task
@@ -144,7 +144,7 @@ class CalibrationService
                 if ($remaining->isEmpty()) {
                     break;
                 }
-                $idx = (int) (crc32($seedBase . '|fill|' . $i) % $remaining->count());
+                $idx = (int) (crc32($seedBase.'|fill|'.$i) % $remaining->count());
                 $picks->push($remaining->get($idx));
                 $i++;
             }

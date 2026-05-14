@@ -3,16 +3,17 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use App\Jobs\WritingEvaluationJob;
 use App\Repositories\WritingRepository;
 use App\Services\WritingTestService;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class WritingTestController extends Controller
 {
     protected $writingRepo;
+
     protected $writingService;
 
     public function __construct(WritingRepository $writingRepo, WritingTestService $writingService)
@@ -41,21 +42,21 @@ class WritingTestController extends Controller
 
         $testType = $request->input('test_type');
         $task = $request->input('task');
-        
+
         // Build category string (e.g., 'writing_academic_task1')
         $category = "writing_{$testType}_{$task}";
 
         // Get a random question for this category
         $question = $this->writingRepo->getWritingQuestionByCategory($category, Auth::id());
 
-        if (!$question) {
+        if (! $question) {
             return back()->with('error', 'No questions available for this task type.');
         }
 
         // Add time limit and min words to question object for view
         $timeLimit = str_contains($category, 'task1') ? 20 * 60 : 40 * 60;
         $minWords = str_contains($category, 'task1') ? 150 : 250;
-        
+
         $question->time_limit = $timeLimit;
         $question->min_words = $minWords;
 
@@ -68,15 +69,16 @@ class WritingTestController extends Controller
             $test = \Illuminate\Support\Facades\DB::transaction(function () use ($question, $testType, $creditService) {
                 $test = $this->writingService->createWritingTest(Auth::id(), $question, $testType);
                 $creditService->chargeForTest(Auth::user(), $test);
+
                 return $test;
             });
         } catch (\RuntimeException $e) {
-            return back()->with('error', 'Could not start test: ' . $e->getMessage());
+            return back()->with('error', 'Could not start test: '.$e->getMessage());
         }
 
         // Store exam mode in session so showTest can read it after redirect
         if ($request->boolean('exam_mode')) {
-            session(['exam_mode_' . $test->id => true]);
+            session(['exam_mode_'.$test->id => true]);
         }
 
         // PRG pattern: redirect to GET so refresh doesn't re-submit start form
@@ -100,7 +102,7 @@ class WritingTestController extends Controller
         }
 
         $testQuestion = $test->testQuestions->first();
-        if (!$testQuestion || !$testQuestion->question) {
+        if (! $testQuestion || ! $testQuestion->question) {
             return redirect()->route('writing.index')->with('error', 'Test question not found.');
         }
 
@@ -111,9 +113,9 @@ class WritingTestController extends Controller
         $task = $matches[1] ?? 'task1';
 
         $question->time_limit = str_contains($test->category ?? '', 'task1') ? 1200 : 2400;
-        $question->min_words  = str_contains($test->category ?? '', 'task1') ? 150 : 250;
+        $question->min_words = str_contains($test->category ?? '', 'task1') ? 150 : 250;
 
-        $viewName = session('exam_mode_' . $testId) ? 'exam.writing' : 'pages.writing.test';
+        $viewName = session('exam_mode_'.$testId) ? 'exam.writing' : 'pages.writing.test';
 
         return view($viewName, compact('test', 'question', 'testType', 'task'));
     }
@@ -135,22 +137,22 @@ class WritingTestController extends Controller
         // accept_penalty=1 lets a user submit under-length knowing the AI will
         // score it accordingly — Task Achievement is capped around Band 5 for
         // under-length responses, per the public band descriptors.
-        $task1    = str_contains($test->category ?? '', 'task1');
+        $task1 = str_contains($test->category ?? '', 'task1');
         $minWords = $task1 ? 150 : 250;
-        $words    = str_word_count(trim((string) $request->input('answer')));
+        $words = str_word_count(trim((string) $request->input('answer')));
 
-        if ($words < $minWords && !$request->boolean('accept_penalty')) {
+        if ($words < $minWords && ! $request->boolean('accept_penalty')) {
             $taskNum = $task1 ? 1 : 2;
             $message = "Your answer is only {$words} words. IELTS Task {$taskNum} "
-                . "requires at least {$minWords} words — under-length responses "
-                . "cap Task Achievement at around Band 5.";
+                ."requires at least {$minWords} words — under-length responses "
+                .'cap Task Achievement at around Band 5.';
 
             if ($request->wantsJson() || $request->ajax()) {
                 return response()->json([
-                    'success'   => false,
-                    'error'     => 'under_min_words',
-                    'message'   => $message,
-                    'words'     => $words,
+                    'success' => false,
+                    'error' => 'under_min_words',
+                    'message' => $message,
+                    'words' => $words,
                     'min_words' => $minWords,
                 ], 422);
             }
@@ -173,14 +175,14 @@ class WritingTestController extends Controller
         // its in-page transition. Plain form-submit (JS disabled or guard
         // bypassed): redirect so the user lands on the result page instead
         // of staring at raw JSON.
-        if (!$request->wantsJson() && !$request->ajax()) {
+        if (! $request->wantsJson() && ! $request->ajax()) {
             return redirect()->route('writing.result', $testId)
                 ->with('success', 'Your writing has been submitted. Evaluating…');
         }
 
         return response()->json([
-            'success'  => true,
-            'message'  => 'Your writing has been submitted. Evaluating…',
+            'success' => true,
+            'message' => 'Your writing has been submitted. Evaluating…',
             'redirect' => route('writing.result', $testId),
         ]);
     }
@@ -201,7 +203,7 @@ class WritingTestController extends Controller
 
             // Extract testType and task for the view
             $testType = $data['test']->test_type ?? 'academic';
-            
+
             $category = $data['test']->category ?? '';
             preg_match('/(task[12])/', $category, $matches);
             $task = $matches[1] ?? 'task1';
@@ -216,13 +218,13 @@ class WritingTestController extends Controller
             $errors = $data['errors'];
             $unpositioned_errors = $data['unpositioned_errors'];
             $band_explanations = $data['band_explanations'] ?? [];
-            $descriptor_match  = $data['descriptor_match']  ?? [];
+            $descriptor_match = $data['descriptor_match'] ?? [];
             $summary = $data['summary'] ?? null;
             $question = $data['question'] ?? null;
             $highlightedEssay = $data['highlightedEssay'];
             $task_info = $data['task_info'];
             $original_answer = $data['original_answer'] ?? '';
-            
+
             // Examiner-Calibrated Fields
             $band_9_rewrite = $data['band_9_rewrite'] ?? '';
             $topic_vocabulary = $data['topic_vocabulary'] ?? [];
@@ -257,8 +259,8 @@ class WritingTestController extends Controller
             \Log::error('Writing result exception', [
                 'test_id' => $testId,
                 'message' => $e->getMessage(),
-                'file'    => $e->getFile(),
-                'line'    => $e->getLine(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ]);
 
             // Check if the test exists but isn't completed yet (job still running)
@@ -314,7 +316,7 @@ class WritingTestController extends Controller
             : (is_array($test->result) ? $test->result : []);
 
         // Return cached version if already generated
-        if (!empty($result['band_9_rewrite'])) {
+        if (! empty($result['band_9_rewrite'])) {
             return response()->json(['rewrite' => $result['band_9_rewrite']]);
         }
 
@@ -410,27 +412,27 @@ class WritingTestController extends Controller
             : (is_array($test->result) ? $test->result : []);
 
         $context = sprintf(
-            "IELTS Writing Result Context:\n" .
-            "- Overall band: %s\n" .
-            "- Task Achievement: %s | Coherence & Cohesion: %s | Lexical Resource: %s | Grammar: %s\n" .
-            "- Feedback: %s\n" .
-            "- Strengths: %s\n" .
-            "- Improvements: %s\n" .
-            "- Essay (first 600 chars): %s",
+            "IELTS Writing Result Context:\n".
+            "- Overall band: %s\n".
+            "- Task Achievement: %s | Coherence & Cohesion: %s | Lexical Resource: %s | Grammar: %s\n".
+            "- Feedback: %s\n".
+            "- Strengths: %s\n".
+            "- Improvements: %s\n".
+            '- Essay (first 600 chars): %s',
             $test->overall_band,
-            $result['task_achievement']    ?? 'N/A',
-            $result['coherence_cohesion']  ?? 'N/A',
-            $result['lexical_resource']    ?? 'N/A',
-            $result['grammar']             ?? 'N/A',
-            is_array($result['feedback']   ?? null) ? implode(' ', $result['feedback'])   : ($result['feedback']   ?? ''),
-            is_array($result['strengths']  ?? null) ? implode('; ', $result['strengths']) : ($result['strengths']  ?? ''),
-            is_array($result['improvements']?? null) ? implode('; ', $result['improvements']) : ($result['improvements'] ?? ''),
+            $result['task_achievement'] ?? 'N/A',
+            $result['coherence_cohesion'] ?? 'N/A',
+            $result['lexical_resource'] ?? 'N/A',
+            $result['grammar'] ?? 'N/A',
+            is_array($result['feedback'] ?? null) ? implode(' ', $result['feedback']) : ($result['feedback'] ?? ''),
+            is_array($result['strengths'] ?? null) ? implode('; ', $result['strengths']) : ($result['strengths'] ?? ''),
+            is_array($result['improvements'] ?? null) ? implode('; ', $result['improvements']) : ($result['improvements'] ?? ''),
             substr($result['original_answer'] ?? $test->answer ?? '', 0, 600)
         );
 
-        $prompt = "{$context}\n\nStudent question: {$request->input('question')}\n\n" .
-                  "Answer as a friendly, expert IELTS examiner. Be specific, refer to the student's actual scores and essay. " .
-                  "Be concise (max 150 words). Do not use bullet points — write in natural paragraph form.";
+        $prompt = "{$context}\n\nStudent question: {$request->input('question')}\n\n".
+                  "Answer as a friendly, expert IELTS examiner. Be specific, refer to the student's actual scores and essay. ".
+                  'Be concise (max 150 words). Do not use bullet points — write in natural paragraph form.';
 
         try {
             // Route through LLMRouter so the call respects daily/total USD
@@ -443,14 +445,16 @@ class WritingTestController extends Controller
                         ['role' => 'user',   'content' => $prompt],
                     ],
                     'temperature' => 0.7,
-                    'max_tokens'  => 300,
+                    'max_tokens' => 300,
                 ]);
 
             $answer = $data['choices'][0]['message']['content'] ?? null;
+
             return response()->json(['answer' => trim($answer ?? 'I could not generate a response. Please try again.')]);
 
         } catch (\Exception $e) {
-            \Log::error('Examiner clarify failed: ' . $e->getMessage());
+            \Log::error('Examiner clarify failed: '.$e->getMessage());
+
             return response()->json(['answer' => 'Sorry, I am temporarily unavailable. Please try again shortly.'], 500);
         }
     }
@@ -473,12 +477,12 @@ class WritingTestController extends Controller
                 'basic' => 70,
                 'intermediate' => 20,
                 'advanced' => 10,
-                'message' => 'Write at least 50 words for accurate analysis'
+                'message' => 'Write at least 50 words for accurate analysis',
             ]);
         }
 
         try {
-            $prompt = 'Analyze this IELTS essay text and categorize vocabulary as Basic (common everyday words), Intermediate (academic/professional), or Advanced (sophisticated/rare). Return percentages as JSON: {"basic": X, "intermediate": Y, "advanced": Z}' . "\n\nText: " . substr($text, 0, 500);
+            $prompt = 'Analyze this IELTS essay text and categorize vocabulary as Basic (common everyday words), Intermediate (academic/professional), or Advanced (sophisticated/rare). Return percentages as JSON: {"basic": X, "intermediate": Y, "advanced": Z}'."\n\nText: ".substr($text, 0, 500);
 
             // Route through LLMRouter (cost cap + logging).
             $data = app(\App\Services\LLMRouter::class)
@@ -488,29 +492,29 @@ class WritingTestController extends Controller
                         ['role' => 'system', 'content' => 'You are a vocabulary analyzer. Respond ONLY with valid JSON.'],
                         ['role' => 'user',   'content' => $prompt],
                     ],
-                    'temperature'     => 0.3,
-                    'max_tokens'      => 100,
+                    'temperature' => 0.3,
+                    'max_tokens' => 100,
                     'response_format' => ['type' => 'json_object'],
                 ]);
 
-            $content  = $data['choices'][0]['message']['content'] ?? null;
+            $content = $data['choices'][0]['message']['content'] ?? null;
             $analysis = $content ? json_decode($content, true) : null;
 
             return response()->json([
-                'basic'        => $analysis['basic']        ?? 60,
+                'basic' => $analysis['basic'] ?? 60,
                 'intermediate' => $analysis['intermediate'] ?? 30,
-                'advanced'     => $analysis['advanced']     ?? 10,
+                'advanced' => $analysis['advanced'] ?? 10,
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Vocabulary analysis failed: ' . $e->getMessage());
-            
+            \Log::error('Vocabulary analysis failed: '.$e->getMessage());
+
             // Return default values on error
             return response()->json([
                 'basic' => 60,
                 'intermediate' => 30,
                 'advanced' => 10,
-                'error' => 'Analysis temporarily unavailable'
+                'error' => 'Analysis temporarily unavailable',
             ]);
         }
     }

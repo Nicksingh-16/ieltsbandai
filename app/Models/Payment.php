@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
@@ -23,9 +24,9 @@ class Payment extends Model
     ];
 
     protected $casts = [
-        'amount'          => 'decimal:2',
-        'granted_at'      => 'datetime',
-        'verified_at'     => 'datetime',
+        'amount' => 'decimal:2',
+        'granted_at' => 'datetime',
+        'verified_at' => 'datetime',
         'credits_granted' => 'integer',
     ];
 

@@ -125,11 +125,29 @@
                         @endif
                     </div>
                     <div class="flex-1 min-w-0">
-                        <p class="text-sm text-surface-200 mb-1">{{ $q['question'] }}</p>
-                        <div class="flex flex-wrap gap-3 text-xs">
-                            <span class="{{ $isCorrect ? 'text-emerald-400' : 'text-red-400' }}">Your answer: <strong>{{ implode(', ', $selected) ?: '(blank)' }}</strong></span>
-                            @if(!$isCorrect)<span class="text-emerald-400">Correct: <strong>{{ implode(', ', $expected) }}</strong></span>@endif
+                        <p class="text-sm text-surface-200 mb-2">{{ $q['question'] }}</p>
+                        @if(!empty($q['options']))
+                        <div class="space-y-1 mb-2">
+                            @foreach($q['options'] as $opt)
+                            @php
+                                $isSelected = in_array(strtolower(trim($opt)), $selLower, true);
+                                $isExpected = in_array(strtolower(trim($opt)), $expLower, true);
+                            @endphp
+                            <div class="flex items-start gap-2 text-xs px-2 py-1 rounded
+                                {{ $isExpected ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-200' : ($isSelected ? 'bg-red-500/10 border border-red-500/30 text-red-200' : 'text-surface-400') }}">
+                                <span class="shrink-0">
+                                    @if($isExpected && $isSelected) ✓
+                                    @elseif($isExpected) ⊕
+                                    @elseif($isSelected) ✗
+                                    @else &nbsp;
+                                    @endif
+                                </span>
+                                <span>{{ $opt }}</span>
+                            </div>
+                            @endforeach
                         </div>
+                        @endif
+                        <p class="text-xs text-surface-500">Select all that apply — {{ count($expected) }} correct.</p>
                     </div>
                     <span class="text-xs text-surface-500 shrink-0">Q{{ $qNum }}</span>
                 </div>
@@ -139,6 +157,7 @@
                 @php
                     $given     = $answers[$q['id']] ?? '';
                     $isCorrect = strtolower(trim($given)) === strtolower(trim($q['answer'] ?? ''));
+                    $hasOptions = !empty($q['options']) && in_array($type, ['mcq']);
                 @endphp
                 <div class="px-6 py-4 flex items-start gap-4">
                     <div class="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 {{ $isCorrect ? 'bg-emerald-500/15' : 'bg-red-500/15' }}">
@@ -149,11 +168,38 @@
                         @endif
                     </div>
                     <div class="flex-1 min-w-0">
-                        <p class="text-sm text-surface-200 mb-1">{{ $q['question'] }}</p>
+                        <p class="text-sm text-surface-200 mb-2">{{ $q['question'] }}</p>
+                        @if($hasOptions)
+                        @php
+                            $givenLower = strtolower(trim($given));
+                            $expLower   = strtolower(trim($q['answer'] ?? ''));
+                        @endphp
+                        <div class="space-y-1 mb-2">
+                            @foreach($q['options'] as $opt)
+                            @php
+                                $optLower = strtolower(trim($opt));
+                                $isSelected = $optLower === $givenLower;
+                                $isExpected = $optLower === $expLower;
+                            @endphp
+                            <div class="flex items-start gap-2 text-xs px-2 py-1 rounded
+                                {{ $isExpected ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-200' : ($isSelected ? 'bg-red-500/10 border border-red-500/30 text-red-200' : 'text-surface-400') }}">
+                                <span class="shrink-0">
+                                    @if($isExpected && $isSelected) ✓
+                                    @elseif($isExpected) ⊕
+                                    @elseif($isSelected) ✗
+                                    @else &nbsp;
+                                    @endif
+                                </span>
+                                <span>{{ $opt }}</span>
+                            </div>
+                            @endforeach
+                        </div>
+                        @else
                         <div class="flex flex-wrap gap-3 text-xs">
                             <span class="{{ $isCorrect ? 'text-emerald-400' : 'text-red-400' }}">Your answer: <strong>{{ $given ?: '(blank)' }}</strong></span>
                             @if(!$isCorrect)<span class="text-emerald-400">Correct: <strong>{{ $q['answer'] }}</strong></span>@endif
                         </div>
+                        @endif
                     </div>
                     <span class="text-xs text-surface-500 shrink-0">Q{{ $qNum }}</span>
                 </div>

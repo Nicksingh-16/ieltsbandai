@@ -241,9 +241,21 @@
             <div class="divide-y divide-surface-700">
                 @foreach($testQuestions->sortBy('part') as $tq)
                 @php
-                    $audioFile = $audioFiles->get($loop->index);
+                    $audioFile  = $audioFiles->get($loop->index);
                     $transcript = $audioFile?->transcript ?? null;
-                    $partLabel = ['Part 1 — Personal Questions','Part 2 — Long Turn','Part 3 — Discussion'][$tq->part - 1] ?? "Part {$tq->part}";
+                    $partLabel  = ['Part 1 — Personal Questions','Part 2 — Long Turn','Part 3 — Discussion'][$tq->part - 1] ?? "Part {$tq->part}";
+
+                    // Parse the question content into individual prompts. Parts
+                    // 1 and 3 store "1. Q1?\n2. Q2?\n..." in $question->content;
+                    // Part 2 stores a cue card as plain prose. Strip leading
+                    // "N. " from each line so the result page reads cleanly.
+                    $rawContent = $tq->question->content ?? '';
+                    $prompts = collect(explode("\n", $rawContent))
+                        ->map(fn($l) => trim(preg_replace('/^\d+\.\s*/', '', $l)))
+                        ->filter()
+                        ->values()
+                        ->all();
+                    $isCueCard = $tq->part === 2;
                 @endphp
                 <div class="p-6">
                     <div class="flex items-center gap-3 mb-3">
@@ -253,6 +265,27 @@
                             <p class="text-sm font-semibold text-surface-200">{{ $tq->question->title ?? "Part {$tq->part} Question" }}</p>
                         </div>
                     </div>
+
+                    {{-- Examiner prompts — the questions the user was actually
+                         asked. Without these, the transcript below has no
+                         context. Part 2 renders as a cue card; Parts 1 & 3
+                         render as a numbered list. --}}
+                    @if(!empty($prompts))
+                    <div class="bg-surface-900/40 border border-surface-700 rounded-xl p-4 mb-3">
+                        <p class="text-[10px] font-semibold text-brand-400 uppercase tracking-wider mb-2">
+                            {{ $isCueCard ? 'Cue card' : 'Examiner prompts' }}
+                        </p>
+                        @if($isCueCard)
+                            <p class="text-sm text-surface-200 leading-relaxed whitespace-pre-line">{{ $rawContent }}</p>
+                        @else
+                            <ol class="space-y-1.5 text-sm text-surface-200 list-decimal list-inside marker:text-brand-400 marker:font-semibold">
+                                @foreach($prompts as $prompt)
+                                <li class="leading-relaxed">{{ $prompt }}</li>
+                                @endforeach
+                            </ol>
+                        @endif
+                    </div>
+                    @endif
 
                     @if($audioFile && Storage::disk('public')->exists($audioFile->file_url))
                     <audio controls class="w-full rounded-xl mb-3" style="filter:invert(0.85) hue-rotate(180deg);">

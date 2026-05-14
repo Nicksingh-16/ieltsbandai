@@ -26,6 +26,14 @@ class ListeningTestController extends Controller
         $testType = $request->input('test_type');
         $category = "listening_{$testType}";
 
+        // Per ielts.org: all test takers take the SAME Listening test regardless
+        // of Academic vs General Training. Reading/Writing differ between AC and
+        // GT, but Listening is shared. So when picking a question, allow EITHER
+        // category — that way the 8 VOA tests seeded as listening_academic also
+        // serve listening_general users (and vice versa for any GT-tagged tests
+        // we add later).
+        $eligibleCategories = ['listening_academic', 'listening_general'];
+
         $userId = Auth::id();
         $seen = DB::table('test_questions')
             ->join('tests', 'tests.id', '=', 'test_questions.test_id')
@@ -51,7 +59,7 @@ class ListeningTestController extends Controller
         });
 
         $question = Question::where('type', 'listening')
-            ->where('category', $category)
+            ->whereIn('category', $eligibleCategories)
             ->where('active', true)
             ->where($audioFilter)
             ->when($seen->isNotEmpty(), fn ($q) => $q->whereNotIn('id', $seen))
@@ -61,7 +69,7 @@ class ListeningTestController extends Controller
         // Fallback 1: relax the seen-deduplication, keep the audio filter.
         if (! $question) {
             $question = Question::where('type', 'listening')
-                ->where('category', $category)
+                ->whereIn('category', $eligibleCategories)
                 ->where('active', true)
                 ->where($audioFilter)
                 ->inRandomOrder()
@@ -69,19 +77,12 @@ class ListeningTestController extends Controller
         }
 
         if (! $question) {
-            // Audio-having questions are seeded only for listening_academic
-            // (VOA POC + voa_test_02..08). Tell General-Training users why
-            // they hit a wall instead of suggesting "try again later".
-            $msg = $testType === 'general'
-                ? 'General Training listening tests are not available yet — please pick Academic for now.'
-                : 'No listening questions with audio are available right now. Please contact support.';
-
             \Illuminate\Support\Facades\Log::warning('Listening start: no audio question available', [
                 'category' => $category,
                 'user_id' => $userId,
             ]);
 
-            return back()->with('error', $msg);
+            return back()->with('error', 'No listening questions with audio are available right now. Please contact support.');
         }
 
         // Audio guard — listening tests are unusable without audio. Check that

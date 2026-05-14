@@ -1262,12 +1262,11 @@ CRITERIA;
     }
 
     /**
-     * Calculate overall band score with examiner-calibrated logic.
-     *
-     * L5-v2: bias correction has been moved upstream to applyBiasCorrection()
-     * (called inside scoreWriting / scoreSpeaking) so sub-scores and
-     * overall_band stay in sync. This method now only computes the
-     * descriptor-mean and runs the downward error-density nudge.
+     * Calculate overall band as the mean of the 4 criterion scores, rounded
+     * to the nearest 0.5 (official IELTS rounding rule). All correction logic
+     * — confidence-range cap, error-density nudge, length caps, question-part
+     * caps — runs inside scoreWriting() before this is called, against the
+     * sub-scores. This keeps the displayed overall = mean(displayed sub-scores).
      */
     public function calculateOverallBand(array $scores): float
     {
@@ -1286,13 +1285,7 @@ CRITERIA;
             $gra = $scores['grammar'];
         }
 
-        $average = round((($ta + $cc + $lr + $gra) / 4) * 2) / 2;
-
-        // Stage 1 downward nudge only — Stage 2 upward shift now lives in
-        // applyBiasCorrection() to keep sub-scores and overall consistent.
-        $average = $this->calibrateScore($average, $scores);
-
-        return $average;
+        return round((($ta + $cc + $lr + $gra) / 4) * 2) / 2;
     }
 
     /**

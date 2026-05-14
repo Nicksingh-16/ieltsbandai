@@ -32,8 +32,11 @@ class ScoringLogicTest extends TestCase
         $this->scoringService = app(ScoringService::class);
     }
 
-    /** Helper to call protected methods cleanly. */
-    private function call(string $method, array $args)
+    /**
+     * Helper to invoke protected methods cleanly. Named with the "invoke"
+     * prefix to avoid colliding with TestCase::call() (HTTP test helper).
+     */
+    private function invokeProtected(string $method, array $args)
     {
         $r = new \ReflectionClass($this->scoringService);
         $m = $r->getMethod($method);
@@ -97,7 +100,7 @@ class ScoringLogicTest extends TestCase
             'overall_band' => 5.5,
             'band_confidence_range' => '5.0 – 6.0',
         ];
-        $this->call('applyBiasCorrection', [&$scoring, [
+        $this->invokeProtected('applyBiasCorrection', [&$scoring, [
             'task_achievement', 'coherence_cohesion', 'lexical_resource', 'grammar',
         ]]);
         $this->assertSame(5.5, $scoring['overall_band']);
@@ -116,7 +119,7 @@ class ScoringLogicTest extends TestCase
             'overall_band' => 6.5,
             'band_confidence_range' => '5.0 – 6.0',
         ];
-        $this->call('applyBiasCorrection', [&$scoring, [
+        $this->invokeProtected('applyBiasCorrection', [&$scoring, [
             'task_achievement', 'coherence_cohesion', 'lexical_resource', 'grammar',
         ]]);
         $this->assertLessThanOrEqual(6.0, $scoring['overall_band']);
@@ -133,7 +136,7 @@ class ScoringLogicTest extends TestCase
             'error_summary' => ['grammar_errors_per_100_words' => 20],
             'band_confidence_range' => '6.0 – 7.0',
         ];
-        $this->call('applyBiasCorrection', [&$scoring, [
+        $this->invokeProtected('applyBiasCorrection', [&$scoring, [
             'task_achievement', 'coherence_cohesion', 'lexical_resource', 'grammar',
         ]]);
         // 20 errors/100w with raw mean 6.5 → -1.0 shift expected
@@ -151,7 +154,7 @@ class ScoringLogicTest extends TestCase
             'overall_band' => 5.0,
         ];
         $original = $scoring;
-        $this->call('applyBiasCorrection', [&$scoring, [
+        $this->invokeProtected('applyBiasCorrection', [&$scoring, [
             'task_achievement', 'coherence_cohesion', 'lexical_resource', 'grammar',
         ]]);
         $this->assertSame($original, $scoring);
@@ -167,7 +170,7 @@ class ScoringLogicTest extends TestCase
             'lexical_resource' => 7.0,
             'grammar' => 7.0,
         ];
-        $this->call('enforceLengthCaps', [&$scoring, 80, true]);
+        $this->invokeProtected('enforceLengthCaps', [&$scoring, 80, true]);
         $this->assertSame(4.0, $scoring['task_achievement']);
         $this->assertSame(5.0, $scoring['lexical_resource']);
         $this->assertSame(5.0, $scoring['grammar']);
@@ -183,7 +186,7 @@ class ScoringLogicTest extends TestCase
             'lexical_resource' => 7.0,
             'grammar' => 7.0,
         ];
-        $this->call('enforceLengthCaps', [&$scoring, 240, true]);
+        $this->invokeProtected('enforceLengthCaps', [&$scoring, 240, true]);
         $this->assertSame(6.0, $scoring['task_achievement']);
         // LR/GRA untouched — there's enough text to demonstrate them
         $this->assertSame(7.0, $scoring['lexical_resource']);
@@ -198,7 +201,7 @@ class ScoringLogicTest extends TestCase
             'grammar' => 8.0,
         ];
         $original = $scoring;
-        $this->call('enforceLengthCaps', [&$scoring, 320, true]);
+        $this->invokeProtected('enforceLengthCaps', [&$scoring, 320, true]);
         $this->assertSame($original, $scoring);
     }
 
@@ -211,7 +214,7 @@ class ScoringLogicTest extends TestCase
             'grammar' => 4.0,
             'coherence_cohesion' => 4.0,
         ];
-        $this->call('enforceLengthCaps', [&$scoring, 80, true]);
+        $this->invokeProtected('enforceLengthCaps', [&$scoring, 80, true]);
         $this->assertSame(3.0, $scoring['task_achievement']);
     }
 
@@ -226,7 +229,7 @@ class ScoringLogicTest extends TestCase
                 ['part' => 'Is it positive or negative?', 'addressed' => false],
             ],
         ];
-        $this->call('enforceQuestionPartCoverage', [&$scoring, (object) []]);
+        $this->invokeProtected('enforceQuestionPartCoverage', [&$scoring, (object) []]);
         $this->assertSame(5.5, $scoring['task_achievement']);
     }
 
@@ -240,7 +243,7 @@ class ScoringLogicTest extends TestCase
                 ['part' => 'Your opinion', 'addressed' => false],
             ],
         ];
-        $this->call('enforceQuestionPartCoverage', [&$scoring, (object) []]);
+        $this->invokeProtected('enforceQuestionPartCoverage', [&$scoring, (object) []]);
         $this->assertSame(4.5, $scoring['task_achievement']);
     }
 
@@ -250,7 +253,7 @@ class ScoringLogicTest extends TestCase
             'task_achievement' => 7.5,
             'question_parts' => [['part' => 'just one', 'addressed' => false]],
         ];
-        $this->call('enforceQuestionPartCoverage', [&$scoring, (object) []]);
+        $this->invokeProtected('enforceQuestionPartCoverage', [&$scoring, (object) []]);
         $this->assertSame(7.5, $scoring['task_achievement']);
     }
 
@@ -263,7 +266,7 @@ class ScoringLogicTest extends TestCase
                 ['part' => 'p2', 'addressed' => true],
             ],
         ];
-        $this->call('enforceQuestionPartCoverage', [&$scoring, (object) []]);
+        $this->invokeProtected('enforceQuestionPartCoverage', [&$scoring, (object) []]);
         $this->assertSame(7.5, $scoring['task_achievement']);
     }
 
@@ -271,18 +274,18 @@ class ScoringLogicTest extends TestCase
 
     public function test_parses_confidence_range_with_various_dashes()
     {
-        $this->assertSame(6.0, $this->call('parseConfidenceMax', ['5.0 – 6.0']));   // en dash
-        $this->assertSame(6.0, $this->call('parseConfidenceMax', ['5.0 — 6.0']));   // em dash
-        $this->assertSame(6.0, $this->call('parseConfidenceMax', ['5.0 - 6.0']));   // hyphen
-        $this->assertSame(8.5, $this->call('parseConfidenceMax', ['7.0 – 8.5']));
+        $this->assertSame(6.0, $this->invokeProtected('parseConfidenceMax', ['5.0 – 6.0']));   // en dash
+        $this->assertSame(6.0, $this->invokeProtected('parseConfidenceMax', ['5.0 — 6.0']));   // em dash
+        $this->assertSame(6.0, $this->invokeProtected('parseConfidenceMax', ['5.0 - 6.0']));   // hyphen
+        $this->assertSame(8.5, $this->invokeProtected('parseConfidenceMax', ['7.0 – 8.5']));
     }
 
     public function test_returns_null_for_malformed_range_strings()
     {
-        $this->assertNull($this->call('parseConfidenceMax', [null]));
-        $this->assertNull($this->call('parseConfidenceMax', ['']));
-        $this->assertNull($this->call('parseConfidenceMax', ['unknown']));
-        $this->assertNull($this->call('parseConfidenceMax', ['5.0']));
+        $this->assertNull($this->invokeProtected('parseConfidenceMax', [null]));
+        $this->assertNull($this->invokeProtected('parseConfidenceMax', ['']));
+        $this->assertNull($this->invokeProtected('parseConfidenceMax', ['unknown']));
+        $this->assertNull($this->invokeProtected('parseConfidenceMax', ['5.0']));
     }
 
     // ── prompt construction ──────────────────────────────────────────────
@@ -297,7 +300,7 @@ class ScoringLogicTest extends TestCase
             ]),
         ]);
 
-        $prompt = $this->call('buildWritingScoringPrompt', ['Sample answer', $question]);
+        $prompt = $this->invokeProtected('buildWritingScoringPrompt', ['Sample answer', $question]);
 
         $this->assertStringContainsString('METADATA:', $prompt);
         $this->assertStringContainsString('chart_type', $prompt);

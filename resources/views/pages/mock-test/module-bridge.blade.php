@@ -121,7 +121,39 @@
         <form id="moduleForm" method="POST" action="{{ route($cfg['route']) }}">
             @csrf
             <input type="hidden" name="test_type" value="{{ $mock->test_type }}">
+
+            {{-- Mode selector — defaults to exam simulation (matches real IELTS
+                 conditions) but practice mode is one click away for users who
+                 want the friendlier UI with section navigation, hint surfaces,
+                 etc. Persisted across modules via a small cookie / sessionStorage
+                 read in the script below; defaults to exam if never touched. --}}
+            @if(in_array($module, ['listening','reading']))
+            <p class="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">Test mode</p>
+            <div class="grid grid-cols-2 gap-3 mb-5">
+                <label class="cursor-pointer">
+                    <input type="radio" name="exam_mode" value="0" class="sr-only peer" id="modePractice">
+                    <div class="card p-3.5 peer-checked:border-brand-500 peer-checked:bg-brand-500/10 hover:border-surface-500 transition-all">
+                        <div class="flex items-center gap-2 mb-0.5">
+                            <span class="text-base">📝</span>
+                            <p class="font-semibold text-surface-100 text-sm">Practice Mode</p>
+                        </div>
+                        <p class="text-surface-500 text-[11px]">Section navigation, progress hints, less strict timing.</p>
+                    </div>
+                </label>
+                <label class="cursor-pointer">
+                    <input type="radio" name="exam_mode" value="1" class="sr-only peer" id="modeExam" checked>
+                    <div class="card p-3.5 peer-checked:border-brand-500 peer-checked:bg-brand-500/10 hover:border-surface-500 transition-all">
+                        <div class="flex items-center gap-2 mb-0.5">
+                            <span class="text-base">🎓</span>
+                            <p class="font-semibold text-surface-100 text-sm">Exam Simulation</p>
+                        </div>
+                        <p class="text-surface-500 text-[11px]">Strict timer, question flagging, real-IELTS UI.</p>
+                    </div>
+                </label>
+            </div>
+            @else
             <input type="hidden" name="exam_mode" value="1">
+            @endif
 
             @if($module === 'writing')
             {{-- Writing task selection — required before continuing --}}

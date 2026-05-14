@@ -211,16 +211,42 @@
             </div>
         </div>
 
-        {{-- Mock test continuation --}}
+        {{-- Mock test continuation — auto-advances to the next module after a
+             visible countdown. User sees their band briefly, then the page
+             forwards to the next module bridge without requiring a click. --}}
         @if(session('mock_test_id'))
         <div class="card p-5 border border-brand-500/30 bg-brand-500/5 mb-4">
-            <p class="font-semibold text-brand-400 text-sm mb-3">✅ Listening complete — continue your mock test</p>
-            <form method="POST" action="{{ route('mock-test.advance', ['mock' => session('mock_test_id'), 'module' => 'listening']) }}">
+            <p class="font-semibold text-brand-400 text-sm mb-3">✅ Listening complete — continuing to Reading in <span id="mockCountdown">4</span>s</p>
+            <form id="mockAdvanceForm" method="POST" action="{{ route('mock-test.advance', ['mock' => session('mock_test_id'), 'module' => 'listening']) }}">
                 @csrf
                 <input type="hidden" name="test_id" value="{{ $test->id }}">
-                <button type="submit" class="btn-primary w-full justify-center py-2.5">Continue to Reading →</button>
+                <div class="flex gap-2">
+                    <button type="submit" class="btn-primary flex-1 justify-center py-2.5">Continue now →</button>
+                    <button type="button" id="mockCancelAdvance" class="btn-ghost px-4 py-2.5 text-sm">Stay on results</button>
+                </div>
             </form>
         </div>
+        <script>
+            (function () {
+                let secs = 4;
+                const span = document.getElementById('mockCountdown');
+                const form = document.getElementById('mockAdvanceForm');
+                const cancel = document.getElementById('mockCancelAdvance');
+                const tick = setInterval(() => {
+                    secs--;
+                    if (span) span.textContent = secs;
+                    if (secs <= 0) {
+                        clearInterval(tick);
+                        form.submit();
+                    }
+                }, 1000);
+                cancel?.addEventListener('click', () => {
+                    clearInterval(tick);
+                    const card = form.closest('.card');
+                    if (card) card.remove();
+                });
+            })();
+        </script>
         @endif
 
         {{-- Actions --}}

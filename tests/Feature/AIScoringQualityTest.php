@@ -13,21 +13,16 @@ class AIScoringQualityTest extends TestCase
     {
         parent::setUp();
 
-        // These tests hit the real LLM. CI runners do not have provider keys
-        // configured (and we deliberately don't ship them as repo secrets for
-        // the test workflow because every PR run would burn LLM credits).
-        // Skip when no provider key is present in the env so the workflow
-        // stays green; locally these tests run normally if any of the keys is
-        // set.
-        $hasLLMKey = (bool) (
-            env('OPENROUTER_API_KEY')
-            || env('OPENAI_API_KEY')
-            || env('GROQ_API_KEY')
-            || env('GEMINI_API_KEY_1')
-            || env('GEMINI_API_KEYS')
-        );
-        if (! $hasLLMKey) {
-            $this->markTestSkipped('No LLM provider key configured — skipping live-LLM scoring quality tests.');
+        // These tests hit the real LLM (no Http::fake). They are deliberately
+        // opt-in via RUN_LIVE_LLM_TESTS=true because:
+        //   - CI runs would burn LLM credits on every PR.
+        //   - .env.example ships placeholder keys, so a "do we have a key"
+        //     check would false-positive in CI.
+        //
+        // Run locally with:
+        //   RUN_LIVE_LLM_TESTS=true vendor/bin/phpunit tests/Feature/AIScoringQualityTest.php
+        if (! filter_var(env('RUN_LIVE_LLM_TESTS', false), FILTER_VALIDATE_BOOLEAN)) {
+            $this->markTestSkipped('Live-LLM scoring tests are opt-in. Set RUN_LIVE_LLM_TESTS=true to enable.');
         }
 
         $this->scoringService = app(ScoringService::class);

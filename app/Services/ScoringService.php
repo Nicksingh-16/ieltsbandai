@@ -252,30 +252,19 @@ class ScoringService
                 'task_achievement', 'coherence_cohesion', 'lexical_resource', 'grammar',
             ]);
 
-            // Normalize and Validate Errors (Utmost Level)
-            $normalizedErrors = [];
-            $rawErrors = $scoring['errors'] ?? [];
-            if (is_array($rawErrors)) {
-                foreach ($rawErrors as $index => $error) {
-                    if (empty($error['text'])) {
-                        continue;
-                    }
+            // ── Error pipeline (hybrid LLM + LanguageTool) ───────────────
+            // The LLM produces judgement-based errors (vocabulary, cohesion,
+            // collocation) with examiner-style explanations. LanguageTool
+            // produces deterministic mechanical errors (grammar, spelling,
+            // punctuation) with exact char offsets and verified replacements.
+            // We merge both, prefer LT positions when both flag the same span,
+            // then collapse repeated patterns into one entry with a count.
+            $normalizedErrors = $this->normaliseLlmErrors($scoring['errors'] ?? []);
+            $normalizedErrors = $this->validateAndCleanErrors($normalizedErrors, $answer);
 
-                    $normalizedErrors[] = [
-                        'id' => 'err_'.($index + 1).'_'.dechex(time()),
-                        'text' => trim($error['text']),
-                        'type' => ucfirst(strtolower($error['type'] ?? 'Grammar')),
-                        'category' => ucfirst(strtolower($error['type'] ?? 'Grammar')),
-                        'severity' => strtolower($error['severity'] ?? 'medium'),
-                        'correction' => $error['correction'] ?? '',
-                        'explanation' => $error['explanation'] ?? '',
-                    ];
-                }
-            }
-            $scoring['errors'] = $normalizedErrors;
-
-            // Validate errors before returning
-            $scoring['errors'] = $this->validateAndCleanErrors($scoring['errors'], $answer);
+            $ltErrors = $this->collectLanguageToolErrors($answer);
+            $merged = $this->mergeErrorSources($normalizedErrors, $ltErrors);
+            $scoring['errors'] = $this->groupRepeatedErrors($merged);
 
             return $scoring;
 
@@ -1558,5 +1547,184 @@ CRITERIA;
         }
         $mean = array_sum($values) / count($values);
         $scoring['overall_band'] = (float) max(0.0, min(9.0, round($mean * 2) / 2));
+    }
+
+    // ─── Error detection pipeline ────────────────────────────────────────────
+
+    /**
+     * Normalise the LLM-emitted errors[] array into our internal shape.
+     * Filters out entries with empty text, lowercases category/severity,
+     * tags each as `source: 'llm'` for downstream merging.
+     */
+    protected function normaliseLlmErrors(mixed $rawErrors): array
+    {
+        if (! is_array($rawErrors)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rawErrors as $index => $error) {
+            if (! is_array($error) || empty($error['text'])) {
+                continue;
+            }
+            $type = ucfirst(strtolower((string) ($error['type'] ?? 'Grammar')));
+            $out[] = [
+                'id' => 'llm_'.($index + 1).'_'.substr(md5((string) $error['text']), 0, 6),
+                'text' => trim((string) $error['text']),
+                'type' => $type,
+                'category' => $type,
+                'severity' => strtolower((string) ($error['severity'] ?? 'medium')),
+                'correction' => (string) ($error['correction'] ?? ''),
+                'explanation' => (string) ($error['explanation'] ?? ''),
+                'source' => 'llm',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Run LanguageTool against the essay and map each match into our error
+     * shape. Returns an empty array if LT is unavailable (Docker not running,
+     * etc.) — the LLM errors still carry the report.
+     *
+     * Categorisation:
+     *   - rule.category.id contains TYPO/SPELL → "Vocabulary" (per IELTS LR
+     *     descriptors, spelling errors live under Lexical Resource)
+     *   - PUNCTUATION → "Punctuation"
+     *   - everything else (GRAMMAR / TYPOGRAPHY / STYLE / etc.) → "Grammar"
+     */
+    protected function collectLanguageToolErrors(string $answer): array
+    {
+        try {
+            /** @var LanguageToolClient $lt */
+            $lt = app(LanguageToolClient::class);
+            $result = $lt->check($answer);
+        } catch (\Throwable $e) {
+            return []; // never let LT failures break scoring
+        }
+
+        if (($result['available'] ?? false) !== true) {
+            return [];
+        }
+
+        $matches = is_array($result['raw'] ?? null) ? $result['raw'] : [];
+        $out = [];
+
+        foreach ($matches as $i => $m) {
+            $offset = (int) ($m['offset'] ?? -1);
+            $length = (int) ($m['length'] ?? 0);
+            if ($offset < 0 || $length <= 0 || ($offset + $length) > strlen($answer)) {
+                continue;
+            }
+
+            $text = substr($answer, $offset, $length);
+            if (trim($text) === '') {
+                continue;
+            }
+
+            $catId = strtoupper((string) ($m['rule']['category']['id'] ?? ''));
+            $type = match (true) {
+                str_contains($catId, 'TYPO') || str_contains($catId, 'SPELL') => 'Vocabulary',
+                str_contains($catId, 'PUNCTUATION') => 'Punctuation',
+                default => 'Grammar',
+            };
+
+            $replacement = $m['replacements'][0]['value'] ?? '';
+            $message = (string) ($m['message'] ?? '');
+
+            $out[] = [
+                'id' => 'lt_'.($i + 1).'_'.substr(md5($catId.$offset.$text), 0, 6),
+                'text' => $text,
+                'type' => $type,
+                'category' => $type,
+                'severity' => 'medium', // LT doesn't grade severity; downgrade to medium
+                'correction' => (string) $replacement,
+                'explanation' => $message,
+                'source' => 'languagetool',
+                'offset' => $offset,
+                'length' => $length,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Merge LLM and LanguageTool error lists. When both flag the same span
+     * (case-insensitive text match), keep LT's exact position+correction
+     * but carry over the LLM's richer examiner-style explanation. Result is
+     * order-stable: LLM-first since they tend to be the more diagnostic
+     * (vocabulary, cohesion); LT-only entries appended after.
+     */
+    protected function mergeErrorSources(array $llmErrors, array $ltErrors): array
+    {
+        $byKey = static fn (array $e) => strtolower(trim($e['text']));
+
+        $llmKeys = [];
+        foreach ($llmErrors as $e) {
+            $llmKeys[$byKey($e)] = true;
+        }
+
+        $merged = $llmErrors;
+
+        foreach ($ltErrors as $lt) {
+            $k = $byKey($lt);
+            if (isset($llmKeys[$k])) {
+                // Same-span overlap — find the matching LLM entry and enrich
+                // it with LT's verified position + replacement.
+                foreach ($merged as &$llm) {
+                    if ($byKey($llm) !== $k) {
+                        continue;
+                    }
+                    $llm['offset'] = $llm['offset'] ?? $lt['offset'];
+                    $llm['length'] = $llm['length'] ?? $lt['length'];
+                    if (empty($llm['correction']) && ! empty($lt['correction'])) {
+                        $llm['correction'] = $lt['correction'];
+                    }
+                    $llm['source'] = 'llm+languagetool';
+                    break;
+                }
+                unset($llm); // break the by-ref binding
+
+                continue;
+            }
+            $merged[] = $lt;
+        }
+
+        return $merged;
+    }
+
+    /**
+     * Collapse repeated error patterns into one entry per text. Used because
+     * a candidate who misspells "peoples" five times should see one error
+     * card with a "Repeated 5 times" badge, not five identical cards. We
+     * keep the first occurrence's data and add `repeated_count`.
+     */
+    protected function groupRepeatedErrors(array $errors): array
+    {
+        $byText = [];
+        $order = [];
+
+        foreach ($errors as $e) {
+            $key = strtolower(trim((string) ($e['text'] ?? '')));
+            if ($key === '') {
+                continue;
+            }
+            if (! isset($byText[$key])) {
+                $byText[$key] = $e;
+                $byText[$key]['repeated_count'] = 1;
+                $order[] = $key;
+            } else {
+                $byText[$key]['repeated_count']++;
+                // Promote severity if a later occurrence is graver.
+                $rank = ['low' => 1, 'medium' => 2, 'high' => 3];
+                if (($rank[$e['severity'] ?? 'medium'] ?? 2) > ($rank[$byText[$key]['severity'] ?? 'medium'] ?? 2)) {
+                    $byText[$key]['severity'] = $e['severity'];
+                }
+            }
+        }
+
+        return array_values(array_map(fn ($k) => $byText[$k], $order));
     }
 }

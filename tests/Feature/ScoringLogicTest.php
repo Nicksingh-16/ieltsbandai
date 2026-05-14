@@ -288,6 +288,81 @@ class ScoringLogicTest extends TestCase
         $this->assertNull($this->invokeProtected('parseConfidenceMax', ['5.0']));
     }
 
+    // ── error pipeline ───────────────────────────────────────────────────
+
+    public function test_normalise_llm_errors_filters_empty_text_and_lowercases_severity()
+    {
+        $raw = [
+            ['text' => '  peoples  ', 'type' => 'GRAMMAR', 'severity' => 'HIGH', 'correction' => 'people'],
+            ['text' => '', 'type' => 'Grammar'], // empty — drop
+            ['type' => 'Grammar'],               // no text — drop
+            ['text' => 'citys', 'type' => 'vocabulary', 'severity' => 'medium', 'correction' => 'cities'],
+        ];
+        $out = $this->invokeProtected('normaliseLlmErrors', [$raw]);
+
+        $this->assertCount(2, $out);
+        $this->assertSame('peoples', $out[0]['text']);
+        $this->assertSame('Grammar', $out[0]['type']);
+        $this->assertSame('high', $out[0]['severity']);
+        $this->assertSame('llm', $out[0]['source']);
+    }
+
+    public function test_merge_error_sources_keeps_llm_first_then_appends_lt_only_entries()
+    {
+        $llm = [
+            ['text' => 'peoples', 'type' => 'Grammar', 'severity' => 'high', 'source' => 'llm', 'correction' => 'people', 'explanation' => 'Plural form is people, not peoples'],
+        ];
+        $lt = [
+            ['text' => 'peoples', 'type' => 'Grammar', 'severity' => 'medium', 'source' => 'languagetool', 'offset' => 12, 'length' => 7, 'correction' => 'people', 'explanation' => 'Possible spelling mistake'],
+            ['text' => 'recieve', 'type' => 'Vocabulary', 'severity' => 'medium', 'source' => 'languagetool', 'offset' => 80, 'length' => 7, 'correction' => 'receive', 'explanation' => 'Spelling'],
+        ];
+
+        $out = $this->invokeProtected('mergeErrorSources', [$llm, $lt]);
+
+        $this->assertCount(2, $out);
+        // Same-span entry: LLM kept, enriched with LT position
+        $this->assertSame('peoples', $out[0]['text']);
+        $this->assertSame(12, $out[0]['offset']);
+        $this->assertSame(7, $out[0]['length']);
+        $this->assertSame('llm+languagetool', $out[0]['source']);
+        $this->assertSame('Plural form is people, not peoples', $out[0]['explanation']); // LLM explanation preserved
+        // LT-only entry appended
+        $this->assertSame('recieve', $out[1]['text']);
+        $this->assertSame('languagetool', $out[1]['source']);
+    }
+
+    public function test_group_repeated_errors_collapses_duplicates_with_count()
+    {
+        $errors = [
+            ['text' => 'peoples', 'type' => 'Grammar', 'severity' => 'medium'],
+            ['text' => 'citys', 'type' => 'Vocabulary', 'severity' => 'medium'],
+            ['text' => 'Peoples', 'type' => 'Grammar', 'severity' => 'high'], // case-insensitive dup
+            ['text' => 'peoples', 'type' => 'Grammar', 'severity' => 'low'],
+        ];
+        $out = $this->invokeProtected('groupRepeatedErrors', [$errors]);
+
+        $this->assertCount(2, $out);
+        $this->assertSame('peoples', $out[0]['text']);
+        $this->assertSame(3, $out[0]['repeated_count']);
+        // Severity promoted to highest seen ('high' from the second peoples)
+        $this->assertSame('high', $out[0]['severity']);
+        $this->assertSame('citys', $out[1]['text']);
+        $this->assertSame(1, $out[1]['repeated_count']);
+    }
+
+    public function test_group_repeated_errors_drops_entries_with_blank_text()
+    {
+        $errors = [
+            ['text' => 'peoples'],
+            ['text' => '   '],
+            ['text' => ''],
+        ];
+        $out = $this->invokeProtected('groupRepeatedErrors', [$errors]);
+
+        $this->assertCount(1, $out);
+        $this->assertSame('peoples', $out[0]['text']);
+    }
+
     // ── prompt construction ──────────────────────────────────────────────
 
     public function test_task_1_metadata_is_injected_into_prompt()

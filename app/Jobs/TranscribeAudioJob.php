@@ -160,9 +160,10 @@ class TranscribeAudioJob implements ShouldQueue
 
                 if (! empty($meta['mock_deferred_eval'])) {
                     Log::info('TranscribeAudioJob: all parts done — SpeakingScoreJob DEFERRED (mock test)', [
-                        'test_id'      => $this->testId,
+                        'test_id' => $this->testId,
                         'mock_test_id' => $meta['mock_test_id'] ?? null,
                     ]);
+
                     // Leave status='processing' so the mock paywall later
                     // knows this speaking test is awaiting scoring.
                     return;

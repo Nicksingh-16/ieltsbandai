@@ -122,7 +122,7 @@ class MockTest extends Model
         if (! $this->moduleTestId($module)) {
             $this->update([
                 $module.'_test_id' => $test->id,
-                $module.'_band'    => $test->overall_band,
+                $module.'_band' => $test->overall_band,
             ]);
         }
 
@@ -138,7 +138,7 @@ class MockTest extends Model
         $this->refresh();
         if ($this->status !== 'completed') {
             $this->update([
-                'status'       => 'completed',
+                'status' => 'completed',
                 'completed_at' => now(),
             ]);
         }

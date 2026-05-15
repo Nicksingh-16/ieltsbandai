@@ -117,7 +117,7 @@ class MockTestController extends Controller
         // — eval scores aren't in for writing/speaking until they pay.
         $mock->refresh();
         $mock->update([
-            'status'       => 'completed',
+            'status' => 'completed',
             'completed_at' => now(),
         ]);
 
@@ -142,7 +142,7 @@ class MockTestController extends Controller
             return $this->dispatchUnlock($mock);
         }
 
-        $cost     = MockTest::UNLOCK_COST_CREDITS;
+        $cost = MockTest::UNLOCK_COST_CREDITS;
         $userCred = (int) $mock->user->test_credits;
 
         return view('pages.mock-test.paywall', compact('mock', 'cost', 'userCred'));
@@ -199,7 +199,7 @@ class MockTestController extends Controller
             if ($writing && empty($writing->overall_band)) {
                 WritingEvaluationJob::dispatch($writing->id);
                 Log::info('mock-test.unlock: WritingEvaluationJob dispatched', [
-                    'mock_id'    => $mock->id,
+                    'mock_id' => $mock->id,
                     'writing_id' => $writing->id,
                 ]);
             }
@@ -217,12 +217,12 @@ class MockTestController extends Controller
                 unset($meta['mock_deferred_eval']);
                 $speaking->forceFill([
                     'metadata' => json_encode($meta),
-                    'status'   => 'scoring',
+                    'status' => 'scoring',
                 ])->save();
 
                 SpeakingScoreJob::dispatch($speaking->id)->onQueue('scoring');
                 Log::info('mock-test.unlock: SpeakingScoreJob dispatched', [
-                    'mock_id'     => $mock->id,
+                    'mock_id' => $mock->id,
                     'speaking_id' => $speaking->id,
                 ]);
             }

@@ -175,17 +175,17 @@ class WritingTestService
                 // descriptor the scoring code used and explain any cap that
                 // moved a criterion away from the LLM's initial rating).
                 'descriptor_match' => $scoring['descriptor_match'] ?? [],
-                'cap_log'          => $scoring['cap_log'] ?? [],
+                'cap_log' => $scoring['cap_log'] ?? [],
 
                 // Per-criterion raw scores from the LLM before bias-correction
                 // shift — useful for support tooling and benchmarking.
                 'raw_scores' => [
-                    'task_achievement'   => $scoring['task_achievement_raw']   ?? null,
+                    'task_achievement' => $scoring['task_achievement_raw'] ?? null,
                     'coherence_cohesion' => $scoring['coherence_cohesion_raw'] ?? null,
-                    'lexical_resource'   => $scoring['lexical_resource_raw']   ?? null,
-                    'grammar'            => $scoring['grammar_raw']            ?? null,
-                    'overall_band'       => $scoring['overall_band_raw']       ?? null,
-                    'bias_shift'         => $scoring['bias_shift']             ?? 0,
+                    'lexical_resource' => $scoring['lexical_resource_raw'] ?? null,
+                    'grammar' => $scoring['grammar_raw'] ?? null,
+                    'overall_band' => $scoring['overall_band_raw'] ?? null,
+                    'bias_shift' => $scoring['bias_shift'] ?? 0,
                 ],
             ];
 

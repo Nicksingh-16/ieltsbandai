@@ -169,7 +169,7 @@ class WritingTestController extends Controller
         // deferred eval jobs once payment is received.
         if (session()->has('mock_test_id')) {
             \Illuminate\Support\Facades\Log::info('Writing eval deferred — mock test active', [
-                'test_id'      => $testId,
+                'test_id' => $testId,
                 'mock_test_id' => session('mock_test_id'),
             ]);
         } else {
@@ -208,8 +208,8 @@ class WritingTestController extends Controller
         }
 
         return response()->json([
-            'success'  => true,
-            'message'  => 'Your writing has been submitted. Evaluating…',
+            'success' => true,
+            'message' => 'Your writing has been submitted. Evaluating…',
             'redirect' => $resultUrl,
         ]);
     }

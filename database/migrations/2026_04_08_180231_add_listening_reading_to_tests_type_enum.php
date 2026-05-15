@@ -11,10 +11,11 @@ return new class extends Migration
 
         if ($driver === 'mysql') {
             DB::statement("ALTER TABLE tests MODIFY COLUMN type ENUM('speaking', 'writing', 'listening', 'reading') NOT NULL");
-        } else {
+        } elseif ($driver === 'pgsql') {
             DB::statement('ALTER TABLE tests DROP CONSTRAINT IF EXISTS tests_type_check');
             DB::statement("ALTER TABLE tests ADD CONSTRAINT tests_type_check CHECK (type IN ('speaking', 'writing', 'listening', 'reading'))");
         }
+        // SQLite: no-op (enum becomes VARCHAR with no CHECK constraint).
     }
 
     public function down(): void
@@ -23,7 +24,7 @@ return new class extends Migration
 
         if ($driver === 'mysql') {
             DB::statement("ALTER TABLE tests MODIFY COLUMN type ENUM('speaking', 'writing') NOT NULL");
-        } else {
+        } elseif ($driver === 'pgsql') {
             DB::statement('ALTER TABLE tests DROP CONSTRAINT IF EXISTS tests_type_check');
             DB::statement("ALTER TABLE tests ADD CONSTRAINT tests_type_check CHECK (type IN ('speaking', 'writing'))");
         }

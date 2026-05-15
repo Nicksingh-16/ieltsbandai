@@ -18,7 +18,7 @@ return new class extends Migration
                 'listening_academic', 'listening_general',
                 'reading_academic', 'reading_general'
             ) NOT NULL");
-        } else {
+        } elseif ($driver === 'pgsql') {
             DB::statement('ALTER TABLE questions DROP CONSTRAINT IF EXISTS questions_type_check');
             DB::statement("ALTER TABLE questions ADD CONSTRAINT questions_type_check CHECK (type IN ('speaking', 'writing', 'listening', 'reading'))");
 
@@ -31,6 +31,8 @@ return new class extends Migration
                 'reading_academic', 'reading_general'
             ))");
         }
+        // SQLite (test DB): no-op. Laravel renders enum() as VARCHAR with no
+        // CHECK constraint, so there is nothing to widen.
     }
 
     public function down(): void
@@ -44,7 +46,7 @@ return new class extends Migration
                 'writing_academic_task1', 'writing_academic_task2',
                 'writing_general_task1', 'writing_general_task2'
             ) NOT NULL");
-        } else {
+        } elseif ($driver === 'pgsql') {
             DB::statement('ALTER TABLE questions DROP CONSTRAINT IF EXISTS questions_type_check');
             DB::statement("ALTER TABLE questions ADD CONSTRAINT questions_type_check CHECK (type IN ('speaking', 'writing'))");
 

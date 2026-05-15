@@ -289,26 +289,31 @@ class ScoringLogicTest extends TestCase
     }
 
     // ── enforceTopicRelevance ────────────────────────────────────────────
+    // Ladder (L5-v7, post-Ahmedabad incident):
+    //   ≥60 → no cap
+    //   35-59 → cap 6.5  (partial drift)
+    //   15-34 → cap 5.5  (tangential)
+    //    <15 → cap 4.0  (catastrophically off-topic)
 
-    public function test_topic_relevance_off_topic_caps_ta_at_band_3_5()
+    public function test_topic_relevance_catastrophic_caps_ta_at_band_4()
     {
-        $scoring = ['task_achievement' => 7.5, 'topic_relevance' => 10];
+        $scoring = ['task_achievement' => 7.5, 'topic_relevance' => 5];
         $this->invokeProtected('enforceTopicRelevance', [&$scoring]);
-        $this->assertSame(3.5, $scoring['task_achievement']);
+        $this->assertSame(4.0, $scoring['task_achievement']);
     }
 
-    public function test_topic_relevance_tangential_caps_ta_at_5()
+    public function test_topic_relevance_tangential_caps_ta_at_5_5()
     {
-        $scoring = ['task_achievement' => 7.0, 'topic_relevance' => 35];
+        $scoring = ['task_achievement' => 7.0, 'topic_relevance' => 20];
         $this->invokeProtected('enforceTopicRelevance', [&$scoring]);
-        $this->assertSame(5.0, $scoring['task_achievement']);
+        $this->assertSame(5.5, $scoring['task_achievement']);
     }
 
-    public function test_topic_relevance_partially_relevant_caps_ta_at_6()
+    public function test_topic_relevance_partial_drift_caps_ta_at_6_5()
     {
-        $scoring = ['task_achievement' => 7.5, 'topic_relevance' => 60];
+        $scoring = ['task_achievement' => 7.5, 'topic_relevance' => 40];
         $this->invokeProtected('enforceTopicRelevance', [&$scoring]);
-        $this->assertSame(6.0, $scoring['task_achievement']);
+        $this->assertSame(6.5, $scoring['task_achievement']);
     }
 
     public function test_topic_relevance_high_does_not_cap()
@@ -316,6 +321,13 @@ class ScoringLogicTest extends TestCase
         $scoring = ['task_achievement' => 8.0, 'topic_relevance' => 90];
         $this->invokeProtected('enforceTopicRelevance', [&$scoring]);
         $this->assertSame(8.0, $scoring['task_achievement']);
+    }
+
+    public function test_topic_relevance_at_or_above_60_does_not_cap()
+    {
+        $scoring = ['task_achievement' => 7.5, 'topic_relevance' => 60];
+        $this->invokeProtected('enforceTopicRelevance', [&$scoring]);
+        $this->assertSame(7.5, $scoring['task_achievement']);
     }
 
     public function test_topic_relevance_missing_or_invalid_skipped()
@@ -339,6 +351,98 @@ class ScoringLogicTest extends TestCase
         $scoring = ['task_achievement' => 2.0, 'topic_relevance' => 90];
         $this->invokeProtected('enforceTopicRelevance', [&$scoring]);
         $this->assertSame(2.0, $scoring['task_achievement']);
+    }
+
+    // ── Task 1 letter safety valve (L5-v7) ──────────────────────────────
+    // The LLM under-rates topic_relevance for GT Task 1 letters. For letters
+    // we trust the question_parts[] signal over the relevance number.
+
+    public function test_task1_letter_with_all_bullets_addressed_skips_cap_even_at_relevance_1()
+    {
+        // Reproduces the Ahmedabad recommendation-letter incident:
+        // LLM emitted topic_relevance=1 for a fully on-topic letter that
+        // addressed all 3 bullet points. Pre-L5-v7 this capped TA to 3.5.
+        $scoring = [
+            'task_achievement' => 7.0,
+            'topic_relevance' => 1,
+            'question_parts' => [
+                ['part' => 'explain why you are moving',        'addressed' => true],
+                ['part' => 'describe difficulties of moving',    'addressed' => true],
+                ['part' => 'suggest preparations to make',       'addressed' => true],
+            ],
+            'cap_log' => [],
+        ];
+        $this->invokeProtected('enforceTopicRelevance', [&$scoring, 'writing_general_task1']);
+        $this->assertSame(7.0, $scoring['task_achievement']);
+        $this->assertSame([], $scoring['cap_log']);
+    }
+
+    public function test_task1_letter_with_some_bullets_addressed_skips_topic_cap_lets_qpc_handle_it()
+    {
+        // QPC will cap TA to 5.5 (1 of 3 missed) — but enforceTopicRelevance
+        // should NOT double-cap; it must defer to the QPC signal entirely.
+        $scoring = [
+            'task_achievement' => 7.0,
+            'topic_relevance' => 1,
+            'question_parts' => [
+                ['part' => 'p1', 'addressed' => true],
+                ['part' => 'p2', 'addressed' => true],
+                ['part' => 'p3', 'addressed' => false],
+            ],
+            'cap_log' => [],
+        ];
+        $this->invokeProtected('enforceTopicRelevance', [&$scoring, 'writing_general_task1']);
+        // Topic-relevance left TA alone — QPC would already have been the
+        // one to cap (pipeline runs QPC first now).
+        $this->assertSame(7.0, $scoring['task_achievement']);
+        $this->assertSame([], $scoring['cap_log']);
+    }
+
+    public function test_task1_letter_with_all_bullets_unaddressed_still_applies_topic_cap()
+    {
+        // Genuine off-topic letter (e.g. essay submitted instead of a letter,
+        // or letter on totally wrong subject). All bullets unaddressed AND
+        // low relevance → cap as normal.
+        $scoring = [
+            'task_achievement' => 7.0,
+            'topic_relevance' => 5,
+            'question_parts' => [
+                ['part' => 'p1', 'addressed' => false],
+                ['part' => 'p2', 'addressed' => false],
+                ['part' => 'p3', 'addressed' => false],
+            ],
+            'cap_log' => [],
+        ];
+        $this->invokeProtected('enforceTopicRelevance', [&$scoring, 'writing_general_task1']);
+        $this->assertSame(4.0, $scoring['task_achievement']);
+    }
+
+    public function test_task1_letter_without_question_parts_falls_back_to_softer_ladder()
+    {
+        // LLM forgot to populate question_parts. We can't trust relevance=1
+        // for a letter, so the no-cap floor drops from 60 to 40.
+        $scoring = [
+            'task_achievement' => 7.0,
+            'topic_relevance' => 45,
+            'cap_log' => [],
+        ];
+        $this->invokeProtected('enforceTopicRelevance', [&$scoring, 'writing_general_task1']);
+        $this->assertSame(7.0, $scoring['task_achievement']);
+    }
+
+    public function test_task2_essay_unaffected_by_letter_safety_valve()
+    {
+        // The letter safety valve must not change Task 2 behavior.
+        $scoring = [
+            'task_achievement' => 7.0,
+            'topic_relevance' => 5,
+            'question_parts' => [
+                ['part' => 'p1', 'addressed' => true],
+            ],
+            'cap_log' => [],
+        ];
+        $this->invokeProtected('enforceTopicRelevance', [&$scoring, 'writing_academic_task2']);
+        $this->assertSame(4.0, $scoring['task_achievement']);
     }
 
     // ── error pipeline ───────────────────────────────────────────────────

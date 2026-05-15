@@ -45,7 +45,7 @@ class ScoringService
      * Bump on any material change to the prompt body or retrieval strategy
      * (e.g. L3-v2 = topic-keyword-ranked few-shot, L4-v1 = LanguageTool block).
      */
-    public const PROMPT_VERSION = 'L5-v6';
+    public const PROMPT_VERSION = 'L5-v7';
 
     protected CalibrationService $calibration;
 
@@ -256,9 +256,14 @@ class ScoringService
 
             $this->enforceLengthCaps($scoring, $wordCount, $isTask2);
 
-            $this->enforceTopicRelevance($scoring);
-
+            // Run question-part coverage BEFORE topic-relevance so the
+            // letter safety valve in enforceTopicRelevance can read the
+            // populated question_parts[] decisions and skip its cap when
+            // bullets are addressed. (Order didn't matter for Task 2; it
+            // matters for Task 1 letters now.)
             $this->enforceQuestionPartCoverage($scoring, $question);
+
+            $this->enforceTopicRelevance($scoring, $category);
 
             // Defensive floor: catches the all-zeros collapse the LLM can
             // produce for off-topic essays (it punishes the whole response
@@ -293,11 +298,22 @@ class ScoringService
             $merged = $this->mergeErrorSources($normalizedErrors, $ltErrors);
             $scoring['errors'] = $this->groupRepeatedErrors($merged);
 
+            // Stash error-source counts for the audit log so incidents can be
+            // replayed without re-running the pipeline. Counted PRE-grouping
+            // so the breakdown reflects raw detection volume; the visible
+            // errors[] count after grouping may be lower if patterns repeat.
+            $scoring['_error_sources'] = [
+                'llm_raw' => count($normalizedErrors),
+                'lt_raw' => count($ltErrors),
+                'merged_pre_group' => count($merged),
+                'final_visible' => count($scoring['errors']),
+            ];
+
             $stageTimings['total_ms'] = (int) ((microtime(true) - $tStart) * 1000);
             $scoring['_audit'] = [
-                'latency_ms'      => $stageTimings,
-                'prompt_version'  => 'L5-v6',
-                'pipeline_caps'   => array_map(
+                'latency_ms' => $stageTimings,
+                'prompt_version' => 'L5-v6',
+                'pipeline_caps' => array_map(
                     fn ($c) => $c['rule'].':'.$c['field'].'('.$c['from'].'→'.$c['to'].')',
                     $scoring['cap_log'] ?? []
                 ),
@@ -306,27 +322,28 @@ class ScoringService
             // Single structured line per evaluation — `php artisan log:tail`-grep
             // friendly so support can replay any user-reported scoring incident.
             Log::info('Writing evaluation audit', [
-                'test_id'        => $testId,
-                'user_id'        => $userId,
-                'word_count'     => $wordCount,
-                'is_task2'       => $isTask2,
-                'raw_scores'     => [
-                    'ta'  => $scoring['task_achievement_raw']   ?? null,
-                    'cc'  => $scoring['coherence_cohesion_raw'] ?? null,
-                    'lr'  => $scoring['lexical_resource_raw']   ?? null,
-                    'gra' => $scoring['grammar_raw']            ?? null,
+                'test_id' => $testId,
+                'user_id' => $userId,
+                'word_count' => $wordCount,
+                'is_task2' => $isTask2,
+                'raw_scores' => [
+                    'ta' => $scoring['task_achievement_raw'] ?? null,
+                    'cc' => $scoring['coherence_cohesion_raw'] ?? null,
+                    'lr' => $scoring['lexical_resource_raw'] ?? null,
+                    'gra' => $scoring['grammar_raw'] ?? null,
                 ],
-                'final_scores'   => [
-                    'ta'  => $scoring['task_achievement']   ?? null,
-                    'cc'  => $scoring['coherence_cohesion'] ?? null,
-                    'lr'  => $scoring['lexical_resource']   ?? null,
-                    'gra' => $scoring['grammar']            ?? null,
-                    'overall' => $scoring['overall_band']   ?? null,
+                'final_scores' => [
+                    'ta' => $scoring['task_achievement'] ?? null,
+                    'cc' => $scoring['coherence_cohesion'] ?? null,
+                    'lr' => $scoring['lexical_resource'] ?? null,
+                    'gra' => $scoring['grammar'] ?? null,
+                    'overall' => $scoring['overall_band'] ?? null,
                 ],
-                'bias_shift'     => $scoring['bias_shift'] ?? 0,
-                'caps_applied'   => $scoring['_audit']['pipeline_caps'],
-                'errors_total'   => count($scoring['errors'] ?? []),
-                'latency_ms'     => $stageTimings,
+                'bias_shift' => $scoring['bias_shift'] ?? 0,
+                'caps_applied' => $scoring['_audit']['pipeline_caps'],
+                'errors_total' => count($scoring['errors'] ?? []),
+                'errors_by_source' => $scoring['_error_sources'] ?? null,
+                'latency_ms' => $stageTimings,
             ]);
 
             return $scoring;
@@ -759,6 +776,15 @@ META;
         // conditional was the fix for the Town-Centre Maps incident where
         // an off-topic answer collapsed ALL criteria to 0.0 because the
         // LLM had no Task-1 guidance for handling topic mismatch.
+        //
+        // Task-1-letter anchors added in L5-v7 after the Ahmedabad
+        // recommendation-letter incident: the LLM was emitting
+        // topic_relevance=1 (catastrophically off-topic) for a fully on-topic
+        // GT Task 1 letter because the scale's only anchors were essay-shaped
+        // (personal essay vs chart prompt). The expanded calibration teaches
+        // the model what "on-topic" looks like for the three Task 1 surface
+        // forms (chart, map/diagram, letter) so the post-LLM cap fires only
+        // when it should.
         $topicRelevanceInstructions = <<<'TOPICBLOCK'
 TOPIC RELEVANCE CHECK (mandatory — applies to BOTH Task 1 and Task 2):
 - Score the candidate's overall on-topicness as an integer 0-100 in the
@@ -769,10 +795,37 @@ TOPIC RELEVANCE CHECK (mandatory — applies to BOTH Task 1 and Task 2):
     25  = tangential — touches the topic but mostly discusses something else
     0   = wholly off-topic (e.g. personal essay about studying abroad in
           response to a chart description prompt)
+
+- CRITICAL — what "on-topic" looks like for each Task 1 surface form:
+  • Task 1 Academic (chart/graph): on-topic = describes the data shown in
+    the chart. Score 100. Writing about a personal topic that the chart
+    metadata happens to mention (e.g. an essay about your own university
+    experience in response to a university enrolment chart) is OFF-topic,
+    score 10-20.
+  • Task 1 Academic (map/process): on-topic = describes the spatial change
+    or the process steps. Score 100. A personal essay about town planning
+    is OFF-topic, score 10-20.
+  • Task 1 General (letter): on-topic = a letter to the specified recipient
+    that engages with each bullet point given in the prompt. If the letter
+    addresses the situation in the prompt and covers the bullets, score 100
+    EVEN IF the writing is informal, contains errors, or is short. A
+    recommendation letter to a friend about moving to Ahmedabad, in
+    response to a "write a letter recommending a city" prompt, is
+    100/100 on-topic — do NOT confuse "imperfect writing" with "off-topic".
+    OFF-topic for a letter means: writing an essay instead of a letter,
+    addressing a different recipient, or discussing something unrelated
+    to the prompt situation (e.g. responding to a "complain to the airline"
+    prompt by writing about your favourite holiday). Score those 10-20.
+  • Task 2 (essay): on-topic = engages with the specific question posed.
+
 - The post-LLM pipeline will cap TA / TR based on this number per the Band 3
   descriptor ("the prompt is tackled in a minimal way, or the answer is
   tangential"). Be honest; an off-topic Band 9-quality essay still scores
-  Band 3 on TA / TR per the official rules.
+  Band 3 on TA / TR per the official rules. But equally, an on-topic letter
+  with weak vocabulary MUST score 80-100 on topic_relevance — TA will then
+  be set by your descriptor judgement and the question_parts coverage check,
+  NOT by a low topic_relevance.
+
 - CRITICAL: Off-topic content does NOT affect Coherence, Lexical Resource,
   or Grammar. Those criteria score the language quality of the text on the
   page, regardless of whether the topic matches the prompt. See the
@@ -804,6 +857,37 @@ QUESTION-PART COVERAGE CHECK (mandatory):
   of the prompt are incompletely addressed"). The post-LLM pipeline will
   enforce this cap automatically based on question_parts[].addressed.
 TASK2;
+        }
+
+        // GT Task 1 letters always have a 3-bullet prompt structure
+        // ("you should: explain X, describe Y, suggest Z"). Question-part
+        // coverage is the canonical "on-topic" signal for letters — more
+        // reliable than the LLM's topic_relevance score, which was emitting
+        // 1/100 for on-topic letters before L5-v7. The pipeline uses
+        // question_parts[] to gate the topic_relevance cap for letters,
+        // so we MUST get this populated even when there are no explicit
+        // numeric sub-questions.
+        $task1LetterInstructions = '';
+        if (str_contains($taskType, 'Task 1') && str_contains($taskType, 'General')) {
+            $task1LetterInstructions = <<<'TASK1LETTER'
+TASK 1 LETTER — QUESTION-PART COVERAGE (mandatory):
+- GT Task 1 letter prompts give the candidate 3 bullet points specifying
+  what the letter must cover (e.g. "explain why you are moving / describe
+  the difficulties you face / suggest preparations you should make").
+- Extract those bullets from the prompt above. Populate question_parts[] in
+  the JSON output with one entry per bullet:
+  { "part": "verbatim bullet text", "addressed": true|false,
+    "evidence": "1-line evidence from the letter if addressed, else why not" }
+- A bullet is "addressed" if the letter substantively covers it. A passing
+  mention is NOT enough; look for at least one developed sentence per bullet.
+- Be calibrated: if all 3 bullets are addressed in any substantive way, the
+  letter IS on-topic. Topic_relevance for such a letter must be 80-100, even
+  if the language is informal or contains errors.
+- If 1 bullet is missed, TA cannot exceed Band 5.5 (post-LLM pipeline
+  enforces). If 2+ bullets are missed, TA cannot exceed Band 4.5.
+- The signature, greeting, and closing lines are not bullets — they are
+  letter conventions. Do not count them as parts.
+TASK1LETTER;
         }
 
         return <<<PROMPT
@@ -914,6 +998,7 @@ USER'S ANSWER:
 {$task1MetadataInstructions}
 {$topicRelevanceInstructions}
 {$task2Instructions}
+{$task1LetterInstructions}
 
 ERROR DETECTION REQUIREMENTS (ACCURATE & HELPFUL):
 - Identify REAL errors that actually impact clarity, accuracy, or IELTS band criteria.
@@ -1599,10 +1684,10 @@ CRITERIA;
             ]);
             foreach ($applied as $field => $a) {
                 $scoring['cap_log'][] = [
-                    'rule'   => 'length',
-                    'field'  => $field,
-                    'from'   => $a['from'],
-                    'to'     => $a['to'],
+                    'rule' => 'length',
+                    'field' => $field,
+                    'from' => $a['from'],
+                    'to' => $a['to'],
                     'detail' => 'word_count='.$wordCount.($isTask2 ? ' (Task 2 — 250 min)' : ' (Task 1 — 150 min)'),
                 ];
             }
@@ -1625,7 +1710,7 @@ CRITERIA;
      * Skipped if topic_relevance is missing or out of range — the LLM may
      * legitimately omit it on certain task types.
      */
-    protected function enforceTopicRelevance(array &$scoring): void
+    protected function enforceTopicRelevance(array &$scoring, string $category = ''): void
     {
         $relevance = $scoring['topic_relevance'] ?? null;
         if (! is_numeric($relevance)) {
@@ -1635,6 +1720,62 @@ CRITERIA;
         $relevance = (int) $relevance;
         if ($relevance < 0 || $relevance > 100) {
             return;
+        }
+
+        // GT Task 1 letter safety valve (L5-v7, Ahmedabad incident):
+        // The LLM's topic_relevance scale is unreliable for letters — it
+        // routinely emits 1/100 for fully on-topic letters because the
+        // scale anchors were essay-shaped. For letters we trust the
+        // question_parts[] coverage signal instead (enforced separately by
+        // enforceQuestionPartCoverage). If the LLM marked every bullet as
+        // addressed, the letter IS on-topic by IELTS definition; skip the
+        // cap. If bullets are missed, the QPC cap will fire on its own.
+        // We keep the cap active only when EVERY bullet is unaddressed AND
+        // relevance is also catastrophic — the genuine "wrote about a
+        // totally different topic" case.
+        $isTask1Letter = str_contains($category, 'general_task1');
+        if ($isTask1Letter) {
+            $parts = $scoring['question_parts'] ?? null;
+            if (is_array($parts) && count($parts) > 0) {
+                $addressed = 0;
+                $unaddressed = 0;
+                foreach ($parts as $p) {
+                    if (! is_array($p)) {
+                        continue;
+                    }
+                    if (($p['addressed'] ?? true) === true) {
+                        $addressed++;
+                    } else {
+                        $unaddressed++;
+                    }
+                }
+                if ($addressed > 0) {
+                    // At least one bullet addressed → not catastrophically off
+                    // topic. Let enforceQuestionPartCoverage handle any
+                    // partial-coverage penalty.
+                    Log::info('Skipped topic-relevance cap for on-topic Task 1 letter', [
+                        'topic_relevance' => $relevance,
+                        'parts_addressed' => $addressed,
+                        'parts_unaddressed' => $unaddressed,
+                        'task_achievement' => $scoring['task_achievement'] ?? null,
+                    ]);
+
+                    return;
+                }
+            } else {
+                // No question_parts populated — fall through to the
+                // standard ladder but with a softer high-relevance floor.
+                // The LLM under-reports relevance for letters, so we widen
+                // the "no cap" band: ≥40 → no cap (vs ≥60 for other tasks).
+                if ($relevance >= 40) {
+                    Log::info('Topic-relevance cap softened for Task 1 letter (no question_parts)', [
+                        'topic_relevance' => $relevance,
+                        'task_achievement' => $scoring['task_achievement'] ?? null,
+                    ]);
+
+                    return;
+                }
+            }
         }
 
         // Calibration history note (Town-Centre / Recommendation-Letter incident,
@@ -1650,7 +1791,7 @@ CRITERIA;
             $relevance >= 60 => null,   // on-topic enough — no cap
             $relevance >= 35 => 6.5,    // partial drift; soft ceiling
             $relevance >= 15 => 5.5,    // tangential but recognisable
-            default          => 4.0,    // catastrophically off-topic
+            default => 4.0,    // catastrophically off-topic
         };
 
         if ($cap === null) {
@@ -1668,10 +1809,10 @@ CRITERIA;
                 'ta_after' => $cap,
             ]);
             $scoring['cap_log'][] = [
-                'rule'   => 'topic_relevance',
-                'field'  => 'task_achievement',
-                'from'   => $before,
-                'to'     => $cap,
+                'rule' => 'topic_relevance',
+                'field' => 'task_achievement',
+                'from' => $before,
+                'to' => $cap,
                 'detail' => 'topic_relevance='.$relevance.'/100',
             ];
         }
@@ -1724,10 +1865,10 @@ CRITERIA;
                 'ta_after' => $cap,
             ]);
             $scoring['cap_log'][] = [
-                'rule'   => 'question_part_coverage',
-                'field'  => 'task_achievement',
-                'from'   => $before,
-                'to'     => $cap,
+                'rule' => 'question_part_coverage',
+                'field' => 'task_achievement',
+                'from' => $before,
+                'to' => $cap,
                 'detail' => $unaddressed.' of '.count($parts).' sub-questions unaddressed',
             ];
         }
@@ -1770,20 +1911,20 @@ CRITERIA;
         if ($wordCount >= 150 && $sentenceCount >= 3) {
             $floors = [
                 'coherence_cohesion' => 3.5,
-                'lexical_resource'   => 3.5,
-                'grammar'            => 3.5,
+                'lexical_resource' => 3.5,
+                'grammar' => 3.5,
             ];
         } elseif ($wordCount >= 100 && $sentenceCount >= 2) {
             $floors = [
                 'coherence_cohesion' => 3.0,
-                'lexical_resource'   => 3.0,
-                'grammar'            => 3.0,
+                'lexical_resource' => 3.0,
+                'grammar' => 3.0,
             ];
         } else {
             $floors = [
                 'coherence_cohesion' => 2.0,
-                'lexical_resource'   => 2.0,
-                'grammar'            => 2.0,
+                'lexical_resource' => 2.0,
+                'grammar' => 2.0,
             ];
         }
 
@@ -1800,10 +1941,10 @@ CRITERIA;
                 // can surface it as a separate adjustment from the language
                 // caps. Uses 'rule' = 'language_floor' for reconcileCriterionExplanations.
                 $scoring['cap_log'][] = [
-                    'rule'   => 'language_floor',
-                    'field'  => $field,
-                    'from'   => $before,
-                    'to'     => $floor,
+                    'rule' => 'language_floor',
+                    'field' => $field,
+                    'from' => $before,
+                    'to' => $floor,
                     'detail' => 'word_count='.$wordCount.', sentences='.$sentenceCount.' (off-topic does not collapse language criteria)',
                 ];
             }
@@ -1811,7 +1952,7 @@ CRITERIA;
 
         if (! empty($applied)) {
             Log::info('Applied language-criterion floor', [
-                'word_count'     => $wordCount,
+                'word_count' => $wordCount,
                 'sentence_count' => $sentenceCount,
                 'floors_applied' => $applied,
             ]);
@@ -1842,10 +1983,10 @@ CRITERIA;
     protected function reconcileCriterionExplanations(array &$scoring): void
     {
         $criterionFields = [
-            'task_achievement'   => 'Task Achievement',
+            'task_achievement' => 'Task Achievement',
             'coherence_cohesion' => 'Coherence & Cohesion',
-            'lexical_resource'   => 'Lexical Resource',
-            'grammar'            => 'Grammatical Range & Accuracy',
+            'lexical_resource' => 'Lexical Resource',
+            'grammar' => 'Grammatical Range & Accuracy',
         ];
 
         $capLog = (array) ($scoring['cap_log'] ?? []);
@@ -1889,14 +2030,14 @@ CRITERIA;
             }
 
             $primary = $reasons[0]['rule'] ?? 'descriptor_calibration';
-            $detail  = $reasons[0]['detail'] ?? '';
+            $detail = $reasons[0]['detail'] ?? '';
 
             $reasonText = match ($primary) {
-                'length'                 => 'the response is under the IELTS minimum word count for this task',
-                'topic_relevance'        => 'the response is judged off-topic or only tangentially related to the prompt',
+                'length' => 'the response is under the IELTS minimum word count for this task',
+                'topic_relevance' => 'the response is judged off-topic or only tangentially related to the prompt',
                 'question_part_coverage' => 'one or more required sub-questions in the prompt were not addressed',
-                'language_floor'         => 'the AI examiner under-scored this language criterion below the descriptor floor for a response of this length',
-                default                  => 'a descriptor-based calibration was applied after the language-quality rating',
+                'language_floor' => 'the AI examiner under-scored this language criterion below the descriptor floor for a response of this length',
+                default => 'a descriptor-based calibration was applied after the language-quality rating',
             };
 
             $descriptorPhrase = $this->descriptorPhraseForBand($field, $final);
@@ -1912,10 +2053,10 @@ CRITERIA;
                     $detail !== '' ? ' ('.$detail.')' : ''
                 ),
                 'tip' => $this->capTipForRule($primary, $field),
-                'cap_reason'    => $primary,
-                'cap_detail'    => $detail,
-                'raw_band'      => $raw,
-                'displayed_band'=> $final,
+                'cap_reason' => $primary,
+                'cap_detail' => $detail,
+                'raw_band' => $raw,
+                'displayed_band' => $final,
             ];
 
             // Realign descriptor_match so the quote panel in the UI agrees
@@ -1930,11 +2071,11 @@ CRITERIA;
             }
 
             Log::info('Reconciled criterion explanation post-cap', [
-                'field'           => $field,
-                'raw_band'        => $raw,
-                'final_band'      => $final,
-                'cap_rule'        => $primary,
-                'cap_detail'      => $detail,
+                'field' => $field,
+                'raw_band' => $raw,
+                'final_band' => $final,
+                'cap_rule' => $primary,
+                'cap_detail' => $detail,
             ]);
         }
 
@@ -2049,14 +2190,14 @@ CRITERIA;
             return null;
         }
         $primary = $taCaps[0]['rule'] ?? 'descriptor_calibration';
-        $from    = $taCaps[0]['from'] ?? null;
-        $to      = $taCaps[0]['to'] ?? null;
+        $from = $taCaps[0]['from'] ?? null;
+        $to = $taCaps[0]['to'] ?? null;
 
         $reason = match ($primary) {
-            'length'                 => 'the response is under the IELTS word minimum',
-            'topic_relevance'        => 'parts of the response drifted off-topic',
+            'length' => 'the response is under the IELTS word minimum',
+            'topic_relevance' => 'parts of the response drifted off-topic',
             'question_part_coverage' => 'one or more required sub-questions were not addressed',
-            default                  => 'a descriptor-based examiner adjustment was applied',
+            default => 'a descriptor-based examiner adjustment was applied',
         };
 
         if ($from !== null && $to !== null) {
@@ -2144,10 +2285,16 @@ CRITERIA;
             $lt = app(LanguageToolClient::class);
             $result = $lt->check($answer);
         } catch (\Throwable $e) {
-            return []; // never let LT failures break scoring
+            Log::warning('LanguageTool collect failed (exception)', ['msg' => $e->getMessage()]);
+
+            return [];
         }
 
         if (($result['available'] ?? false) !== true) {
+            Log::info('LanguageTool unavailable — error pipeline running LLM-only', [
+                'word_count' => str_word_count($answer),
+            ]);
+
             return [];
         }
 
@@ -2158,12 +2305,17 @@ CRITERIA;
         $signatureZoneStart = $this->findSignatureZoneStart($answer);
 
         $matches = is_array($result['raw'] ?? null) ? $result['raw'] : [];
+        $suppressedSignature = 0;
+        $suppressedProperNoun = 0;
+        $suppressedOutOfBounds = 0;
         $out = [];
 
         foreach ($matches as $i => $m) {
             $offset = (int) ($m['offset'] ?? -1);
             $length = (int) ($m['length'] ?? 0);
             if ($offset < 0 || $length <= 0 || ($offset + $length) > strlen($answer)) {
+                $suppressedOutOfBounds++;
+
                 continue;
             }
 
@@ -2182,11 +2334,13 @@ CRITERIA;
             // regards," etc. is the signature block — names, addresses, dates
             // — never grammar-checked in a real exam.
             if ($signatureZoneStart !== null && $offset >= $signatureZoneStart && $isSpellOrTypo) {
+                $suppressedSignature++;
                 Log::debug('LT match suppressed — signature zone', [
                     'text' => $text,
                     'offset' => $offset,
                     'signature_zone_start' => $signatureZoneStart,
                 ]);
+
                 continue;
             }
 
@@ -2197,18 +2351,20 @@ CRITERIA;
             // start a sentence (where capitalisation is grammatical, not a
             // proper-noun signal).
             if ($isSpellOrTypo && $this->looksLikeProperNoun($answer, $offset, $text)) {
+                $suppressedProperNoun++;
                 Log::debug('LT match suppressed — proper noun', [
                     'text' => $text,
                     'offset' => $offset,
                     'rule' => $ruleId,
                 ]);
+
                 continue;
             }
 
             $type = match (true) {
-                $isSpellOrTypo                       => 'Vocabulary',
-                str_contains($catId, 'PUNCTUATION')  => 'Punctuation',
-                default                              => 'Grammar',
+                $isSpellOrTypo => 'Vocabulary',
+                str_contains($catId, 'PUNCTUATION') => 'Punctuation',
+                default => 'Grammar',
             };
 
             $replacement = $m['replacements'][0]['value'] ?? '';
@@ -2227,6 +2383,20 @@ CRITERIA;
                 'length' => $length,
             ];
         }
+
+        // One-line summary so incident replay can answer "did LT actually fire
+        // and how many of its hits survived our suppression filters?" without
+        // needing debug-level logs enabled.
+        Log::info('LanguageTool collection summary', [
+            'available' => true,
+            'raw_matches' => count($matches),
+            'kept' => count($out),
+            'suppressed_signature' => $suppressedSignature,
+            'suppressed_proper_noun' => $suppressedProperNoun,
+            'suppressed_out_of_bounds' => $suppressedOutOfBounds,
+            'lt_grammar_count' => $result['grammar_errors'] ?? null,
+            'lt_spelling_count' => $result['spelling_errors'] ?? null,
+        ]);
 
         return $out;
     }
@@ -2312,6 +2482,8 @@ CRITERIA;
         }
 
         $merged = $llmErrors;
+        $overlap = 0;
+        $ltOnly = 0;
 
         foreach ($ltErrors as $lt) {
             $k = $byKey($lt);
@@ -2331,11 +2503,21 @@ CRITERIA;
                     break;
                 }
                 unset($llm); // break the by-ref binding
+                $overlap++;
 
                 continue;
             }
             $merged[] = $lt;
+            $ltOnly++;
         }
+
+        Log::info('Error merge summary', [
+            'llm_count' => count($llmErrors),
+            'lt_count' => count($ltErrors),
+            'overlap' => $overlap,
+            'lt_only_added' => $ltOnly,
+            'merged_total' => count($merged),
+        ]);
 
         return $merged;
     }

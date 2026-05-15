@@ -122,6 +122,44 @@
                                         </div>
                                     @endforeach
                                 </div>
+                            @elseif($chartType === 'map')
+                                {{-- Map: two side-by-side panels showing each location's
+                                     before / after state. The seeder stores 'changes' as
+                                     an array of {location, from, to} — this is the IELTS
+                                     'two maps' pattern where the candidate compares the
+                                     old layout to the new. No real images: rendered as
+                                     a comparison table so the candidate has structured
+                                     factual data to draw from. --}}
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                                    <div class="bg-surface-800 border border-rose-500/30 rounded-lg p-3">
+                                        <p class="text-[10px] font-bold text-rose-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                            <span class="inline-block w-2 h-2 rounded-full bg-rose-400"></span>
+                                            {{ $meta['year_a'] ?? 'Before' }}
+                                        </p>
+                                        <ul class="space-y-1.5 text-xs text-surface-300">
+                                            @foreach(($meta['changes'] ?? []) as $c)
+                                                <li class="flex gap-1.5">
+                                                    <span class="text-surface-500 shrink-0">•</span>
+                                                    <span><strong class="text-surface-200">{{ $c['location'] ?? '' }}:</strong> {{ $c['from'] ?? '' }}</span>
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    </div>
+                                    <div class="bg-surface-800 border border-emerald-500/30 rounded-lg p-3">
+                                        <p class="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                            <span class="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
+                                            {{ $meta['year_b'] ?? 'After' }}
+                                        </p>
+                                        <ul class="space-y-1.5 text-xs text-surface-300">
+                                            @foreach(($meta['changes'] ?? []) as $c)
+                                                <li class="flex gap-1.5">
+                                                    <span class="text-surface-500 shrink-0">•</span>
+                                                    <span><strong class="text-surface-200">{{ $c['location'] ?? '' }}:</strong> {{ $c['to'] ?? '' }}</span>
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    </div>
+                                </div>
                             @elseif($chartType === 'pie')
                                 {{-- Pie Chart via Chart.js --}}
                                 <div class="flex flex-col sm:flex-row items-center gap-6">
@@ -151,7 +189,7 @@
                             @endif
                         </div>
 
-                        @if($chartType !== 'process')
+                        @if(! in_array($chartType, ['process', 'map']))
                         <script>
                         document.addEventListener('DOMContentLoaded', function() {
                             const ctx = document.getElementById('taskChart').getContext('2d');

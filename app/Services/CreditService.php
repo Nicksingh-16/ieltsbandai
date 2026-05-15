@@ -49,6 +49,26 @@ class CreditService
      */
     public function chargeForTest(User $user, Test $test): void
     {
+        // Mock test in progress: defer all charges until the end-of-mock
+        // 2-credit unlock paywall. Per-module charges would double-bill the
+        // user since the mock paywall takes a single 2-credit fee covering
+        // all 4 modules. Detect via session — set by MockTestController::start.
+        if (session()->has('mock_test_id')) {
+            // Mark deferred so the mock paywall later knows which tests
+            // belong to the unlock bundle and which need their LLM eval
+            // dispatched once the user pays.
+            if (! $test->credit_charged_at) {
+                $test->forceFill([
+                    'metadata' => json_encode(array_merge(
+                        is_array($test->metadata) ? $test->metadata : (json_decode($test->metadata, true) ?: []),
+                        ['mock_deferred_eval' => true, 'mock_test_id' => session('mock_test_id')]
+                    )),
+                ])->save();
+            }
+
+            return;
+        }
+
         // Pro / institute users — record marker for accounting parity, no debit.
         if ($this->isPro($user)) {
             if (! $test->credit_charged_at) {

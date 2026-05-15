@@ -148,6 +148,26 @@ class TranscribeAudioJob implements ShouldQueue
             ]);
 
             if ($doneCount >= $totalParts && $totalParts >= 3) {
+                // Mock test: defer LLM scoring until the user pays the unlock
+                // fee. Transcripts are saved (cheap Deepgram cost) but the
+                // expensive SpeakingScoreJob waits for MockTestController::unlock()
+                // to dispatch it after the 2-credit payment. Detected via the
+                // mock_deferred_eval flag CreditService stamped into metadata
+                // during getOrCreate.
+                $meta = is_array($test->metadata)
+                    ? $test->metadata
+                    : (json_decode($test->metadata ?? '{}', true) ?: []);
+
+                if (! empty($meta['mock_deferred_eval'])) {
+                    Log::info('TranscribeAudioJob: all parts done — SpeakingScoreJob DEFERRED (mock test)', [
+                        'test_id'      => $this->testId,
+                        'mock_test_id' => $meta['mock_test_id'] ?? null,
+                    ]);
+                    // Leave status='processing' so the mock paywall later
+                    // knows this speaking test is awaiting scoring.
+                    return;
+                }
+
                 // Mark as 'scoring' so no other job re-dispatches
                 $test->update(['status' => 'scoring']);
                 SpeakingScoreJob::dispatch($this->testId)->onQueue('scoring');

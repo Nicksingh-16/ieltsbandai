@@ -10,13 +10,18 @@ class MockTest extends Model
         'user_id', 'test_type', 'status', 'current_module',
         'listening_test_id', 'reading_test_id', 'writing_test_id', 'speaking_test_id',
         'listening_band', 'reading_band', 'writing_band', 'speaking_band',
-        'overall_band', 'started_at', 'completed_at',
+        'overall_band', 'results_unlocked', 'started_at', 'completed_at',
     ];
 
     protected $casts = [
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
+        'results_unlocked' => 'boolean',
     ];
+
+    // Single charge taken at the end-of-mock paywall, in credits.
+    // Cheaper than 4 individual tests (4 credits) but pricier than 1.
+    const UNLOCK_COST_CREDITS = 2;
 
     // Module order for sequential flow
     const MODULES = ['listening', 'reading', 'writing', 'speaking'];

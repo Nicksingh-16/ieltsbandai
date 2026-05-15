@@ -1,4 +1,14 @@
 <x-app-layout>
+@php
+    // Writing and speaking evals may still be running after the unlock fee
+    // was paid (LLM scoring takes 1-3 min). Show a polling spinner banner
+    // until both bands land. Listening + reading are scored synchronously
+    // at submit so their bands are always present here.
+    $writingPending  = $mock->writing_test_id  && empty($mock->writing_band);
+    $speakingPending = $mock->speaking_test_id && empty($mock->speaking_band);
+    $stillEvaluating = $writingPending || $speakingPending;
+@endphp
+
 <div class="min-h-screen bg-surface-950 py-12 px-4">
 <div class="max-w-2xl mx-auto">
 
@@ -12,6 +22,25 @@
         <h1 class="text-3xl font-bold text-surface-50 mb-2">Full Mock Test Complete</h1>
         <p class="text-surface-400">{{ ucfirst($mock->test_type) }} · Completed {{ $mock->completed_at?->format('d M Y, h:i A') }}</p>
     </div>
+
+    @if($stillEvaluating)
+    <div class="card p-5 mb-6 border border-brand-500/30 bg-brand-500/5 flex items-start gap-3">
+        <svg class="w-5 h-5 text-brand-400 animate-spin shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+        <div class="flex-1">
+            <p class="text-sm font-semibold text-brand-300 mb-0.5">
+                Evaluating @if($writingPending)Writing@endif@if($writingPending && $speakingPending) and @endif@if($speakingPending)Speaking@endif…
+            </p>
+            <p class="text-xs text-surface-500">This takes 1–3 minutes. The page refreshes automatically.</p>
+        </div>
+    </div>
+    <script>
+        // Auto-refresh until writing + speaking bands land
+        setTimeout(() => window.location.reload(), 5000);
+    </script>
+    @endif
 
     {{-- Overall band --}}
     @if($mock->overall_band)

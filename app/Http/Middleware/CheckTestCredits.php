@@ -27,6 +27,14 @@ class CheckTestCredits
             return redirect()->route('login');
         }
 
+        // Mock test in progress: the user pays a single 2-credit unlock
+        // charge at the end via mock-test.paywall, so per-module credit
+        // gates are bypassed here. The mock paywall is what actually
+        // protects the LLM evaluation cost — see MockTest::UNLOCK_COST_CREDITS.
+        if (session()->has('mock_test_id')) {
+            return $next($request);
+        }
+
         // Out of credits → paywall (richer than the static pricing page,
         // captures intent via ?from= so the matching single-test pack
         // gets a visual highlight on the way in).

@@ -163,13 +163,24 @@ class WritingTestController extends Controller
         // Save answer and mark as evaluating
         $this->writingService->saveAnswerForEvaluation($testId, $request->input('answer'));
 
-        // Run scoring AFTER the HTTP response is flushed back to the user.
-        // This keeps submit instant regardless of QUEUE_CONNECTION (sync runs
-        // jobs inline; database/redis hand off to a worker; afterResponse
-        // runs in the same PHP process post-response on any driver). The
-        // user sees the polling page within ~100ms instead of waiting 60-120s
-        // for LLM scoring on the submit POST.
-        WritingEvaluationJob::dispatchAfterResponse($testId);
+        // Mock test: defer the LLM eval until the user pays the 2-credit
+        // mock unlock fee. We save the answer (so it's not lost) but skip
+        // the dispatch. MockTestController::unlock() re-dispatches all
+        // deferred eval jobs once payment is received.
+        if (session()->has('mock_test_id')) {
+            \Illuminate\Support\Facades\Log::info('Writing eval deferred — mock test active', [
+                'test_id'      => $testId,
+                'mock_test_id' => session('mock_test_id'),
+            ]);
+        } else {
+            // Run scoring AFTER the HTTP response is flushed back to the user.
+            // This keeps submit instant regardless of QUEUE_CONNECTION (sync runs
+            // jobs inline; database/redis hand off to a worker; afterResponse
+            // runs in the same PHP process post-response on any driver). The
+            // user sees the polling page within ~100ms instead of waiting 60-120s
+            // for LLM scoring on the submit POST.
+            WritingEvaluationJob::dispatchAfterResponse($testId);
+        }
 
         // XHR / fetch: return JSON so the Alpine submit handler can show
         // its in-page transition. Plain form-submit (JS disabled or guard

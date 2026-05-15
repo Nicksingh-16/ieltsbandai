@@ -143,9 +143,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 // ─── Full Mock Test Routes ────────────────────────────────────────────────────
 Route::middleware(['auth', 'verified'])->prefix('mock-test')->name('mock-test.')->group(function () {
     Route::get('/', [MockTestController::class, 'index'])->name('index');
-    Route::post('/start', [MockTestController::class, 'start'])->middleware(['check.credits', 'throttle:3,1'])->name('start');
+    // Mock start no longer gates on credits — entry is free, the 2-credit
+    // unlock fee is taken at mock-test.paywall after all 4 modules submit.
+    Route::post('/start', [MockTestController::class, 'start'])->middleware('throttle:3,1')->name('start');
     Route::get('/{mock}/module/{module}', [MockTestController::class, 'module'])->name('module');
     Route::post('/{mock}/advance/{module}', [MockTestController::class, 'advance'])->name('advance');
+    Route::get('/{mock}/paywall', [MockTestController::class, 'paywall'])->name('paywall');
+    Route::post('/{mock}/unlock', [MockTestController::class, 'unlock'])->middleware('throttle:5,1')->name('unlock');
     Route::get('/{mock}/result', [MockTestController::class, 'result'])->name('result');
     Route::get('/history', [MockTestController::class, 'history'])->name('history');
     Route::post('/{mock}/abandon', [MockTestController::class, 'abandon'])->name('abandon');

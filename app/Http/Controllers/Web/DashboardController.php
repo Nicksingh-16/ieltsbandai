@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\AssignedTestStudent;
+use App\Models\MockTest;
 use App\Models\Test;
 use App\Repositories\TestRepository;
 use Illuminate\Support\Facades\Auth;
@@ -16,6 +17,17 @@ class DashboardController extends Controller
     {
         $userId = Auth::id();
         $tests = $this->testRepository->getUserTestHistory($userId, paginate: true);
+
+        // Mock test children should be excluded from per-module charts, latest
+        // bands and the standalone test list — the parent MockTest record is
+        // what the dashboard surfaces. Same exclusion logic as TestRepository.
+        $mockChildIds = MockTest::where('user_id', $userId)
+            ->get(['listening_test_id', 'reading_test_id', 'writing_test_id', 'speaking_test_id'])
+            ->flatMap(fn ($m) => [
+                $m->listening_test_id, $m->reading_test_id,
+                $m->writing_test_id,   $m->speaking_test_id,
+            ])
+            ->filter()->unique()->values();
 
         $moduleTypes = [
             'listening' => ['listening_academic', 'listening_general'],
@@ -31,6 +43,7 @@ class DashboardController extends Controller
                 ->whereIn('type', $types)
                 ->whereNotNull('overall_band')
                 ->where('status', 'completed')
+                ->when($mockChildIds->isNotEmpty(), fn ($q) => $q->whereNotIn('id', $mockChildIds))
                 ->orderBy('created_at')
                 ->limit(10)
                 ->get(['id', 'overall_band', 'created_at']);
@@ -49,6 +62,7 @@ class DashboardController extends Controller
                 ->whereIn('type', $types)
                 ->whereNotNull('overall_band')
                 ->where('status', 'completed')
+                ->when($mockChildIds->isNotEmpty(), fn ($q) => $q->whereNotIn('id', $mockChildIds))
                 ->latest()
                 ->limit(2)
                 ->pluck('overall_band');
@@ -61,6 +75,14 @@ class DashboardController extends Controller
             }
         }
 
+        // Recent mock tests — one row per mock, ranked latest first. Surfaced
+        // on the dashboard as the single source of truth for full-mock history.
+        $recentMockTests = MockTest::where('user_id', $userId)
+            ->whereIn('status', ['completed', 'in_progress'])
+            ->latest()
+            ->limit(5)
+            ->get();
+
         $overallBand = count($latestBands)
             ? round(array_sum($latestBands) / count($latestBands) * 2) / 2
             : null;
@@ -71,6 +93,7 @@ class DashboardController extends Controller
             $latestTest = Test::where('user_id', $userId)
                 ->whereIn('type', $moduleTypes[$mod])
                 ->where('status', 'completed')
+                ->when($mockChildIds->isNotEmpty(), fn ($q) => $q->whereNotIn('id', $mockChildIds))
                 ->latest()
                 ->with('testScores')
                 ->first();
@@ -93,7 +116,8 @@ class DashboardController extends Controller
 
         return view('pages.dashboard.index', compact(
             'tests', 'chartData', 'latestBands', 'overallBand',
-            'improvementDeltas', 'criteriaBreakdown', 'pendingAssignments'
+            'improvementDeltas', 'criteriaBreakdown', 'pendingAssignments',
+            'recentMockTests'
         ));
     }
 }

@@ -22,7 +22,11 @@
     ],
 ])
 
-<div class="h-[calc(100vh-4rem)] bg-surface-950 flex flex-col overflow-hidden">
+{{-- Desktop: lock to viewport height with two scrollable columns. Mobile:
+     let the page flow naturally — h-[calc(100vh-4rem)] on a single-column
+     layout truncated questions and left dead scroll space because 100vh on
+     mobile browsers can lag the visual viewport. --}}
+<div class="lg:h-[calc(100vh-4rem)] bg-surface-950 flex flex-col lg:overflow-hidden pb-24 lg:pb-0">
 
     {{-- Sticky Header --}}
     <header class="bg-surface-900 border-b border-surface-600 sticky top-0 z-40" x-data="{ exiting: false }">

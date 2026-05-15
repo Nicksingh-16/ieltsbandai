@@ -423,10 +423,65 @@
             </div>
         </div>
 
-        {{-- ── Recent Tests ── --}}
+        {{-- ── Recent Mock Tests ── (separate from single-module tests) --}}
+        @if(($recentMockTests ?? collect())->isNotEmpty())
+        <div class="card overflow-hidden mb-6">
+            <div class="px-6 py-4 border-b border-surface-600 flex items-center justify-between">
+                <h2 class="section-title">Recent Full Mock Tests</h2>
+                <a href="{{ route('mock-test.history') }}" class="text-xs text-brand-400 hover:text-brand-300">View all →</a>
+            </div>
+            <div class="divide-y divide-surface-600">
+                @foreach($recentMockTests as $mt)
+                @php
+                    $href = $mt->status === 'in_progress'
+                        ? route('mock-test.module', ['mock' => $mt->id, 'module' => $mt->current_module])
+                        : ($mt->results_unlocked ? route('mock-test.result', $mt) : route('mock-test.paywall', $mt));
+                    $badge = match($mt->status) {
+                        'completed' => $mt->results_unlocked
+                            ? ['Completed', 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30']
+                            : ['Awaiting unlock', 'bg-amber-500/15 text-amber-400 border-amber-500/30'],
+                        'in_progress' => ['In progress', 'bg-brand-500/15 text-brand-400 border-brand-500/30'],
+                        default => [ucfirst($mt->status), 'bg-surface-700 text-surface-400 border-surface-600'],
+                    };
+                @endphp
+                <a href="{{ $href }}" class="flex items-center gap-4 px-6 py-4 hover:bg-surface-700/50 transition-colors group">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500/25 to-purple-500/25 border border-brand-500/30 flex items-center justify-center shrink-0">
+                        <span class="text-base">📋</span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="text-sm font-medium text-surface-100">Full Mock Test</span>
+                            <span class="tag bg-surface-700 text-surface-400 border-surface-600 text-[10px] capitalize">{{ $mt->test_type }}</span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border {{ $badge[1] }}">{{ $badge[0] }}</span>
+                        </div>
+                        <p class="text-xs text-surface-500 mt-0.5">
+                            {{ ($mt->completed_at ?? $mt->started_at)?->format('M d, Y · h:i A') }}
+                            @if($mt->status === 'completed' && $mt->results_unlocked)
+                                · L {{ $mt->listening_band ?? '—' }} · R {{ $mt->reading_band ?? '—' }} · W {{ $mt->writing_band ?? '—' }} · S {{ $mt->speaking_band ?? '—' }}
+                            @endif
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-3 shrink-0">
+                        @if($mt->overall_band && $mt->results_unlocked)
+                            <div class="text-right">
+                                <p class="text-xl font-bold text-surface-50">{{ $mt->overall_band }}</p>
+                                <p class="text-xs text-surface-500">Overall</p>
+                            </div>
+                        @endif
+                        <svg class="w-4 h-4 text-surface-500 group-hover:text-brand-400 group-hover:translate-x-0.5 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </div>
+                </a>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
+        {{-- ── Recent Tests (single-module, mock children excluded) ── --}}
         <div class="card overflow-hidden">
             <div class="px-6 py-4 border-b border-surface-600 flex items-center justify-between">
-                <h2 class="section-title">Recent Tests</h2>
+                <h2 class="section-title">Recent Single-Module Tests</h2>
                 @if($tests->isNotEmpty())
                     <span class="text-xs text-surface-500">{{ $tests->total() }} total</span>
                 @endif

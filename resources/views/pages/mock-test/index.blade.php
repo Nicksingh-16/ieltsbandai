@@ -161,9 +161,9 @@
                         <button type="submit"
                             class="btn-primary w-full py-3.5 text-base font-bold justify-center shadow-glow">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            Begin Mock Test
+                            Begin Mock Test — Free
                         </button>
-                        <p class="text-xs text-surface-600 text-center mt-3">Uses 1 credit per module · 4 credits total</p>
+                        <p class="text-xs text-surface-600 text-center mt-3">Free to take · {{ \App\Models\MockTest::UNLOCK_COST_CREDITS }} credits to unlock results at the end</p>
                     </form>
                 </div>
                 @else
@@ -182,22 +182,33 @@
             {{-- Right panel: info + past results --}}
             <div class="lg:col-span-2 space-y-5">
 
-                {{-- Credit info --}}
-                <div class="card p-5">
-                    <p class="text-xs text-surface-500 uppercase tracking-wider font-semibold mb-3">Credits Required</p>
-                    <div class="space-y-2 text-sm">
-                        @foreach(['Listening','Reading','Writing','Speaking'] as $mod)
-                        <div class="flex justify-between items-center">
-                            <span class="text-surface-400">{{ $mod }}</span>
-                            <span class="text-surface-300 font-semibold">1 credit</span>
-                        </div>
-                        @endforeach
-                        <div class="pt-2 border-t border-surface-700 flex justify-between items-center font-semibold">
-                            <span class="text-surface-300">Total</span>
-                            <span class="text-brand-400">4 credits</span>
-                        </div>
+                {{-- Pricing — single 2-credit unlock at the end, all 4 modules included --}}
+                @php $unlockCost = \App\Models\MockTest::UNLOCK_COST_CREDITS; @endphp
+                <div class="card p-5 border-brand-500/30 bg-brand-500/5">
+                    <p class="text-xs text-brand-400 uppercase tracking-wider font-semibold mb-3">Pricing</p>
+                    <div class="flex items-baseline gap-2 mb-2">
+                        <span class="text-3xl font-bold text-surface-50">{{ $unlockCost }}</span>
+                        <span class="text-surface-300 text-sm">credit{{ $unlockCost === 1 ? '' : 's' }} total</span>
                     </div>
-                    <p class="text-xs text-surface-600 mt-3">Credits are deducted as you start each module, not all at once.</p>
+                    <p class="text-xs text-surface-400 leading-relaxed mb-3">
+                        The mock test is <span class="text-emerald-400 font-semibold">free to take</span>. You'll be charged
+                        <span class="text-surface-200 font-semibold">{{ $unlockCost }} credit{{ $unlockCost === 1 ? '' : 's' }}</span>
+                        at the end to unlock your overall band, per-module bands and AI feedback.
+                    </p>
+                    <ul class="space-y-1.5 text-xs text-surface-400">
+                        <li class="flex items-start gap-1.5">
+                            <svg class="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                            <span>No credits deducted while you take the test</span>
+                        </li>
+                        <li class="flex items-start gap-1.5">
+                            <svg class="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                            <span>Cheaper than buying 4 individual tests</span>
+                        </li>
+                        <li class="flex items-start gap-1.5">
+                            <svg class="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                            <span>Pro subscribers unlock free</span>
+                        </li>
+                    </ul>
                 </div>
 
                 {{-- Tips --}}

@@ -500,6 +500,19 @@
                 $why  = $expl['why'] ?? null;
                 $tip  = $expl['tip'] ?? null;
                 $col  = $s >= 7 ? 'emerald' : ($s >= 6 ? 'brand' : ($s >= 5 ? 'amber' : 'red'));
+                // Cap-trail fields populated by ScoringService::reconcileCriterionExplanations
+                // when a post-LLM cap dropped this criterion by ≥1.0 band. The
+                // pill prevents users from interpreting the score+rationale
+                // as contradictory — it makes the descriptor adjustment explicit.
+                $capReason = $expl['cap_reason'] ?? null;
+                $capDetail = $expl['cap_detail'] ?? null;
+                $rawBand   = $expl['raw_band']   ?? null;
+                $capLabel  = $capReason ? match($capReason) {
+                    'length'                 => 'Under word minimum',
+                    'topic_relevance'        => 'Off-topic / tangential',
+                    'question_part_coverage' => 'Sub-question missed',
+                    default                  => 'Examiner adjustment',
+                } : null;
             @endphp
             @php
                 // Map view keys to descriptor_match keys. The LLM uses both
@@ -511,10 +524,23 @@
             @endphp
             @if($why || $tip || $descriptor)
             <div class="card p-5">
-                <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center justify-between mb-3 gap-2 flex-wrap">
                     <p class="text-xs font-semibold text-surface-400 uppercase tracking-wider">{{ $info['short'] }} — {{ $info['label'] }}</p>
                     <span class="text-lg font-bold text-{{ $col }}-400">{{ number_format($s,1) }}</span>
                 </div>
+                @if($capReason && $rawBand !== null)
+                <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 mb-3 flex items-start gap-2">
+                    <svg class="w-4 h-4 text-amber-400 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v4a.75.75 0 01-1.5 0v-4A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+                    <div class="flex-1">
+                        <p class="text-[11px] font-semibold text-amber-200 mb-0.5">
+                            Descriptor cap applied: {{ $capLabel }}
+                        </p>
+                        <p class="text-[11px] text-amber-300/85 leading-relaxed">
+                            AI rated language quality at Band {{ number_format($rawBand, 1) }}, but IELTS descriptors cap this criterion at Band {{ number_format($s, 1) }}@if($capDetail) ({{ $capDetail }})@endif.
+                        </p>
+                    </div>
+                </div>
+                @endif
                 @if($descriptor)
                 <div class="border-l-2 border-{{ $col }}-500/50 bg-{{ $col }}-500/5 pl-3 py-2 mb-3">
                     <p class="text-[10px] font-semibold text-surface-500 uppercase tracking-wider mb-0.5">Official descriptor (Band {{ number_format($s,1) }})</p>

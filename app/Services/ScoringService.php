@@ -155,8 +155,12 @@ class ScoringService
      */
     public function scoreWriting(string $answer, $question, ?int $userId = null, ?int $testId = null): ?array
     {
+        $tStart = microtime(true);
+        $stageTimings = [];
         try {
             $prompt = $this->buildWritingScoringPrompt($answer, $question);
+            $stageTimings['prompt_build_ms'] = (int) ((microtime(true) - $tStart) * 1000);
+            $tLlm = microtime(true);
 
             $data = $this->router
                 ->withContext($userId, $testId, 'writing_score')
@@ -175,6 +179,7 @@ class ScoringService
                     'response_format' => ['type' => 'json_object'],
                 ]);
 
+            $stageTimings['llm_ms'] = (int) ((microtime(true) - $tLlm) * 1000);
             $content = $data['choices'][0]['message']['content'] ?? null;
 
             if (! $content) {
@@ -239,6 +244,12 @@ class ScoringService
             //      Band 5 ("incompletely addressed").
             // Each step recomputes overall_band as the mean of the (capped)
             // sub-scores so the displayed math is always internally consistent.
+            // Audit log accumulator — every cap function records its decision
+            // here so we can later (a) reconcile criterion explanations against
+            // the final scores and (b) surface a "why was this capped" note
+            // in the UI. Replays a complete decision trail for any incident.
+            $scoring['cap_log'] = [];
+
             $this->applyBiasCorrection($scoring, [
                 'task_achievement', 'coherence_cohesion', 'lexical_resource', 'grammar',
             ]);
@@ -248,6 +259,14 @@ class ScoringService
             $this->enforceTopicRelevance($scoring);
 
             $this->enforceQuestionPartCoverage($scoring, $question);
+
+            // Reconcile per-criterion explanations BEFORE recomputing overall.
+            // If any cap dropped a criterion by ≥1.0 band, the LLM's original
+            // explanation (which described the pre-cap band) is now wrong; we
+            // replace it with a deterministic descriptor-anchored stub that
+            // names the cap reason. Prevents the production trust incident
+            // where TA=3.5 came with "aligns with Band 8 descriptor" prose.
+            $this->reconcileCriterionExplanations($scoring);
 
             // Final recompute so callers and persisted JSON agree.
             $this->recomputeOverallFromCriteria($scoring, [
@@ -267,6 +286,42 @@ class ScoringService
             $ltErrors = $this->collectLanguageToolErrors($answer);
             $merged = $this->mergeErrorSources($normalizedErrors, $ltErrors);
             $scoring['errors'] = $this->groupRepeatedErrors($merged);
+
+            $stageTimings['total_ms'] = (int) ((microtime(true) - $tStart) * 1000);
+            $scoring['_audit'] = [
+                'latency_ms'      => $stageTimings,
+                'prompt_version'  => 'L5-v6',
+                'pipeline_caps'   => array_map(
+                    fn ($c) => $c['rule'].':'.$c['field'].'('.$c['from'].'→'.$c['to'].')',
+                    $scoring['cap_log'] ?? []
+                ),
+            ];
+
+            // Single structured line per evaluation — `php artisan log:tail`-grep
+            // friendly so support can replay any user-reported scoring incident.
+            Log::info('Writing evaluation audit', [
+                'test_id'        => $testId,
+                'user_id'        => $userId,
+                'word_count'     => $wordCount,
+                'is_task2'       => $isTask2,
+                'raw_scores'     => [
+                    'ta'  => $scoring['task_achievement_raw']   ?? null,
+                    'cc'  => $scoring['coherence_cohesion_raw'] ?? null,
+                    'lr'  => $scoring['lexical_resource_raw']   ?? null,
+                    'gra' => $scoring['grammar_raw']            ?? null,
+                ],
+                'final_scores'   => [
+                    'ta'  => $scoring['task_achievement']   ?? null,
+                    'cc'  => $scoring['coherence_cohesion'] ?? null,
+                    'lr'  => $scoring['lexical_resource']   ?? null,
+                    'gra' => $scoring['grammar']            ?? null,
+                    'overall' => $scoring['overall_band']   ?? null,
+                ],
+                'bias_shift'     => $scoring['bias_shift'] ?? 0,
+                'caps_applied'   => $scoring['_audit']['pipeline_caps'],
+                'errors_total'   => count($scoring['errors'] ?? []),
+                'latency_ms'     => $stageTimings,
+            ]);
 
             return $scoring;
 
@@ -1492,6 +1547,15 @@ CRITERIA;
                 'is_task2' => $isTask2,
                 'caps' => $applied,
             ]);
+            foreach ($applied as $field => $a) {
+                $scoring['cap_log'][] = [
+                    'rule'   => 'length',
+                    'field'  => $field,
+                    'from'   => $a['from'],
+                    'to'     => $a['to'],
+                    'detail' => 'word_count='.$wordCount.($isTask2 ? ' (Task 2 — 250 min)' : ' (Task 1 — 150 min)'),
+                ];
+            }
         }
     }
 
@@ -1544,6 +1608,13 @@ CRITERIA;
                 'ta_before' => $before,
                 'ta_after' => $cap,
             ]);
+            $scoring['cap_log'][] = [
+                'rule'   => 'topic_relevance',
+                'field'  => 'task_achievement',
+                'from'   => $before,
+                'to'     => $cap,
+                'detail' => 'topic_relevance='.$relevance.'/100',
+            ];
         }
     }
 
@@ -1593,7 +1664,245 @@ CRITERIA;
                 'ta_before' => $before,
                 'ta_after' => $cap,
             ]);
+            $scoring['cap_log'][] = [
+                'rule'   => 'question_part_coverage',
+                'field'  => 'task_achievement',
+                'from'   => $before,
+                'to'     => $cap,
+                'detail' => $unaddressed.' of '.count($parts).' sub-questions unaddressed',
+            ];
         }
+    }
+
+    /**
+     * Reconcile per-criterion explanations against the FINAL (post-cap) scores.
+     *
+     * Production trust incident (writing test #12, May 2026): a 199-word
+     * General Training Task 1 letter received TA=3.5 with the explanation
+     * text "aligns with the Band 8 descriptor". Root cause: the LLM emits
+     * both the criterion score AND its explanation in a single JSON call.
+     * Post-LLM caps (topic_relevance, length, question_part_coverage) then
+     * mutate the score downward — but nothing rewrites the explanation, so
+     * the user sees a Band-8 rationale next to a Band-3.5 number.
+     *
+     * Fix: when a final criterion score is materially below what the LLM
+     * originally awarded (delta ≥ 1.0 band), we drop the LLM's prose and
+     * synthesise a new explanation anchored to the official descriptor for
+     * the FINAL band, naming the specific cap rule that fired. The original
+     * LLM band is preserved as `raw_band` for support / debugging.
+     *
+     * Small bias-correction nudges (< 1.0 band) leave the LLM prose intact —
+     * those describe the same general band region, so the original text is
+     * still accurate.
+     */
+    protected function reconcileCriterionExplanations(array &$scoring): void
+    {
+        $criterionFields = [
+            'task_achievement'   => 'Task Achievement',
+            'coherence_cohesion' => 'Coherence & Cohesion',
+            'lexical_resource'   => 'Lexical Resource',
+            'grammar'            => 'Grammatical Range & Accuracy',
+        ];
+
+        $capLog = (array) ($scoring['cap_log'] ?? []);
+
+        foreach ($criterionFields as $field => $label) {
+            $final = (float) ($scoring[$field] ?? 0);
+            $raw   = (float) ($scoring[$field.'_raw'] ?? $final);
+            $delta = $raw - $final;
+
+            // Only intervene on substantial drops. Sub-band nudges leave the
+            // LLM's prose intact since it still describes the right region.
+            if ($delta < 1.0) {
+                continue;
+            }
+
+            // Look up which cap rule caused this drop. If multiple rules hit
+            // the same field, the first (most-specific) wins — caps run in a
+            // fixed order: length → topic_relevance → question_part_coverage.
+            $reasons = array_values(array_filter(
+                $capLog,
+                fn ($entry) => ($entry['field'] ?? null) === $field
+            ));
+            $primary = $reasons[0]['rule'] ?? 'descriptor_calibration';
+            $detail  = $reasons[0]['detail'] ?? '';
+
+            $reasonText = match ($primary) {
+                'length'                 => 'the response is under the IELTS minimum word count for this task',
+                'topic_relevance'        => 'the response is judged off-topic or only tangentially related to the prompt',
+                'question_part_coverage' => 'one or more required sub-questions in the prompt were not addressed',
+                default                  => 'a descriptor-based calibration was applied after the language-quality rating',
+            };
+
+            $descriptorPhrase = $this->descriptorPhraseForBand($field, $final);
+
+            $scoring['band_explanations'][$field] = [
+                'why' => sprintf(
+                    'Final %s: Band %s — %s. The AI examiner initially rated this around Band %s for language quality, but a descriptor cap was applied because %s%s.',
+                    $label,
+                    number_format($final, 1),
+                    $descriptorPhrase,
+                    number_format($raw, 1),
+                    $reasonText,
+                    $detail !== '' ? ' ('.$detail.')' : ''
+                ),
+                'tip' => $this->capTipForRule($primary, $field),
+                'cap_reason'    => $primary,
+                'cap_detail'    => $detail,
+                'raw_band'      => $raw,
+                'displayed_band'=> $final,
+            ];
+
+            // Realign descriptor_match so the quote panel in the UI agrees
+            // with the score, not the LLM's pre-cap intent.
+            if (isset($scoring['descriptor_match']) && is_array($scoring['descriptor_match'])) {
+                $scoring['descriptor_match'][$field] = $descriptorPhrase;
+                // Also clear the task_response alias to avoid the result view
+                // accidentally pulling the stale phrase from there.
+                if ($field === 'task_achievement') {
+                    $scoring['descriptor_match']['task_response'] = $descriptorPhrase;
+                }
+            }
+
+            Log::info('Reconciled criterion explanation post-cap', [
+                'field'           => $field,
+                'raw_band'        => $raw,
+                'final_band'      => $final,
+                'cap_rule'        => $primary,
+                'cap_detail'      => $detail,
+            ]);
+        }
+
+        // Also drop any stale top-level examiner_comments that praise the
+        // pre-cap language quality — they would re-introduce the same
+        // contradiction at the OVERALL FEEDBACK section. Replace with a
+        // single summary derived from cap_log.
+        if (! empty($capLog)) {
+            $summary = $this->summarizeCapLogForUser($capLog);
+            if ($summary !== null) {
+                $scoring['examiner_comments'] = array_merge(
+                    [$summary],
+                    array_slice((array) ($scoring['examiner_comments'] ?? []), 0, 3)
+                );
+            }
+        }
+    }
+
+    /**
+     * Short, descriptor-anchored phrase to drop into the per-criterion card
+     * when we've overridden the LLM's prose. These are abbreviated paraphrases
+     * of the official IELTS Writing band descriptors — full descriptors are
+     * far longer; this gives users one declarative sentence per band.
+     */
+    protected function descriptorPhraseForBand(string $field, float $band): string
+    {
+        $b = (string) (round($band * 2) / 2);
+        $map = [
+            'task_achievement' => [
+                '9.0' => 'fully satisfies all the requirements of the task',
+                '8.5' => 'sufficiently covers all requirements; well-developed response',
+                '8.0' => 'sufficiently covers all requirements of the task',
+                '7.5' => 'covers the requirements with a clear position/overview',
+                '7.0' => 'covers the requirements of the task with a clear position/overview',
+                '6.5' => 'addresses most requirements; position/overview adequately presented',
+                '6.0' => 'addresses the requirements but with some inadequacy in overview or position',
+                '5.5' => 'generally addresses the task; the format may be inappropriate in places',
+                '5.0' => 'the prompt is incompletely addressed; format may be inappropriate',
+                '4.5' => 'the prompt is tangentially addressed; format inappropriate or unclear',
+                '4.0' => 'attempts to address the task but does not cover all requirements',
+                '3.5' => 'the prompt is tackled in a minimal way or the answer is tangential',
+                '3.0' => 'does not adequately address any part of the task',
+            ],
+            'coherence_cohesion' => [
+                '9.0' => 'uses cohesion in such a way that it attracts no attention; skilfully managed paragraphing',
+                '8.0' => 'sequences information and ideas logically; manages cohesion well',
+                '7.0' => 'logically organises information; clear progression throughout',
+                '6.0' => 'arranges information coherently; clear overall progression',
+                '5.0' => 'presents information with some organisation; lacks overall progression',
+                '4.0' => 'presents information and ideas but not arranged coherently',
+                '3.0' => 'does not organise ideas logically; very limited control of cohesion',
+            ],
+            'lexical_resource' => [
+                '9.0' => 'wide range of vocabulary used with very natural and sophisticated control',
+                '8.0' => 'wide range of vocabulary fluently and flexibly used',
+                '7.0' => 'sufficient range of vocabulary to allow some flexibility and precision',
+                '6.0' => 'adequate range of vocabulary; meaning is generally clear',
+                '5.0' => 'limited range of vocabulary; noticeable errors in word choice/spelling',
+                '4.0' => 'basic vocabulary which may be used repetitively',
+                '3.0' => 'very limited range of words; little control of word formation/spelling',
+            ],
+            'grammar' => [
+                '9.0' => 'wide range of structures with full flexibility and accuracy',
+                '8.0' => 'wide range of structures; majority of sentences error-free',
+                '7.0' => 'variety of complex structures; good control with occasional errors',
+                '6.0' => 'mix of simple and complex sentences; errors do not impede communication',
+                '5.0' => 'limited range of structures; frequent errors that may cause some difficulty',
+                '4.0' => 'limited range; frequent errors that may impede meaning',
+                '3.0' => 'very limited range of structures; errors predominate',
+            ],
+        ];
+
+        $table = $map[$field] ?? $map['task_achievement'];
+        if (isset($table[$b])) {
+            return $table[$b];
+        }
+        // Fall back to the nearest LOWER half-band so we never overstate.
+        $bands = array_map('floatval', array_keys($table));
+        rsort($bands);
+        foreach ($bands as $candidate) {
+            if ($band >= $candidate) {
+                return $table[(string) $candidate];
+            }
+        }
+
+        return $table['3.0'];
+    }
+
+    /** Short actionable tip per cap rule, replacing the LLM tip that was
+     *  written for the pre-cap band. */
+    protected function capTipForRule(string $rule, string $field): string
+    {
+        return match ($rule) {
+            'length' => 'Reach the IELTS minimum word count (150 for Task 1, 250 for Task 2). Language polish cannot lift this criterion until length is met.',
+            'topic_relevance' => 'Re-read the prompt and ensure every paragraph stays on the specific topic. Off-topic content is heavily penalised regardless of writing quality.',
+            'question_part_coverage' => 'Re-read the prompt and identify every sub-question. Address each one explicitly in its own paragraph.',
+            default => 'Address the descriptor gap that triggered this adjustment before working on language polish.',
+        };
+    }
+
+    /** One-line user-facing summary of what the cap pipeline did, prepended
+     *  to examiner_comments so the overall feedback no longer praises the
+     *  pre-cap response. */
+    protected function summarizeCapLogForUser(array $capLog): ?string
+    {
+        $taCaps = array_values(array_filter(
+            $capLog,
+            fn ($e) => ($e['field'] ?? null) === 'task_achievement'
+        ));
+        if (empty($taCaps)) {
+            return null;
+        }
+        $primary = $taCaps[0]['rule'] ?? 'descriptor_calibration';
+        $from    = $taCaps[0]['from'] ?? null;
+        $to      = $taCaps[0]['to'] ?? null;
+
+        $reason = match ($primary) {
+            'length'                 => 'the response is under the IELTS word minimum',
+            'topic_relevance'        => 'parts of the response drifted off-topic',
+            'question_part_coverage' => 'one or more required sub-questions were not addressed',
+            default                  => 'a descriptor-based examiner adjustment was applied',
+        };
+
+        if ($from !== null && $to !== null) {
+            return sprintf(
+                'Task Achievement was adjusted from Band %s to Band %s because %s. Other criteria reflect the language-quality rating.',
+                number_format((float) $from, 1),
+                number_format((float) $to, 1),
+                $reason
+            );
+        }
+
+        return ucfirst($reason).' — please review the per-criterion breakdown for detail.';
     }
 
     /**
@@ -1676,6 +1985,12 @@ CRITERIA;
             return [];
         }
 
+        // Identify the signature zone (everything after a letter-closing
+        // phrase like "Yours faithfully,"). LT runs an en-US dictionary that
+        // doesn't know most personal names; flagging "Sahid Khan → Said" is
+        // the kind of false positive that destroys product trust.
+        $signatureZoneStart = $this->findSignatureZoneStart($answer);
+
         $matches = is_array($result['raw'] ?? null) ? $result['raw'] : [];
         $out = [];
 
@@ -1692,10 +2007,42 @@ CRITERIA;
             }
 
             $catId = strtoupper((string) ($m['rule']['category']['id'] ?? ''));
+            $ruleId = strtoupper((string) ($m['rule']['id'] ?? ''));
+            $isSpellOrTypo = str_contains($catId, 'TYPO') || str_contains($catId, 'SPELL')
+                || str_contains($ruleId, 'MORFOLOGIK');
+
+            // ── Signature zone protection ─────────────────────────────────
+            // Anything after "Yours faithfully," / "Sincerely," / "Best
+            // regards," etc. is the signature block — names, addresses, dates
+            // — never grammar-checked in a real exam.
+            if ($signatureZoneStart !== null && $offset >= $signatureZoneStart && $isSpellOrTypo) {
+                Log::debug('LT match suppressed — signature zone', [
+                    'text' => $text,
+                    'offset' => $offset,
+                    'signature_zone_start' => $signatureZoneStart,
+                ]);
+                continue;
+            }
+
+            // ── Proper-noun protection ───────────────────────────────────
+            // A capitalised token in the body that LT wants to "correct" to a
+            // common word is almost always a name / brand / place. Suppress
+            // spelling-category matches on capitalised spans unless they
+            // start a sentence (where capitalisation is grammatical, not a
+            // proper-noun signal).
+            if ($isSpellOrTypo && $this->looksLikeProperNoun($answer, $offset, $text)) {
+                Log::debug('LT match suppressed — proper noun', [
+                    'text' => $text,
+                    'offset' => $offset,
+                    'rule' => $ruleId,
+                ]);
+                continue;
+            }
+
             $type = match (true) {
-                str_contains($catId, 'TYPO') || str_contains($catId, 'SPELL') => 'Vocabulary',
-                str_contains($catId, 'PUNCTUATION') => 'Punctuation',
-                default => 'Grammar',
+                $isSpellOrTypo                       => 'Vocabulary',
+                str_contains($catId, 'PUNCTUATION')  => 'Punctuation',
+                default                              => 'Grammar',
             };
 
             $replacement = $m['replacements'][0]['value'] ?? '';
@@ -1716,6 +2063,70 @@ CRITERIA;
         }
 
         return $out;
+    }
+
+    /**
+     * Locate the character offset where the signature zone of a letter begins.
+     * Scans for case-insensitive closing phrases ("Yours faithfully,",
+     * "Sincerely,", "Best regards,", "Kind regards,", "Many thanks,"). Returns
+     * null if none found — non-letter writing has no signature zone.
+     */
+    protected function findSignatureZoneStart(string $text): ?int
+    {
+        $patterns = [
+            '/\byours\s+faithfully\s*[,.]/i',
+            '/\byours\s+sincerely\s*[,.]/i',
+            '/\byours\s+truly\s*[,.]/i',
+            '/\bsincerely\s+yours\s*[,.]/i',
+            '/\bbest\s+regards\s*[,.]/i',
+            '/\bkind\s+regards\s*[,.]/i',
+            '/\bwarm\s+regards\s*[,.]/i',
+            '/\bregards\s*[,.]/i',
+            '/\bsincerely\s*[,.]/i',
+            '/\bmany\s+thanks\s*[,.]/i',
+            '/\bthank\s+you\s*[,.]/i',
+            '/\bcheers\s*[,.]/i',
+        ];
+        foreach ($patterns as $p) {
+            if (preg_match($p, $text, $m, PREG_OFFSET_CAPTURE)) {
+                // Signature zone begins AT the closing phrase — the name on
+                // the line below is the protected span.
+                return (int) $m[0][1];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Decide whether a span looks like a proper noun (and thus a likely false
+     * positive for spelling correction). True when:
+     *   - the span starts with an uppercase letter,
+     *   - it is NOT at the start of a sentence (where capitalisation is
+     *     grammatical and tells us nothing about proper-noun-ness),
+     *   - and (heuristic) the replacement target is a common lowercase word.
+     * Single-word spans only — multi-word names are already very low risk.
+     */
+    protected function looksLikeProperNoun(string $answer, int $offset, string $text): bool
+    {
+        $first = mb_substr($text, 0, 1);
+        if ($first === '' || $first !== mb_strtoupper($first)) {
+            return false; // span doesn't start with a capital
+        }
+        if (preg_match('/\s/', $text)) {
+            return false; // multi-word span — too aggressive to suppress
+        }
+
+        // Look at the 3 characters before the span to see whether we're at
+        // sentence start (preceded by ". " or "! " or "? " or start of text).
+        $lookback = max(0, $offset - 3);
+        $prefix = substr($answer, $lookback, $offset - $lookback);
+        $prefixTrim = rtrim($prefix);
+        if ($prefixTrim === '' || preg_match('/[.!?]$/', $prefixTrim)) {
+            return false; // sentence-initial capital — not a proper-noun signal
+        }
+
+        return true;
     }
 
     /**

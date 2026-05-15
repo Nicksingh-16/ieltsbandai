@@ -1637,11 +1637,20 @@ CRITERIA;
             return;
         }
 
+        // Calibration history note (Town-Centre / Recommendation-Letter incident,
+        // 15 May 2026): the LLM under-reports topic_relevance for legitimate
+        // Task 1 letter responses, often emitting <25 for fully-on-topic
+        // recommendation letters. The old aggressive ladder (≥25 → 5.0, else
+        // 3.5) caused false-positive TA caps to Band 3.5 on plainly on-topic
+        // submissions. Tightened thresholds: only catastrophically off-topic
+        // responses (relevance < 10) trigger the harsh Band-4 cap; partial
+        // mismatches get a soft Band-6 ceiling that still reflects real-IELTS
+        // descriptor language without destroying user trust.
         $cap = match (true) {
-            $relevance >= 75 => null,
-            $relevance >= 50 => 6.0,
-            $relevance >= 25 => 5.0,
-            default => 3.5,
+            $relevance >= 60 => null,   // on-topic enough — no cap
+            $relevance >= 35 => 6.5,    // partial drift; soft ceiling
+            $relevance >= 15 => 5.5,    // tangential but recognisable
+            default          => 4.0,    // catastrophically off-topic
         };
 
         if ($cap === null) {
@@ -1843,7 +1852,31 @@ CRITERIA;
 
         foreach ($criterionFields as $field => $label) {
             $final = (float) ($scoring[$field] ?? 0);
-            $raw   = (float) ($scoring[$field.'_raw'] ?? $final);
+
+            // Look up cap_log entries for this field — they are the
+            // AUTHORITATIVE source of "what changed". Reading the original
+            // band from cap_log.from (not the _raw stamp) makes this robust
+            // to the order in which bias-correction and cap functions ran,
+            // and works even when bias-correction's no-op early return
+            // skipped the _raw stamping.
+            $reasons = array_values(array_filter(
+                $capLog,
+                fn ($entry) => ($entry['field'] ?? null) === $field
+            ));
+
+            if (empty($reasons)) {
+                // No cap touched this criterion — the LLM's prose is still
+                // accurate against the final score. Don't rewrite.
+                continue;
+            }
+
+            // The PRE-CAP band is the `from` of the FIRST cap that fired
+            // (caps run in a fixed order: length → topic → question_part →
+            // language_floor, so the first entry's `from` is the LLM's
+            // original number). Fall back to _raw or final as last resort.
+            $raw = (float) ($reasons[0]['from']
+                ?? $scoring[$field.'_raw']
+                ?? $final);
             $delta = $raw - $final;
 
             // Intervene on substantial moves in EITHER direction:
@@ -1855,13 +1888,6 @@ CRITERIA;
                 continue;
             }
 
-            // Look up which cap rule caused this drop. If multiple rules hit
-            // the same field, the first (most-specific) wins — caps run in a
-            // fixed order: length → topic_relevance → question_part_coverage.
-            $reasons = array_values(array_filter(
-                $capLog,
-                fn ($entry) => ($entry['field'] ?? null) === $field
-            ));
             $primary = $reasons[0]['rule'] ?? 'descriptor_calibration';
             $detail  = $reasons[0]['detail'] ?? '';
 

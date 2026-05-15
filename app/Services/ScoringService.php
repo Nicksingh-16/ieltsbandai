@@ -260,6 +260,12 @@ class ScoringService
 
             $this->enforceQuestionPartCoverage($scoring, $question);
 
+            // Defensive floor: catches the all-zeros collapse the LLM can
+            // produce for off-topic essays (it punishes the whole response
+            // instead of just TA/TR). Independent dimensions; off-topic
+            // doesn't make grammar disappear from the page.
+            $this->enforceCriterionFloor($scoring, $answer, $wordCount);
+
             // Reconcile per-criterion explanations BEFORE recomputing overall.
             // If any cap dropped a criterion by ≥1.0 band, the LLM's original
             // explanation (which described the pre-cap band) is now wrong; we
@@ -747,6 +753,32 @@ The presence and quality of an overview is a key TA signal but NOT a hard cap.
 META;
         }
 
+        // TOPIC RELEVANCE applies to BOTH tasks. For Task 1 a chart prompt
+        // answered with a personal essay is off-topic exactly the same way
+        // a Task 2 essay can be. Moving this block out of the Task 2-only
+        // conditional was the fix for the Town-Centre Maps incident where
+        // an off-topic answer collapsed ALL criteria to 0.0 because the
+        // LLM had no Task-1 guidance for handling topic mismatch.
+        $topicRelevanceInstructions = <<<'TOPICBLOCK'
+TOPIC RELEVANCE CHECK (mandatory — applies to BOTH Task 1 and Task 2):
+- Score the candidate's overall on-topicness as an integer 0-100 in the
+  topic_relevance field. Be calibrated:
+    100 = directly addresses the prompt with no off-topic digressions
+    75  = addresses the prompt; one or two paragraphs drift into adjacent territory
+    50  = partially relevant — half the response is on-topic, half meanders
+    25  = tangential — touches the topic but mostly discusses something else
+    0   = wholly off-topic (e.g. personal essay about studying abroad in
+          response to a chart description prompt)
+- The post-LLM pipeline will cap TA / TR based on this number per the Band 3
+  descriptor ("the prompt is tackled in a minimal way, or the answer is
+  tangential"). Be honest; an off-topic Band 9-quality essay still scores
+  Band 3 on TA / TR per the official rules.
+- CRITICAL: Off-topic content does NOT affect Coherence, Lexical Resource,
+  or Grammar. Those criteria score the language quality of the text on the
+  page, regardless of whether the topic matches the prompt. See the
+  Criterion Independence rule above.
+TOPICBLOCK;
+
         $task2Instructions = '';
         if (str_contains($taskType, 'Task 2')) {
             $task2Instructions = <<<'TASK2'
@@ -755,19 +787,6 @@ STRICT TASK 2 RULES:
 - At least 2 developed ideas required.
 - Each idea must include explanation + example or consequence.
 - If position is unclear or ideas underdeveloped -> TR <= 6.0.
-
-TOPIC RELEVANCE CHECK (mandatory):
-- Score the candidate's overall on-topicness as an integer 0-100 in the
-  topic_relevance field. Be calibrated:
-    100 = directly addresses the prompt with no off-topic digressions
-    75  = addresses the prompt; one or two paragraphs drift into adjacent territory
-    50  = partially relevant — half the response is on-topic, half meanders
-    25  = tangential — touches the topic but mostly discusses something else
-    0   = wholly off-topic (e.g. essay about climate change for a prompt about education)
-- The post-LLM pipeline will cap Task Response based on this number per the
-  Band 3 descriptor ("the prompt is tackled in a minimal way, or the answer
-  is tangential"). Be honest; an off-topic Band 9-quality essay still scores
-  Band 3 on TR per the official rules.
 
 QUESTION-PART COVERAGE CHECK (mandatory):
 - Read the prompt above and break it into its distinct sub-questions or
@@ -791,6 +810,30 @@ TASK2;
 You are a trained IELTS Writing examiner with 15+ years of examining experience, certified by Cambridge Assessment English. You apply the official IELTS Writing Band Descriptors with the same precision and consistency as a live examiner, having undergone regular standardisation training.
 
 Your task: score the following writing response against the four official IELTS Writing criteria using the OFFICIAL PUBLIC BAND DESCRIPTORS reproduced below.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CRITERION INDEPENDENCE — MANDATORY RULE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The four criteria score INDEPENDENT dimensions of the writing. A weakness in
+one criterion MUST NOT cascade into the others.
+
+CRITICAL: If the response is off-topic, irrelevant, or fails to address the
+prompt, ONLY Task Achievement / Task Response is affected. Coherence,
+Lexical Resource, and Grammar must still reflect the candidate's actual
+language quality as observed in the text on the page.
+
+Example — a 200-word personal-essay answer to a chart prompt:
+  ✓ CORRECT: TA / TR = 2.0–3.5 (off-topic), CC = 6.5, LR = 6.5, GRA = 7.0
+  ✗ WRONG:   TA / TR = 0.0, CC = 0.0, LR = 0.0, GRA = 0.0   (all-zeros collapse)
+
+Floor rules:
+  • If the response contains 50+ words of coherent English sentences, NO
+    criterion can score below Band 2.0. Band 0–1 is reserved exclusively
+    for "no rateable language" (random characters, foreign language only,
+    no recognisable sentences).
+  • If the response contains 150+ words of coherent English sentences, CC,
+    LR, and GRA cannot score below Band 3.0 regardless of topic relevance.
+  • Score each criterion against its OWN descriptor band only.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OFFICIAL IELTS WRITING BAND DESCRIPTORS
@@ -869,6 +912,7 @@ USER'S ANSWER:
 
 {$specificCriteria}
 {$task1MetadataInstructions}
+{$topicRelevanceInstructions}
 {$task2Instructions}
 
 ERROR DETECTION REQUIREMENTS (ACCURATE & HELPFUL):
@@ -1438,8 +1482,14 @@ CRITERIA;
         $scoring['bias_shift'] = $shift;
 
         if ($shift === 0.0) {
-            // No shift needed — still recompute overall from raw mean so
-            // consumers see consistent overall/sub-score math.
+            // No shift needed — still stamp per-criterion _raw so downstream
+            // calibration (floor, length cap) can compute the right delta
+            // when overriding the LLM's prose. Without this, _raw is undefined
+            // and reconcileCriterionExplanations falls back to final, missing
+            // the audit trail for an off-topic essay scored 0.0 by the LLM.
+            foreach ($rawValues as $f => $v) {
+                $scoring[$f.'_raw'] = $v;
+            }
             if (isset($scoring['overall_band'])) {
                 $scoring['overall_band'] = (float) max(0.0, min(9.0, round($rawMean * 2) / 2));
             }
@@ -1675,6 +1725,91 @@ CRITERIA;
     }
 
     /**
+     * Defensive minimum-score floor for the language criteria (CC/LR/GRA).
+     *
+     * Failure mode this guards against: when given a wildly off-topic response
+     * (e.g. a 200-word personal essay submitted to a chart prompt), GPT-class
+     * models sometimes return 0.0 across ALL four criteria instead of just
+     * dropping TA. That produces a Band-0 overall with a "limited user" label
+     * for a candidate whose text-on-the-page actually demonstrates B1/B2-level
+     * coherence, vocabulary, and grammar. Off-topic should ONLY hit TA.
+     *
+     * Bands 0–1 in the official descriptors are reserved for "no rateable
+     * language" — random characters, foreign language only, fewer than ~20
+     * words. A response with 50+ coherent English words demonstrably exceeds
+     * that threshold, so we floor each LANGUAGE criterion to the descriptor-
+     * defensible minimum based on essay length and sentence count.
+     *
+     * TA / TR is intentionally NOT floored — a legitimate Band-0 TA exists
+     * for a response that fails to engage with the prompt at all.
+     */
+    protected function enforceCriterionFloor(array &$scoring, string $answer, int $wordCount): void
+    {
+        if ($wordCount < 50) {
+            return; // genuine no-rateable-language territory
+        }
+
+        // Count sentences via simple terminator split — good enough to tell
+        // "coherent English" from "random words". We don't need linguistic
+        // perfection here, only a sanity check.
+        $sentenceCount = max(1, preg_match_all('/[.!?]+\s+|[.!?]+$/u', trim($answer)));
+
+        // Floor table — calibrated to the official descriptors. Band 3.0 is
+        // "very limited range… errors predominate" which is the LOWEST that
+        // applies to a recognisable English response. Band 2.0 only applies
+        // to very short / largely incoherent text.
+        if ($wordCount >= 150 && $sentenceCount >= 3) {
+            $floors = [
+                'coherence_cohesion' => 3.5,
+                'lexical_resource'   => 3.5,
+                'grammar'            => 3.5,
+            ];
+        } elseif ($wordCount >= 100 && $sentenceCount >= 2) {
+            $floors = [
+                'coherence_cohesion' => 3.0,
+                'lexical_resource'   => 3.0,
+                'grammar'            => 3.0,
+            ];
+        } else {
+            $floors = [
+                'coherence_cohesion' => 2.0,
+                'lexical_resource'   => 2.0,
+                'grammar'            => 2.0,
+            ];
+        }
+
+        $applied = [];
+        foreach ($floors as $field => $floor) {
+            if (! isset($scoring[$field])) {
+                continue;
+            }
+            $before = (float) $scoring[$field];
+            if ($before < $floor) {
+                $scoring[$field] = $floor;
+                $applied[$field] = ['from' => $before, 'to' => $floor];
+                // Record the floor decision in cap_log so the UI/audit trail
+                // can surface it as a separate adjustment from the language
+                // caps. Uses 'rule' = 'language_floor' for reconcileCriterionExplanations.
+                $scoring['cap_log'][] = [
+                    'rule'   => 'language_floor',
+                    'field'  => $field,
+                    'from'   => $before,
+                    'to'     => $floor,
+                    'detail' => 'word_count='.$wordCount.', sentences='.$sentenceCount.' (off-topic does not collapse language criteria)',
+                ];
+            }
+        }
+
+        if (! empty($applied)) {
+            Log::info('Applied language-criterion floor', [
+                'word_count'     => $wordCount,
+                'sentence_count' => $sentenceCount,
+                'floors_applied' => $applied,
+            ]);
+        }
+    }
+
+    /**
      * Reconcile per-criterion explanations against the FINAL (post-cap) scores.
      *
      * Production trust incident (writing test #12, May 2026): a 199-word
@@ -1711,9 +1846,12 @@ CRITERIA;
             $raw   = (float) ($scoring[$field.'_raw'] ?? $final);
             $delta = $raw - $final;
 
-            // Only intervene on substantial drops. Sub-band nudges leave the
-            // LLM's prose intact since it still describes the right region.
-            if ($delta < 1.0) {
+            // Intervene on substantial moves in EITHER direction:
+            //   • delta ≥  1.0 = cap dropped the score (LLM over-rated)
+            //   • delta ≤ -1.0 = floor raised the score (LLM under-rated,
+            //     e.g. all-zeros collapse on an off-topic essay)
+            // Sub-band nudges leave the LLM's prose intact.
+            if (abs($delta) < 1.0) {
                 continue;
             }
 
@@ -1731,6 +1869,7 @@ CRITERIA;
                 'length'                 => 'the response is under the IELTS minimum word count for this task',
                 'topic_relevance'        => 'the response is judged off-topic or only tangentially related to the prompt',
                 'question_part_coverage' => 'one or more required sub-questions in the prompt were not addressed',
+                'language_floor'         => 'the AI examiner under-scored this language criterion below the descriptor floor for a response of this length',
                 default                  => 'a descriptor-based calibration was applied after the language-quality rating',
             };
 
@@ -1866,6 +2005,7 @@ CRITERIA;
             'length' => 'Reach the IELTS minimum word count (150 for Task 1, 250 for Task 2). Language polish cannot lift this criterion until length is met.',
             'topic_relevance' => 'Re-read the prompt and ensure every paragraph stays on the specific topic. Off-topic content is heavily penalised regardless of writing quality.',
             'question_part_coverage' => 'Re-read the prompt and identify every sub-question. Address each one explicitly in its own paragraph.',
+            'language_floor' => 'The AI under-scored your language quality. Focus on the on-topic version of the task to see your true band on this criterion.',
             default => 'Address the descriptor gap that triggered this adjustment before working on language polish.',
         };
     }

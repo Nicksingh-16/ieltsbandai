@@ -511,6 +511,7 @@
                     'length'                 => 'Under word minimum',
                     'topic_relevance'        => 'Off-topic / tangential',
                     'question_part_coverage' => 'Sub-question missed',
+                    'language_floor'         => 'AI under-score corrected',
                     default                  => 'Examiner adjustment',
                 } : null;
             @endphp

@@ -100,4 +100,49 @@ class MockTest extends Model
             default => '#',
         };
     }
+
+    /**
+     * Records a completed module's test id + band on this mock row and returns
+     * the URL the user should be redirected to next — either the next module's
+     * bridge, or the mock-test paywall if this was the final module.
+     *
+     * Idempotent: re-recording the same module is a no-op so a double POST
+     * from the test submit can't advance the flow twice. Called from both
+     * MockTestController::advance() (the legacy click-to-continue route) and
+     * the individual test submit controllers (which now redirect straight
+     * here in mock context, skipping the per-module result page entirely).
+     */
+    public function recordModuleAndNextRoute(string $module, Test $test): string
+    {
+        if (! in_array($module, self::MODULES, true)) {
+            return route('dashboard');
+        }
+
+        // Idempotency — if this module already recorded, just route to next.
+        if (! $this->moduleTestId($module)) {
+            $this->update([
+                $module.'_test_id' => $test->id,
+                $module.'_band'    => $test->overall_band,
+            ]);
+        }
+
+        $next = $this->nextModule();
+        if ($next) {
+            $this->update(['current_module' => $next]);
+
+            return route('mock-test.module', ['mock' => $this->id, 'module' => $next]);
+        }
+
+        // Final module just submitted — mark the flow complete (results are
+        // still gated behind the unlock paywall) and send the user there.
+        $this->refresh();
+        if ($this->status !== 'completed') {
+            $this->update([
+                'status'       => 'completed',
+                'completed_at' => now(),
+            ]);
+        }
+
+        return route('mock-test.paywall', $this);
+    }
 }

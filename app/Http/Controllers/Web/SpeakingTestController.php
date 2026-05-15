@@ -80,6 +80,17 @@ class SpeakingTestController extends Controller
                 $validated['duration'] ?? null
             );
 
+            // Mock test: on the final audio upload, override the redirect so
+            // the front-end skips the speaking result polling page (which
+            // would never resolve — scoring is deferred until paywall payment)
+            // and jumps straight to mock-test.paywall via the advance flow.
+            if (! empty($result['is_last']) && ($mockId = session('mock_test_id'))) {
+                $mock = \App\Models\MockTest::find($mockId);
+                if ($mock && $mock->user_id === Auth::id()) {
+                    $result['mock_next_url'] = $mock->recordModuleAndNextRoute('speaking', $test);
+                }
+            }
+
             return response()->json($result);
 
         } catch (\Illuminate\Validation\ValidationException $e) {

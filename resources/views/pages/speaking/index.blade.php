@@ -422,10 +422,16 @@ try {
             if (data.success) {
                 uploadCount++;
                 if (data.is_last || uploadCount >= 3) {
-                    recordStatus.textContent = "All done! Redirecting to results...";
+                    // Mock test: server overrides redirect to mock-test.paywall
+                    // (scoring is deferred until payment so test.result would
+                    // poll forever).
+                    const finalUrl = data.mock_next_url || "{{ route('test.result', $test->id) }}";
+                    recordStatus.textContent = data.mock_next_url
+                        ? "All done! Unlocking your mock test..."
+                        : "All done! Redirecting to results...";
                     progressBar.style.width = "100%";
                     setRecordBtn('success');
-                    setTimeout(() => { window.location.href = "{{ route('test.result', $test->id) }}"; }, 1500);
+                    setTimeout(() => { window.location.href = finalUrl; }, 1500);
                 } else if (data.next) {
                     setRecordBtn('success');
                     recordStatus.textContent = "Response recorded!";

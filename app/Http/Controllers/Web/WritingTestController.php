@@ -182,19 +182,35 @@ class WritingTestController extends Controller
             WritingEvaluationJob::dispatchAfterResponse($testId);
         }
 
+        // Mock test: jump straight to the next module's bridge instead of the
+        // writing result page (which would just show 'evaluating' forever
+        // since the LLM eval is deferred until paywall payment).
+        $mockNextUrl = null;
+        if ($mockId = session('mock_test_id')) {
+            $mock = \App\Models\MockTest::find($mockId);
+            if ($mock && $mock->user_id === \Illuminate\Support\Facades\Auth::id()) {
+                $test = \App\Models\Test::find($testId);
+                if ($test) {
+                    $mockNextUrl = $mock->recordModuleAndNextRoute('writing', $test);
+                }
+            }
+        }
+
+        $resultUrl = $mockNextUrl ?: route('writing.result', $testId);
+
         // XHR / fetch: return JSON so the Alpine submit handler can show
         // its in-page transition. Plain form-submit (JS disabled or guard
         // bypassed): redirect so the user lands on the result page instead
         // of staring at raw JSON.
         if (! $request->wantsJson() && ! $request->ajax()) {
-            return redirect()->route('writing.result', $testId)
+            return redirect($resultUrl)
                 ->with('success', 'Your writing has been submitted. Evaluating…');
         }
 
         return response()->json([
-            'success' => true,
-            'message' => 'Your writing has been submitted. Evaluating…',
-            'redirect' => route('writing.result', $testId),
+            'success'  => true,
+            'message'  => 'Your writing has been submitted. Evaluating…',
+            'redirect' => $resultUrl,
         ]);
     }
 

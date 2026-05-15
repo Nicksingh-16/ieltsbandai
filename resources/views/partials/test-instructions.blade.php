@@ -34,7 +34,17 @@
         'speaking'  => '🎤',
     ];
     $icon = $iconMap[$module] ?? '📝';
+
+    // In a full mock test the user already saw the module's rules + clicked
+    // "Begin" on the mock-test/module-bridge page. Showing the SAME overlay
+    // again on the test page is redundant friction — and worse, it leaves the
+    // test-page timer waiting for `test:begin` which never fires until the
+    // user confirms a second time. Users perceive this as a broken timer.
+    // Detect mock context via session and skip the overlay entirely.
+    $skipOverlayForMock = session()->has('mock_test_id');
 @endphp
+
+@if(! $skipOverlayForMock)
 
 <div id="testInstructionsOverlay"
      class="fixed inset-0 z-[100] bg-surface-950/97 backdrop-blur-sm overflow-y-auto"
@@ -126,3 +136,20 @@ window.beginTest = function() {
     }
 };
 </script>
+@else
+{{-- Mock-test path: bridge already collected the user's acknowledgement, so
+     mark the test as begun before any test-page JS runs. This wakes up the
+     timer immediately (the test views all use the same `test:begin` event
+     handshake regardless of how they got here). --}}
+<script>
+    window.__testBegun = true;
+    document.addEventListener('DOMContentLoaded', () => {
+        window.dispatchEvent(new Event('test:begin'));
+    });
+    // For test pages that bind their listener AFTER DOMContentLoaded fires,
+    // also dispatch once everything has loaded.
+    window.addEventListener('load', () => {
+        window.dispatchEvent(new Event('test:begin'));
+    });
+</script>
+@endif

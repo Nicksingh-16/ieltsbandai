@@ -223,6 +223,18 @@ class ListeningTestController extends Controller
             'completed_at' => now(),
         ]);
 
+        // Mock test in progress: skip the per-module result page and go
+        // straight to the next module's bridge. Real IELTS doesn't show
+        // bands between modules; the unified mock-test result page does
+        // that at the end. The 4-second auto-advance card on the result
+        // page was a stopgap — direct redirect is the clean flow.
+        if ($mockId = session('mock_test_id')) {
+            $mock = \App\Models\MockTest::find($mockId);
+            if ($mock && $mock->user_id === \Illuminate\Support\Facades\Auth::id()) {
+                return redirect($mock->recordModuleAndNextRoute('listening', $test));
+            }
+        }
+
         return redirect()->route('listening.result', $test->id);
     }
 

@@ -162,6 +162,15 @@ class ReadingTestController extends Controller
             'completed_at' => now(),
         ]);
 
+        // Mock test: jump straight to the next module's bridge — see
+        // ListeningTestController::submit for the rationale.
+        if ($mockId = session('mock_test_id')) {
+            $mock = \App\Models\MockTest::find($mockId);
+            if ($mock && $mock->user_id === \Illuminate\Support\Facades\Auth::id()) {
+                return redirect($mock->recordModuleAndNextRoute('reading', $test));
+            }
+        }
+
         return redirect()->route('reading.result', $test->id);
     }
 

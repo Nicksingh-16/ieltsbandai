@@ -2308,6 +2308,7 @@ CRITERIA;
         $suppressedSignature = 0;
         $suppressedProperNoun = 0;
         $suppressedOutOfBounds = 0;
+        $suppressedBritishSpelling = 0;
         $out = [];
 
         foreach ($matches as $i => $m) {
@@ -2361,13 +2362,31 @@ CRITERIA;
                 continue;
             }
 
+            // ── British-English spelling protection ──────────────────────
+            // LT's en-US dictionary flags BrE forms (behaviour/colour/
+            // organise/etc.) as misspellings. IELTS Cambridge officially
+            // accepts BOTH British and American spellings — failing a
+            // candidate for "behaviour → behavior" is a trust-destroying
+            // false positive. If LT's first replacement is the AmE form of
+            // a known BrE/AmE pair, drop the match silently.
+            $replacement = $m['replacements'][0]['value'] ?? '';
+            if ($isSpellOrTypo && $this->isAcceptableBritishSpelling($text, $replacement)) {
+                $suppressedBritishSpelling++;
+                Log::debug('LT match suppressed — acceptable BrE spelling', [
+                    'text' => $text,
+                    'suggestion' => $replacement,
+                    'rule' => $ruleId,
+                ]);
+
+                continue;
+            }
+
             $type = match (true) {
                 $isSpellOrTypo => 'Vocabulary',
                 str_contains($catId, 'PUNCTUATION') => 'Punctuation',
                 default => 'Grammar',
             };
 
-            $replacement = $m['replacements'][0]['value'] ?? '';
             $message = (string) ($m['message'] ?? '');
 
             $out[] = [
@@ -2393,6 +2412,7 @@ CRITERIA;
             'kept' => count($out),
             'suppressed_signature' => $suppressedSignature,
             'suppressed_proper_noun' => $suppressedProperNoun,
+            'suppressed_british_spelling' => $suppressedBritishSpelling,
             'suppressed_out_of_bounds' => $suppressedOutOfBounds,
             'lt_grammar_count' => $result['grammar_errors'] ?? null,
             'lt_spelling_count' => $result['spelling_errors'] ?? null,
@@ -2463,6 +2483,140 @@ CRITERIA;
         }
 
         return true;
+    }
+
+    /**
+     * Map of British → American spelling pairs that IELTS Cambridge accepts
+     * interchangeably. LT's en-US dictionary flags the BrE forms as typos and
+     * suggests the AmE form; we drop those matches because failing a candidate
+     * for "behaviour → behavior" is a trust-destroying false positive.
+     *
+     * Keys are lowercased BrE forms; values are the canonical AmE replacement.
+     * Inflected forms (plurals, -ed/-ing, -al/-ly suffixes) are included
+     * explicitly so the lookup stays O(1) without runtime stemming.
+     */
+    private const BRITISH_TO_AMERICAN_SPELLINGS = [
+        // -our / -or
+        'behaviour' => 'behavior', 'behaviours' => 'behaviors',
+        'behavioural' => 'behavioral', 'behaviourally' => 'behaviorally',
+        'colour' => 'color', 'colours' => 'colors',
+        'coloured' => 'colored', 'colouring' => 'coloring', 'colourful' => 'colorful',
+        'favour' => 'favor', 'favours' => 'favors',
+        'favoured' => 'favored', 'favouring' => 'favoring', 'favourable' => 'favorable',
+        'favourite' => 'favorite', 'favourites' => 'favorites',
+        'humour' => 'humor', 'humours' => 'humors',
+        'humoured' => 'humored', 'humouring' => 'humoring', 'humorous' => 'humorous',
+        'neighbour' => 'neighbor', 'neighbours' => 'neighbors',
+        'neighbouring' => 'neighboring', 'neighbourhood' => 'neighborhood',
+        'labour' => 'labor', 'labours' => 'labors',
+        'laboured' => 'labored', 'labouring' => 'laboring',
+        'honour' => 'honor', 'honours' => 'honors',
+        'honoured' => 'honored', 'honourable' => 'honorable',
+        'flavour' => 'flavor', 'flavours' => 'flavors', 'flavoured' => 'flavored',
+        'harbour' => 'harbor', 'harbours' => 'harbors',
+        'rumour' => 'rumor', 'rumours' => 'rumors',
+        'vapour' => 'vapor', 'vapours' => 'vapors',
+        'splendour' => 'splendor', 'parlour' => 'parlor', 'savour' => 'savor',
+        'endeavour' => 'endeavor', 'endeavours' => 'endeavors',
+        'demeanour' => 'demeanor',
+
+        // -ise / -ize and -isation / -ization
+        'organise' => 'organize', 'organised' => 'organized', 'organising' => 'organizing',
+        'organisation' => 'organization', 'organisations' => 'organizations',
+        'realise' => 'realize', 'realised' => 'realized', 'realising' => 'realizing',
+        'recognise' => 'recognize', 'recognised' => 'recognized', 'recognising' => 'recognizing',
+        'criticise' => 'criticize', 'criticised' => 'criticized', 'criticising' => 'criticizing',
+        'apologise' => 'apologize', 'apologised' => 'apologized', 'apologising' => 'apologizing',
+        'emphasise' => 'emphasize', 'emphasised' => 'emphasized', 'emphasising' => 'emphasizing',
+        'analyse' => 'analyze', 'analysed' => 'analyzed', 'analysing' => 'analyzing',
+        'summarise' => 'summarize', 'summarised' => 'summarized', 'summarising' => 'summarizing',
+        'prioritise' => 'prioritize', 'prioritised' => 'prioritized', 'prioritising' => 'prioritizing',
+        'specialise' => 'specialize', 'specialised' => 'specialized', 'specialising' => 'specializing',
+        'maximise' => 'maximize', 'maximised' => 'maximized', 'maximising' => 'maximizing',
+        'minimise' => 'minimize', 'minimised' => 'minimized', 'minimising' => 'minimizing',
+        'optimise' => 'optimize', 'optimised' => 'optimized', 'optimising' => 'optimizing',
+        'utilise' => 'utilize', 'utilised' => 'utilized', 'utilising' => 'utilizing',
+        'finalise' => 'finalize', 'finalised' => 'finalized', 'finalising' => 'finalizing',
+        'characterise' => 'characterize', 'characterised' => 'characterized',
+        'customise' => 'customize', 'customised' => 'customized',
+        'modernise' => 'modernize', 'modernised' => 'modernized',
+        'normalise' => 'normalize', 'normalised' => 'normalized',
+        'civilise' => 'civilize', 'civilised' => 'civilized',
+        'memorise' => 'memorize', 'memorised' => 'memorized',
+        'standardise' => 'standardize', 'standardised' => 'standardized',
+        'globalisation' => 'globalization', 'industrialisation' => 'industrialization',
+
+        // -re / -er
+        'centre' => 'center', 'centres' => 'centers', 'centred' => 'centered',
+        'theatre' => 'theater', 'theatres' => 'theaters',
+        'metre' => 'meter', 'metres' => 'meters',
+        'litre' => 'liter', 'litres' => 'liters',
+        'fibre' => 'fiber', 'fibres' => 'fibers',
+        'calibre' => 'caliber', 'lustre' => 'luster', 'sceptre' => 'scepter',
+        'manoeuvre' => 'maneuver', 'manoeuvres' => 'maneuvers',
+
+        // -ce / -se nouns vs verbs
+        'defence' => 'defense', 'offence' => 'offense', 'pretence' => 'pretense',
+        'licence' => 'license', // BrE noun = AmE noun
+        'practise' => 'practice', // BrE verb = AmE noun/verb
+
+        // -ogue / -og
+        'catalogue' => 'catalog', 'catalogues' => 'catalogs',
+        'dialogue' => 'dialog', 'dialogues' => 'dialogs',
+        'monologue' => 'monolog', 'analogue' => 'analog',
+
+        // Doubled consonant before suffix
+        'travelled' => 'traveled', 'travelling' => 'traveling', 'traveller' => 'traveler',
+        'modelled' => 'modeled', 'modelling' => 'modeling',
+        'cancelled' => 'canceled', 'cancelling' => 'canceling',
+        'labelled' => 'labeled', 'labelling' => 'labeling',
+        'signalled' => 'signaled', 'signalling' => 'signaling',
+        'fuelled' => 'fueled', 'fuelling' => 'fueling',
+        'levelled' => 'leveled', 'levelling' => 'leveling',
+        'jewellery' => 'jewelry',
+
+        // Other common pairs
+        'aeroplane' => 'airplane', 'aeroplanes' => 'airplanes',
+        'aluminium' => 'aluminum',
+        'programme' => 'program', 'programmes' => 'programs',
+        'plough' => 'plow', 'mould' => 'mold', 'draught' => 'draft',
+        'grey' => 'gray', 'tyre' => 'tire', 'tyres' => 'tires',
+        'kerb' => 'curb', 'cosy' => 'cozy', 'pyjamas' => 'pajamas',
+        'sceptical' => 'skeptical', 'sceptic' => 'skeptic',
+        'storey' => 'story', 'storeys' => 'stories',
+        'enrolment' => 'enrollment', 'fulfil' => 'fulfill',
+        'fulfilled' => 'fulfilled', // same in both; included for completeness
+        'instalment' => 'installment', 'instalments' => 'installments',
+        'cheque' => 'check', 'cheques' => 'checks',
+    ];
+
+    /**
+     * True when LT's match looks like a British-vs-American spelling
+     * preference rather than a real error. IELTS Cambridge accepts both
+     * forms; suppressing the match prevents trust-destroying false
+     * positives like "behaviour → behavior".
+     *
+     * Match conditions (all must hold):
+     *   - lowercased text is a known BrE form in the pairs table,
+     *   - lowercased replacement matches the table's canonical AmE form
+     *     (loose match — first replacement only; LT often returns the
+     *     AmE form as the top suggestion).
+     */
+    protected function isAcceptableBritishSpelling(string $text, string $replacement): bool
+    {
+        $textLc = strtolower(trim($text));
+        $replLc = strtolower(trim($replacement));
+
+        if ($textLc === '' || $replLc === '') {
+            return false;
+        }
+
+        $expectedAme = self::BRITISH_TO_AMERICAN_SPELLINGS[$textLc] ?? null;
+        if ($expectedAme === null) {
+            return false;
+        }
+
+        return $expectedAme === $replLc;
     }
 
     /**

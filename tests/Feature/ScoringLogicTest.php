@@ -488,6 +488,48 @@ class ScoringLogicTest extends TestCase
         $this->assertSame('languagetool', $out[1]['source']);
     }
 
+    // ── isAcceptableBritishSpelling (L5-v7) ──────────────────────────────
+    // IELTS Cambridge accepts both BrE and AmE spellings. LT's en-US
+    // dictionary flags BrE forms; we drop those matches when the suggested
+    // replacement is the matching AmE form. The Ahmedabad-incident letter
+    // contained "behaviour" — should not be flagged.
+
+    public function test_brE_to_amE_pair_is_suppressed()
+    {
+        $this->assertTrue($this->invokeProtected('isAcceptableBritishSpelling', ['behaviour', 'behavior']));
+        $this->assertTrue($this->invokeProtected('isAcceptableBritishSpelling', ['Behaviour', 'Behavior']));
+        $this->assertTrue($this->invokeProtected('isAcceptableBritishSpelling', ['COLOUR', 'color']));
+        $this->assertTrue($this->invokeProtected('isAcceptableBritishSpelling', ['organise', 'organize']));
+        $this->assertTrue($this->invokeProtected('isAcceptableBritishSpelling', ['travelled', 'traveled']));
+        $this->assertTrue($this->invokeProtected('isAcceptableBritishSpelling', ['centre', 'center']));
+        $this->assertTrue($this->invokeProtected('isAcceptableBritishSpelling', ['programme', 'program']));
+    }
+
+    public function test_real_misspelling_is_not_suppressed()
+    {
+        // Real typos LT flags with non-pair-AmE corrections must still pass through.
+        $this->assertFalse($this->invokeProtected('isAcceptableBritishSpelling', ['behavour', 'behavior']));
+        $this->assertFalse($this->invokeProtected('isAcceptableBritishSpelling', ['recieve', 'receive']));
+        $this->assertFalse($this->invokeProtected('isAcceptableBritishSpelling', ['peoples', 'people']));
+        $this->assertFalse($this->invokeProtected('isAcceptableBritishSpelling', ['accomodate', 'accommodate']));
+    }
+
+    public function test_brE_word_with_unrelated_suggestion_is_not_suppressed()
+    {
+        // If LT suggests something OTHER than the canonical AmE form (e.g.
+        // because the BrE word is also a real typo for something else),
+        // do not silence the match — let it through to the merge.
+        $this->assertFalse($this->invokeProtected('isAcceptableBritishSpelling', ['behaviour', 'beaver']));
+        $this->assertFalse($this->invokeProtected('isAcceptableBritishSpelling', ['centre', 'centred']));
+    }
+
+    public function test_unknown_word_and_empty_inputs_are_not_suppressed()
+    {
+        $this->assertFalse($this->invokeProtected('isAcceptableBritishSpelling', ['quokka', 'something']));
+        $this->assertFalse($this->invokeProtected('isAcceptableBritishSpelling', ['', 'behavior']));
+        $this->assertFalse($this->invokeProtected('isAcceptableBritishSpelling', ['behaviour', '']));
+    }
+
     public function test_group_repeated_errors_collapses_duplicates_with_count()
     {
         $errors = [

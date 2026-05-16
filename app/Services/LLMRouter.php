@@ -41,6 +41,16 @@ class LLMRouter
 
     private ?string $ctxModelTier = null;
 
+    /**
+     * Last successful provider/model that returned a 2xx for this router
+     * instance. Cleared at the start of each chatCompletion() call.
+     * Callers can read it to record which model produced the response
+     * (e.g. for analytics or persisted audit trails).
+     */
+    private ?string $lastProvider = null;
+
+    private ?string $lastModel = null;
+
     public function withContext(?int $userId = null, ?int $testId = null, ?string $purpose = null, ?string $promptVersion = null): self
     {
         $this->ctxUserId = $userId;
@@ -88,8 +98,28 @@ class LLMRouter
      *                          tried).
      * @return array Decoded JSON response body. Throws on total exhaustion.
      */
+    /**
+     * Returns the provider name (openrouter|openai|groq|gemini) of the last
+     * successful LLM call on this router instance. Null before the first call
+     * or if every tier failed. Read by callers (e.g. ScoringService) to
+     * stamp the result with which model actually answered.
+     */
+    public function lastProvider(): ?string
+    {
+        return $this->lastProvider;
+    }
+
+    public function lastModel(): ?string
+    {
+        return $this->lastModel;
+    }
+
     public function chatCompletion(array $payload): array
     {
+        // Reset per-call state so callers see only this call's provider/model.
+        $this->lastProvider = null;
+        $this->lastModel = null;
+
         // 1. Try OpenRouter — paid passthrough (UPI-billed). Gate on the
         // 'sk-or-' prefix so a misconfigured OPENAI_API_KEY can't route
         // here. Pre-flight budget check skips this tier (falling through
@@ -109,6 +139,8 @@ class LLMRouter
                 $resp = $this->httpCall($orBase, $orKey, $payload, 'openrouter', $orModel);
                 if ($this->isHardSuccess($resp)) {
                     Log::info('LLM ok', ['provider' => 'openrouter', 'model' => $orModel, 'status' => $resp['status']]);
+                    $this->lastProvider = 'openrouter';
+                    $this->lastModel = $orModel;
 
                     return $resp['body'] ?? [];
                 }
@@ -134,6 +166,8 @@ class LLMRouter
             $resp = $this->httpCall($openaiBase, $openaiKey, $payload, 'openai', $openaiModel);
             if ($this->isHardSuccess($resp)) {
                 Log::info('LLM ok', ['provider' => 'openai', 'model' => $openaiModel, 'status' => $resp['status']]);
+                $this->lastProvider = 'openai';
+                $this->lastModel = $openaiModel;
 
                 return $resp['body'] ?? [];
             }
@@ -157,6 +191,8 @@ class LLMRouter
             $resp = $this->httpCall($groqBase, $groqKey, $payload, 'groq', $groqModel);
             if ($this->isHardSuccess($resp)) {
                 Log::info('LLM ok', ['provider' => 'groq', 'model' => $groqModel, 'status' => $resp['status']]);
+                $this->lastProvider = 'groq';
+                $this->lastModel = $groqModel;
 
                 return $resp['body'] ?? [];
             }
@@ -191,6 +227,8 @@ class LLMRouter
             $resp = $this->httpCall($baseUrl, $key, $payload, 'gemini', $primary);
             if ($this->isHardSuccess($resp)) {
                 Log::info('LLM fallback ok', ['provider' => 'gemini', 'model' => $primary, 'key_index' => $i, 'status' => $resp['status']]);
+                $this->lastProvider = 'gemini';
+                $this->lastModel = $primary;
 
                 return $resp['body'] ?? [];
             }
@@ -212,6 +250,8 @@ class LLMRouter
                 $resp = $this->httpCall($baseUrl, $key, $payload, 'gemini', $fallback);
                 if ($this->isHardSuccess($resp)) {
                     Log::info('LLM fallback-2 ok', ['provider' => 'gemini', 'model' => $fallback, 'key_index' => $i]);
+                    $this->lastProvider = 'gemini';
+                    $this->lastModel = $fallback;
 
                     return $resp['body'] ?? [];
                 }
@@ -311,20 +351,84 @@ class LLMRouter
     }
 
     /**
+     * Per-provider timeout in seconds. R2 (circuit breaker): OpenRouter
+     * gpt-4o-mini p95 is <15s; allowing 120s lets a stuck call block
+     * writing evaluation for two minutes and creates a "still evaluating..."
+     * stall the user perceives as a hang. Tighter timeouts here force a
+     * faster fall-through to Groq/Gemini.
+     *
+     * Defaults are also tier-aware: Gemini Flash is faster on the wire so
+     * it gets a shorter budget; Groq is reliable but the model is heavier.
+     */
+    private const TIMEOUTS = [
+        'openrouter' => 25,
+        'openai' => 25,
+        'groq' => 30,
+        'gemini' => 30,
+    ];
+
+    /**
+     * Status codes that warrant a single in-tier retry before falling
+     * through to the next provider. 5xx upstream errors are usually
+     * transient (rate-limit-adjacent, model overloaded); a transport
+     * failure (status=0) is even more likely transient. We retry ONCE
+     * to absorb the blip without doubling the latency budget.
+     */
+    private function shouldRetryWithinTier(int $status): bool
+    {
+        return $status === 0 || ($status >= 500 && $status < 600);
+    }
+
+    /**
      * Fire a single chat-completions HTTP call. Never logs the API key — only
      * its anonymized index in caller context.
      *
      * Returns ['status' => int, 'body' => array|null]. status=0 indicates
      * a transport-layer exception (timeout, DNS, etc.) — treated as 429-like
      * for fallthrough purposes.
+     *
+     * R2: now retries once on 5xx / transport failures within the same tier
+     * before returning. A second 5xx falls through naturally.
      */
     private function httpCall(string $baseUrl, string $key, array $payload, string $provider = '?', string $model = '?'): array
+    {
+        $timeout = self::TIMEOUTS[$provider] ?? 30;
+
+        $attempt = $this->doHttpCall($baseUrl, $key, $payload, $provider, $model, $timeout);
+
+        if ($this->shouldRetryWithinTier($attempt['status'])) {
+            Log::warning('LLM tier retry', [
+                'provider' => $provider,
+                'model' => $model,
+                'first_status' => $attempt['status'],
+            ]);
+            $retry = $this->doHttpCall($baseUrl, $key, $payload, $provider, $model, $timeout);
+            // Only adopt the retry if it's a hard success OR a different
+            // non-transient status — otherwise keep the first attempt for
+            // the caller's fall-through decision (avoids a 5xx→transport
+            // flip that confuses isHardError).
+            if ($retry['status'] >= 200 && $retry['status'] < 300) {
+                return $retry;
+            }
+            if ($retry['status'] !== 0 && ! ($retry['status'] >= 500 && $retry['status'] < 600)) {
+                return $retry;
+            }
+        }
+
+        return $attempt;
+    }
+
+    /**
+     * Single underlying HTTP attempt. Pulled out of httpCall() so the
+     * retry path can reuse it without recursing.
+     */
+    private function doHttpCall(string $baseUrl, string $key, array $payload, string $provider, string $model, int $timeoutSec): array
     {
         $start = microtime(true);
         $status = 0;
         $body = null;
         try {
-            $resp = Http::timeout(120)
+            $resp = Http::timeout($timeoutSec)
                 ->withHeaders([
                     'Authorization' => 'Bearer '.$key,
                     'Content-Type' => 'application/json',
@@ -336,7 +440,11 @@ class LLMRouter
 
             return ['status' => $status, 'body' => $body];
         } catch (\Throwable $e) {
-            Log::error('LLM transport error: '.$e->getMessage());
+            Log::error('LLM transport error: '.$e->getMessage(), [
+                'provider' => $provider,
+                'model' => $model,
+                'timeout_s' => $timeoutSec,
+            ]);
 
             return ['status' => 0, 'body' => null];
         } finally {

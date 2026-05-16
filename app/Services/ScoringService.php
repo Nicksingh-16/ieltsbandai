@@ -332,7 +332,14 @@ class ScoringService
             $stageTimings['total_ms'] = (int) ((microtime(true) - $tStart) * 1000);
             $scoring['_audit'] = [
                 'latency_ms' => $stageTimings,
-                'prompt_version' => 'L5-v6',
+                'prompt_version' => self::PROMPT_VERSION,
+                // R1: which provider/model actually produced the response.
+                // Surfaces which fallback tier the router landed on so we can
+                // tell "did this evaluation come from gpt-4o-mini, Groq, or
+                // Gemini?" without joining llm_call_logs. Persisted into
+                // tests.result by WritingTestService.
+                'provider' => $this->router->lastProvider(),
+                'model' => $this->router->lastModel(),
                 'pipeline_caps' => array_map(
                     fn ($c) => $c['rule'].':'.$c['field'].'('.$c['from'].'→'.$c['to'].')',
                     $scoring['cap_log'] ?? []
@@ -346,6 +353,9 @@ class ScoringService
                 'user_id' => $userId,
                 'word_count' => $wordCount,
                 'is_task2' => $isTask2,
+                'provider' => $scoring['_audit']['provider'],
+                'model' => $scoring['_audit']['model'],
+                'prompt_version' => self::PROMPT_VERSION,
                 'raw_scores' => [
                     'ta' => $scoring['task_achievement_raw'] ?? null,
                     'cc' => $scoring['coherence_cohesion_raw'] ?? null,

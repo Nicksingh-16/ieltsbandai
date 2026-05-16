@@ -45,7 +45,7 @@ class ScoringService
      * Bump on any material change to the prompt body or retrieval strategy
      * (e.g. L3-v2 = topic-keyword-ranked few-shot, L4-v1 = LanguageTool block).
      */
-    public const PROMPT_VERSION = 'L5-v7';
+    public const PROMPT_VERSION = 'L5-v8';
 
     protected CalibrationService $calibration;
 
@@ -297,6 +297,26 @@ class ScoringService
             $ltErrors = $this->collectLanguageToolErrors($answer);
             $merged = $this->mergeErrorSources($normalizedErrors, $ltErrors);
             $scoring['errors'] = $this->groupRepeatedErrors($merged);
+
+            // Audit the LLM's tip quality against the L5-v8 forbidden-phrase
+            // list. Doesn't mutate output (yet) — gives us a signal to know
+            // whether the strengthened prompt is actually killing the generic
+            // "continue to use a variety of grammatical structures" templates
+            // in production. If the count is non-zero on real traffic we'll
+            // need a stronger intervention (retry, post-process rewrite).
+            $genericTips = $this->countGenericTips($scoring['band_explanations'] ?? []);
+            if ($genericTips > 0) {
+                Log::warning('Generic tips detected in LLM output', [
+                    'count' => $genericTips,
+                    'criteria' => array_keys($scoring['band_explanations'] ?? []),
+                    'final_scores' => [
+                        'ta' => $scoring['task_achievement'] ?? null,
+                        'cc' => $scoring['coherence_cohesion'] ?? null,
+                        'lr' => $scoring['lexical_resource'] ?? null,
+                        'gra' => $scoring['grammar'] ?? null,
+                    ],
+                ]);
+            }
 
             // Stash error-source counts for the audit log so incidents can be
             // replayed without re-running the pipeline. Counted PRE-grouping
@@ -1165,11 +1185,98 @@ Provide evaluation in JSON:
 MANDATORY — BAND EXPLANATIONS:
 - You MUST generate detailed "why" and "tip" for ALL 4 criteria. No exceptions.
 - The "why" field must cite SPECIFIC evidence from the response — quote or reference actual sentences/words.
-- The "tip" field must be tied to what the NEXT band descriptor requires — tell the candidate exactly what to do differently.
 - DO NOT use generic placeholders like "pending", "rationale pending", or "see above".
-- Example for Task Achievement Band 6.0 (Task 1):
-  "why": "The overview correctly identifies that urban populations increased while rural populations declined, satisfying the Band 6 descriptor of 'key features are selected and highlighted'. However, the overview lacks a comparative endpoint figure, which prevents it from being 'clearly presented' at Band 7."
-  "tip": "At Band 7, your overview must identify the most significant feature AND include a key comparator (e.g., 'by 2020, urban residents outnumbered rural by 2:1'). Add one precise comparative statement to your overview paragraph."
+
+MANDATORY — TIP FIELD RULES (L5-v8, hardened after the "everyone gets
+'continue using varied structures'" complaint):
+
+Every "tip" MUST contain BOTH of the following, with no exceptions:
+  (1) A SHORT VERBATIM QUOTE from the candidate's response (in single
+      quotes). Pick a phrase, sentence, or paragraph opener that
+      represents the weakness you are addressing. Pick a DIFFERENT
+      quote for each of the four criteria — do not repeat the same
+      span across tips.
+  (2) A CONCRETE REWRITE or REPLACEMENT showing what they should do
+      INSTEAD, written so the candidate could copy-paste it. If the
+      problem is structural (missing paragraph, missing overview, etc.)
+      then describe the structural change at a specific location, not
+      in the abstract.
+
+FORBIDDEN tip phrases — if you use any of these, the response is
+invalid. These are generic templates that give the candidate nothing
+to act on:
+  - "use a wider range of vocabulary"
+  - "use more varied / sophisticated cohesive devices"
+  - "vary the cohesive devices used"
+  - "use a variety of grammatical structures"
+  - "use a variety of sentence structures"
+  - "continue to use ..."
+  - "ensure transitions between ideas are seamless"
+  - "focus on reducing grammatical errors"
+  - "expand your vocabulary"
+  - "practice using more complex sentences"
+  - "ensure that less common items are used accurately"
+
+CALIBRATED EXAMPLES — tip format varies by current band:
+
+Band 5 → 6 example (Task Achievement, Task 1):
+  "why": "The overview mentions that 'the population increased' but does
+   not specify which group or by how much, which keeps the response at
+   the Band 5 descriptor 'key features are partially identified'."
+  "tip": "Rewrite the overview sentence 'the population increased' as
+   'overall, the urban population doubled between 1990 and 2020 while
+   the rural population fell by roughly a third'. A Band 6 overview must
+   name BOTH directions of change AND give one numerical comparator."
+
+Band 6 → 7 example (Coherence & Cohesion, Task 2):
+  "why": "Three consecutive sentences in paragraph 2 begin with
+   'Furthermore', which the Band 6 descriptor flags as 'over-/under-use
+   of cohesive devices'."
+  "tip": "In paragraph 2, change the second 'Furthermore, ...' to a
+   different connector that signals a different relationship — e.g.
+   'In addition to this,' (additive) or 'A second reason is that'
+   (enumerative). Reserve 'Furthermore' for the strongest of your
+   supporting points."
+
+Band 7 → 8 example (Lexical Resource, Task 1 letter):
+  "why": "The phrase 'was completely broken' in paragraph 1 is a Band 6
+   collocation. The rest of the letter uses Band 7 vocabulary
+   ('dissatisfaction', 'unprofessional'), so the single weak collocation
+   is what is holding Lexical Resource at Band 7."
+  "tip": "Replace 'was completely broken' with 'had malfunctioned for
+   the entire duration of the flight'. 'Malfunction' is the standard
+   formal verb in airline-complaint register and the past perfect
+   tightens the cause-effect link with the next sentence."
+
+Band 7 → 8 example (Grammatical Range, Task 2):
+  "why": "The essay uses complex sentences with subordinate clauses
+   ('although ...', 'because ...') but has no participle phrases or
+   inversion — both Band 8 markers. The sentence 'Many people believe
+   that technology is harmful because they spend too much time online'
+   is typical: subordinate clause, no further variation."
+  "tip": "Rewrite 'Many people believe that technology is harmful
+   because they spend too much time online' as 'Spending excessive time
+   online, many people have come to view technology as harmful'. The
+   front-loaded participle phrase ('Spending ... online') is a Band 8
+   structure that demonstrates 'wide range of structures with full
+   flexibility and accuracy'."
+
+Band 8 → 9 example (Task Achievement, Task 2):
+  "why": "Both sides of the discussion are presented and a clear
+   position is given, satisfying Band 8. The conclusion in paragraph 4
+   restates the position but does not engage with the opposing view's
+   strongest claim ('automation creates new jobs'), which is what
+   separates Band 9 'fully developed response' from Band 8."
+  "tip": "In the final paragraph, after 'I therefore believe ...', add
+   one sentence that names and rebuts the opposing view's strongest
+   claim — e.g. 'While it is true that automation has historically
+   created new categories of work, the speed of current AI-driven
+   displacement leaves insufficient time for that compensating effect.'
+   Direct engagement with the strongest counter-claim is the Band 9
+   marker."
+
+The pattern above applies at EVERY band level. Even at Band 9, find one
+sentence to refine — there is always something specific to point at.
 
 CRITICAL ERROR EXTRACTION RULES:
 - Extract ONLY the MINIMAL error portion (1-5 words maximum). DO NOT extract full sentences.
@@ -2166,6 +2273,56 @@ CRITERIA;
 
     /** Short actionable tip per cap rule, replacing the LLM tip that was
      *  written for the pre-cap band. */
+    /**
+     * Phrases that the L5-v8 prompt forbids in tip fields. Detecting them
+     * in the LLM's output means the prompt's constraint did not take hold
+     * — we log a warning so we can iterate. The list mirrors the prompt
+     * exactly (substring, case-insensitive); keep them in sync.
+     */
+    private const FORBIDDEN_TIP_PHRASES = [
+        'use a wider range of vocabulary',
+        'use more varied',
+        'use more sophisticated cohesive',
+        'vary the cohesive devices',
+        'use a variety of grammatical structures',
+        'use a variety of sentence structures',
+        'continue to use',
+        'ensure transitions between ideas are seamless',
+        'focus on reducing grammatical errors',
+        'expand your vocabulary',
+        'practice using more complex sentences',
+        'ensure that less common items are used accurately',
+    ];
+
+    /**
+     * Count how many criterion tips in band_explanations contain at least
+     * one phrase from the forbidden-templates list. Used purely for audit
+     * logging — no mutation. If this stays non-zero on production traffic
+     * after L5-v8 deploys, the prompt change is not strong enough and a
+     * second intervention is needed (LLM retry, deterministic rewrite).
+     */
+    protected function countGenericTips(array $bandExplanations): int
+    {
+        $hit = 0;
+        foreach ($bandExplanations as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+            $tip = strtolower((string) ($entry['tip'] ?? ''));
+            if ($tip === '') {
+                continue;
+            }
+            foreach (self::FORBIDDEN_TIP_PHRASES as $phrase) {
+                if (str_contains($tip, $phrase)) {
+                    $hit++;
+                    break;
+                }
+            }
+        }
+
+        return $hit;
+    }
+
     protected function capTipForRule(string $rule, string $field): string
     {
         return match ($rule) {

@@ -580,6 +580,41 @@ class ScoringLogicTest extends TestCase
         $this->assertFalse($this->invokeProtected('isAcceptableBritishSpelling', ['behaviour', '']));
     }
 
+    // ── countGenericTips (L5-v8) ─────────────────────────────────────────
+    // Observability helper that flags when the LLM falls back to the
+    // forbidden tip templates ("use a wider range of vocabulary" etc.).
+    // We don't mutate output on a hit yet — just log so we can iterate.
+
+    public function test_count_generic_tips_flags_forbidden_phrases()
+    {
+        $bandExplanations = [
+            'task_achievement' => ['tip' => 'Add a comparator to your overview sentence.'],
+            'coherence_cohesion' => ['tip' => 'Vary the cohesive devices used and ensure smoother transitions.'],
+            'lexical_resource' => ['tip' => 'Use a wider range of vocabulary, especially synonyms.'],
+            'grammar' => ['tip' => 'Continue to use a variety of grammatical structures.'],
+        ];
+        $this->assertSame(3, $this->invokeProtected('countGenericTips', [$bandExplanations]));
+    }
+
+    public function test_count_generic_tips_zero_on_specific_tips()
+    {
+        $bandExplanations = [
+            'task_achievement' => ['tip' => "Rewrite 'the population increased' as 'the urban population doubled by 2020'."],
+            'coherence_cohesion' => ['tip' => "Change the second 'Furthermore' in paragraph 2 to 'A further reason is'."],
+            'lexical_resource' => ['tip' => "Replace 'was completely broken' with 'had malfunctioned'."],
+            'grammar' => ['tip' => "Front-load with a participle phrase: 'Spending excessive time online, many ...'"],
+        ];
+        $this->assertSame(0, $this->invokeProtected('countGenericTips', [$bandExplanations]));
+    }
+
+    public function test_count_generic_tips_handles_missing_or_malformed_entries()
+    {
+        $this->assertSame(0, $this->invokeProtected('countGenericTips', [[]]));
+        $this->assertSame(0, $this->invokeProtected('countGenericTips', [['task_achievement' => 'just a string']]));
+        $this->assertSame(0, $this->invokeProtected('countGenericTips', [['task_achievement' => ['tip' => '']]]));
+        $this->assertSame(0, $this->invokeProtected('countGenericTips', [['task_achievement' => ['notatip' => 'x']]]));
+    }
+
     public function test_group_repeated_errors_collapses_duplicates_with_count()
     {
         $errors = [

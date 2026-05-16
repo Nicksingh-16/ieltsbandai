@@ -2620,55 +2620,78 @@ CRITERIA;
     }
 
     /**
-     * Merge LLM and LanguageTool error lists. When both flag the same span
-     * (case-insensitive text match), keep LT's exact position+correction
-     * but carry over the LLM's richer examiner-style explanation. Result is
-     * order-stable: LLM-first since they tend to be the more diagnostic
-     * (vocabulary, cohesion); LT-only entries appended after.
+     * Merge LLM and LanguageTool error lists. When both flag the same span,
+     * keep LT's exact position+correction but carry over the LLM's richer
+     * examiner-style explanation. Two overlap modes:
+     *
+     *   1. EXACT text match (case-insensitive trim) — straightforward dedupe.
+     *
+     *   2. SUBSTRING overlap — LT often emits a word-level match
+     *      (e.g. "call", "came") for the same error the LLM described at
+     *      clause level (e.g. "I should have call you"). Without this check,
+     *      the same error renders as two separate cards. Treat as overlap
+     *      when the LT text is contained inside an LLM text (or vice versa)
+     *      AND the words are non-trivial (≥3 chars) to avoid silly matches
+     *      ("a", "I", "to" appearing inside everything).
+     *
+     * Result is order-stable: LLM-first since they tend to be the more
+     * diagnostic (vocabulary, cohesion); LT-only entries appended after.
      */
     protected function mergeErrorSources(array $llmErrors, array $ltErrors): array
     {
         $byKey = static fn (array $e) => strtolower(trim($e['text']));
 
-        $llmKeys = [];
-        foreach ($llmErrors as $e) {
-            $llmKeys[$byKey($e)] = true;
-        }
-
         $merged = $llmErrors;
         $overlap = 0;
+        $overlapSubstring = 0;
         $ltOnly = 0;
 
         foreach ($ltErrors as $lt) {
-            $k = $byKey($lt);
-            if (isset($llmKeys[$k])) {
-                // Same-span overlap — find the matching LLM entry and enrich
-                // it with LT's verified position + replacement.
-                foreach ($merged as &$llm) {
-                    if ($byKey($llm) !== $k) {
-                        continue;
-                    }
-                    $llm['offset'] = $llm['offset'] ?? $lt['offset'];
-                    $llm['length'] = $llm['length'] ?? $lt['length'];
-                    if (empty($llm['correction']) && ! empty($lt['correction'])) {
-                        $llm['correction'] = $lt['correction'];
-                    }
-                    $llm['source'] = 'llm+languagetool';
-                    break;
-                }
-                unset($llm); // break the by-ref binding
-                $overlap++;
+            $ltKey = $byKey($lt);
+            $absorbed = false;
 
-                continue;
+            foreach ($merged as &$llm) {
+                $llmKey = $byKey($llm);
+
+                $isExact = ($llmKey === $ltKey);
+                $isSubstring = ! $isExact
+                    && strlen($ltKey) >= 3
+                    && (str_contains($llmKey, $ltKey) || str_contains($ltKey, $llmKey));
+
+                if (! $isExact && ! $isSubstring) {
+                    continue;
+                }
+
+                // Carry LT's verified position + replacement into the LLM
+                // entry. Keep LLM's text (broader clause is more readable)
+                // and explanation (richer examiner prose).
+                $llm['offset'] = $llm['offset'] ?? $lt['offset'];
+                $llm['length'] = $llm['length'] ?? $lt['length'];
+                if (empty($llm['correction']) && ! empty($lt['correction'])) {
+                    $llm['correction'] = $lt['correction'];
+                }
+                $llm['source'] = 'llm+languagetool';
+                $absorbed = true;
+                if ($isExact) {
+                    $overlap++;
+                } else {
+                    $overlapSubstring++;
+                }
+                break;
             }
-            $merged[] = $lt;
-            $ltOnly++;
+            unset($llm); // break the by-ref binding
+
+            if (! $absorbed) {
+                $merged[] = $lt;
+                $ltOnly++;
+            }
         }
 
         Log::info('Error merge summary', [
             'llm_count' => count($llmErrors),
             'lt_count' => count($ltErrors),
-            'overlap' => $overlap,
+            'overlap_exact' => $overlap,
+            'overlap_substring' => $overlapSubstring,
             'lt_only_added' => $ltOnly,
             'merged_total' => count($merged),
         ]);

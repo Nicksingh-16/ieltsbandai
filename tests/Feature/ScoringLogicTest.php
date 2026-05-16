@@ -488,6 +488,56 @@ class ScoringLogicTest extends TestCase
         $this->assertSame('languagetool', $out[1]['source']);
     }
 
+    public function test_merge_treats_substring_lt_match_as_overlap()
+    {
+        // Reproduces the production test_id 19 case: LLM described the
+        // error at clause level ("I should have call you"), LT flagged the
+        // same root error at word level ("call"). Pre-substring-dedupe
+        // they were rendered as two separate cards. Now LT is absorbed.
+        $llm = [
+            ['text' => 'I should have call you', 'type' => 'Grammar', 'severity' => 'high', 'source' => 'llm', 'correction' => 'I should have called you', 'explanation' => 'Past participle required after should have.'],
+            ['text' => 'few friend', 'type' => 'Grammar', 'severity' => 'medium', 'source' => 'llm', 'correction' => 'few friends', 'explanation' => 'Plural agreement.'],
+        ];
+        $lt = [
+            ['text' => 'call', 'type' => 'Grammar', 'severity' => 'medium', 'source' => 'languagetool', 'offset' => 65, 'length' => 4, 'correction' => 'called', 'explanation' => 'Inflection of verb call.'],
+            ['text' => ',', 'type' => 'Punctuation', 'severity' => 'medium', 'source' => 'languagetool', 'offset' => 100, 'length' => 1, 'correction' => ', ', 'explanation' => 'Missing comma.'],
+        ];
+
+        $out = $this->invokeProtected('mergeErrorSources', [$llm, $lt]);
+
+        // Expectation: 3 cards, not 4.
+        //   • 'I should have call you' enriched with LT position+source
+        //   • 'few friend' untouched
+        //   • LT comma appended as its own card (too short to substring-match
+        //     anything meaningfully — len < 3 → not eligible)
+        $this->assertCount(3, $out);
+        $this->assertSame('I should have call you', $out[0]['text']);
+        $this->assertSame('llm+languagetool', $out[0]['source']);
+        $this->assertSame(65, $out[0]['offset']); // LT position carried over
+        $this->assertSame('Past participle required after should have.', $out[0]['explanation']); // LLM kept
+        $this->assertSame('few friend', $out[1]['text']);
+        $this->assertSame('llm', $out[1]['source']);
+        $this->assertSame(',', $out[2]['text']);
+        $this->assertSame('languagetool', $out[2]['source']);
+    }
+
+    public function test_merge_does_not_treat_very_short_lt_match_as_substring_overlap()
+    {
+        // Guard rail: an LT match for a single letter like "I" or "a"
+        // would substring-match almost any LLM error. Short tokens (<3
+        // chars) must NOT trigger the substring dedupe path.
+        $llm = [
+            ['text' => 'I should have called', 'type' => 'Grammar', 'severity' => 'high', 'source' => 'llm', 'correction' => 'I should have called', 'explanation' => 'OK'],
+        ];
+        $lt = [
+            ['text' => 'I', 'type' => 'Grammar', 'severity' => 'medium', 'source' => 'languagetool', 'offset' => 0, 'length' => 1, 'correction' => 'I,', 'explanation' => 'comma'],
+        ];
+
+        $out = $this->invokeProtected('mergeErrorSources', [$llm, $lt]);
+
+        $this->assertCount(2, $out); // both kept — no spurious dedupe
+    }
+
     // ── isAcceptableBritishSpelling (L5-v7) ──────────────────────────────
     // IELTS Cambridge accepts both BrE and AmE spellings. LT's en-US
     // dictionary flags BrE forms; we drop those matches when the suggested
